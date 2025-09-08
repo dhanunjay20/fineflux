@@ -11,6 +11,12 @@ import Dashboard from "./pages/Dashboard";
 import Employees from "./pages/Employees";
 import Inventory from "./pages/Inventory";
 import Sales from "./pages/Sales";
+import Borrowers from "./pages/Borrowers";
+import Reports from "./pages/Reports";
+import Expenses from "./pages/Expenses";
+import Attendance from "./pages/Attendance";
+import Settings from "./pages/Settings";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,7 +65,6 @@ const App = () => (
               }
             />
             
-            {/* Placeholder routes - to be implemented */}
             <Route
               path="/sales"
               element={
@@ -75,49 +80,7 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={['owner', 'manager']}>
                   <DashboardLayout>
-                    <div className="p-6">
-                      <h1 className="text-3xl font-bold">Borrowers Management</h1>
-                      <p className="text-muted-foreground">Coming soon...</p>
-                    </div>
-                  </DashboardLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/analytics"
-              element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
-                  <DashboardLayout>
-                    <div className="p-6">
-                      <h1 className="text-3xl font-bold">Analytics & Reports</h1>
-                      <p className="text-muted-foreground">Coming soon...</p>
-                    </div>
-                  </DashboardLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/attendance"
-              element={
-                <ProtectedRoute requiredRoles={['employee']}>
-                  <DashboardLayout>
-                    <div className="p-6">
-                      <h1 className="text-3xl font-bold">Attendance</h1>
-                      <p className="text-muted-foreground">Coming soon...</p>
-                    </div>
-                  </DashboardLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute requiredRoles={['employee']}>
-                  <DashboardLayout>
-                    <div className="p-6">
-                      <h1 className="text-3xl font-bold">My Profile</h1>
-                      <p className="text-muted-foreground">Coming soon...</p>
-                    </div>
+                    <Borrowers />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
@@ -127,10 +90,37 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={['owner', 'manager']}>
                   <DashboardLayout>
-                    <div className="p-6">
-                      <h1 className="text-3xl font-bold">Reports</h1>
-                      <p className="text-muted-foreground">Coming soon...</p>
-                    </div>
+                    <Reports />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/expenses"
+              element={
+                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                  <DashboardLayout>
+                    <Expenses />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/attendance"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <Attendance />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <Profile />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
@@ -140,10 +130,7 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={['owner', 'manager']}>
                   <DashboardLayout>
-                    <div className="p-6">
-                      <h1 className="text-3xl font-bold">Settings</h1>
-                      <p className="text-muted-foreground">Coming soon...</p>
-                    </div>
+                    <Settings />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
