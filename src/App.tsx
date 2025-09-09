@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import Index from "./pages/Index";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
@@ -17,6 +18,7 @@ import Expenses from "./pages/Expenses";
 import Attendance from "./pages/Attendance";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
+import Analytics from "./pages/Analytics";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,10 +32,10 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             {/* Public Routes */}
+            <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             
             {/* Protected Routes */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route
               path="/dashboard"
               element={
@@ -131,6 +133,16 @@ const App = () => (
                 <ProtectedRoute requiredRoles={['owner', 'manager']}>
                   <DashboardLayout>
                     <Settings />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                  <DashboardLayout>
+                    <Analytics />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
