@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useLocation, NavLink } from 'react-router-dom';
 import {
   BarChart3,
@@ -9,19 +8,26 @@ import {
   Settings,
   LogOut,
   Home,
-  Calendar,
-  TrendingUp,
   CreditCard,
   Building2,
   FileText,
-  Bell,
-  Menu,
-  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from '@/components/ui/sidebar';
 
 interface NavItem {
   title: string;
@@ -95,7 +101,6 @@ const navigationItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const { user, logout } = useAuth();
   const location = useLocation();
 
@@ -125,99 +130,78 @@ export function AppSidebar() {
   };
 
   return (
-    <div
-      className={cn(
-        'h-screen bg-sidebar border-r border-sidebar-border flex flex-col transition-all duration-300',
-        isCollapsed ? 'w-16' : 'w-64'
-      )}
-    >
-      {/* Header */}
-      <div className="p-4 border-b border-sidebar-border">
-        <div className="flex items-center justify-between">
-          {!isCollapsed && (
-            <div className="flex items-center gap-2">
-              <Building2 className="h-8 w-8 text-sidebar-primary" />
-              <div>
-                <h1 className="font-bold text-sidebar-foreground">PetrolBunk</h1>
-                <p className="text-xs text-sidebar-foreground/70">Management System</p>
-              </div>
-            </div>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            {isCollapsed ? <Menu className="h-4 w-4" /> : <X className="h-4 w-4" />}
-          </Button>
-        </div>
-      </div>
-
-      {/* User Info */}
-      {user && (
-        <div className="p-4 border-b border-sidebar-border">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10">
-              <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground font-semibold">
-                {getUserInitials(user.name)}
-              </AvatarFallback>
-            </Avatar>
-            {!isCollapsed && (
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sidebar-foreground truncate">{user.name}</p>
-                <p className="text-sm text-sidebar-foreground/70">{getRoleBadge(user.role)}</p>
-              </div>
-            )}
+    <Sidebar className="border-r">
+      <SidebarHeader>
+        <div className="flex items-center gap-2 px-2">
+          <Building2 className="h-8 w-8 text-primary" />
+          <div className="group-data-[collapsible=icon]:hidden">
+            <h1 className="font-bold text-sidebar-foreground">PetrolBunk</h1>
+            <p className="text-xs text-sidebar-foreground/70">Management System</p>
           </div>
         </div>
-      )}
+      </SidebarHeader>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-        {filteredItems.map((item) => {
-          const isActive = location.pathname === item.href;
-          const Icon = item.icon;
+      <SidebarContent>
+        {/* User Info */}
+        {user && (
+          <SidebarGroup>
+            <div className="flex items-center gap-3 px-2 py-2">
+              <Avatar className="h-8 w-8 shrink-0">
+                <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
+                  {getUserInitials(user.name)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
+                <p className="font-medium text-sidebar-foreground truncate text-sm">{user.name}</p>
+                <p className="text-xs text-sidebar-foreground/70">{getRoleBadge(user.role)}</p>
+              </div>
+            </div>
+          </SidebarGroup>
+        )}
 
-          return (
-            <NavLink
-              key={item.href}
-              to={item.href}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200',
-                'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                isActive && 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md',
-                isCollapsed && 'justify-center'
-              )}
-            >
-              <Icon className={cn('h-5 w-5', isCollapsed ? 'h-6 w-6' : '')} />
-              {!isCollapsed && (
-                <span className="font-medium">{item.title}</span>
-              )}
-              {!isCollapsed && item.badge && (
-                <span className="ml-auto px-2 py-1 text-xs bg-accent text-accent-foreground rounded-full">
-                  {item.badge}
-                </span>
-              )}
-            </NavLink>
-          );
-        })}
-      </nav>
+        {/* Navigation */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {filteredItems.map((item) => {
+                const isActive = location.pathname === item.href;
+                const Icon = item.icon;
 
-      {/* Logout */}
-      <div className="p-4 border-t border-sidebar-border">
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={isActive}>
+                      <NavLink
+                        to={item.href}
+                        className="flex items-center gap-2"
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                        {item.badge && (
+                          <span className="ml-auto px-1.5 py-0.5 text-xs bg-accent text-accent-foreground rounded-full">
+                            {item.badge}
+                          </span>
+                        )}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter>
         <Button
           variant="ghost"
           onClick={handleLogout}
-          className={cn(
-            'w-full flex items-center gap-3 text-sidebar-foreground hover:bg-destructive hover:text-destructive-foreground',
-            isCollapsed && 'justify-center px-2'
-          )}
+          className="w-full justify-start text-sidebar-foreground hover:bg-destructive hover:text-destructive-foreground"
         >
-          <LogOut className="h-5 w-5" />
-          {!isCollapsed && <span>Logout</span>}
+          <LogOut className="h-4 w-4 mr-2" />
+          <span className="group-data-[collapsible=icon]:hidden">Logout</span>
         </Button>
-      </div>
-    </div>
+      </SidebarFooter>
+    </Sidebar>
   );
 }
