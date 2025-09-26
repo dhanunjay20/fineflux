@@ -196,6 +196,10 @@
     @apply bg-gradient-to-r from-accent to-accent-hover text-accent-foreground shadow-lg hover:shadow-xl transition-all duration-300;
   }
 
+  .btn-gradient-warning {
+    @apply bg-gradient-to-r from-warning to-warning/90 text-warning-foreground shadow-lg hover:shadow-xl transition-all duration-300;
+  }
+
   /* Card Variants */
   .card-gradient {
     @apply bg-gradient-to-br from-card to-card/95 shadow-lg border-0;
