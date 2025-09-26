@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Building2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,53 +9,41 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 export function LoginForm() {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  
+
   const { login, isLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!email || !password) {
+
+    if (!username || !password) {
       toast({
         title: 'Error',
-        description: 'Please enter both email and password',
+        description: 'Please enter both username and password',
         variant: 'destructive',
       });
       return;
     }
 
-    const success = await login(email, password);
-    
-    if (success) {
-      toast({
-        title: 'Welcome back!',
-        description: 'Login successful',
-      });
-      navigate('/dashboard');
+    const ok = await login(username, password, rememberMe);
+
+    if (ok) {
+      toast({ title: 'Welcome back!', description: 'Login successful' });
+      const from = (location.state as any)?.from?.pathname;
+      navigate(from || '/dashboard', { replace: true });
     } else {
       toast({
         title: 'Login failed',
-        description: 'Invalid email or password',
+        description: 'Invalid username or password',
         variant: 'destructive',
       });
     }
-  };
-
-  const demoUsers = [
-    { email: 'owner@petrolbunk.com', role: 'Owner', password: 'demo123' },
-    { email: 'manager@petrolbunk.com', role: 'Manager', password: 'demo123' },
-    { email: 'employee@petrolbunk.com', role: 'Employee', password: 'demo123' },
-  ];
-
-  const fillDemoCredentials = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword('demo123');
   };
 
   return (
@@ -68,33 +56,32 @@ export function LoginForm() {
               <Building2 className="h-12 w-12 text-primary-foreground" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-foreground">PetrolBunk Manager</h1>
+          <h1 className="text-3xl font-bold text-foreground">FineFlux</h1>
           <p className="text-muted-foreground">Comprehensive Petrol Station Management</p>
         </div>
 
         {/* Login Form */}
         <Card className="card-gradient">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-semibold">Welcome back</CardTitle>
-            <CardDescription>
-              Enter your credentials to access your account
-            </CardDescription>
+            <CardTitle className="text-2xl font-semibold">Welcome back To FineFlux</CardTitle>
+            <CardDescription>Enter your credentials to access your account</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="username">Username</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="username"
+                  type="text"
+                  placeholder="Enter your username"
+                  autoComplete="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   disabled={isLoading}
                   className="transition-base"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <div className="relative">
@@ -102,6 +89,7 @@ export function LoginForm() {
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     placeholder="Enter your password"
+                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={isLoading}
@@ -130,16 +118,15 @@ export function LoginForm() {
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="rounded border-border"
+                  disabled={isLoading}
                 />
-                <Label htmlFor="remember" className="text-sm">
-                  Remember me
-                </Label>
+                <Label htmlFor="remember" className="text-sm">Remember me</Label>
               </div>
 
               <Button
                 type="submit"
                 className="w-full btn-gradient-primary"
-                disabled={isLoading}
+                disabled={isLoading || !username || !password}
               >
                 {isLoading ? (
                   <>
@@ -151,32 +138,12 @@ export function LoginForm() {
                 )}
               </Button>
             </form>
-
-            <div className="mt-6">
-              <div className="text-center text-sm text-muted-foreground mb-4">
-                Demo Accounts (Click to fill credentials)
-              </div>
-              <div className="grid gap-2">
-                {demoUsers.map((user) => (
-                  <Button
-                    key={user.email}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fillDemoCredentials(user.email)}
-                    className="justify-start text-sm"
-                  >
-                    <span className="font-medium">{user.role}</span>
-                    <span className="text-muted-foreground ml-2">({user.email})</span>
-                  </Button>
-                ))}
-              </div>
-            </div>
           </CardContent>
         </Card>
 
         {/* Footer */}
         <div className="text-center text-sm text-muted-foreground">
-          <p>© 2024 PetrolBunk Management System</p>
+          <p>© 2025 FineFlux System</p>
           <p>Professional fuel station management solution</p>
         </div>
       </div>
