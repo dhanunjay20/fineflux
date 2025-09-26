@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useNavigate } from 'react-router-dom';
 import {
   Users,
   Clock,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 
 export function ManagerDashboard() {
+  const navigate = useNavigate();
   const todayStats = [
     {
       title: 'Present Today',
@@ -50,10 +52,11 @@ export function ManagerDashboard() {
   ];
 
   const quickActions = [
-    { title: 'Record Sales Entry', icon: DollarSign, color: 'btn-gradient-success' },
-    { title: 'Log Expense', icon: TrendingDown, color: 'btn-gradient-accent' },
-    { title: 'Update Stock', icon: Fuel, color: 'btn-gradient-primary' },
-    { title: 'Generate DSR', icon: FileText, color: 'btn-gradient-primary' },
+    { title: 'Record Sales Entry', icon: DollarSign, color: 'btn-gradient-success', action: () => navigate('/sales') },
+    { title: 'Log Expense', icon: TrendingDown, color: 'btn-gradient-accent', action: () => navigate('/expenses') },
+    { title: 'Update Stock', icon: Fuel, color: 'btn-gradient-primary', action: () => navigate('/inventory') },
+    { title: 'Set Employee Duty', icon: Users, color: 'btn-gradient-warning', action: () => navigate('/employee-duty') },
+    { title: 'Generate DSR', icon: FileText, color: 'btn-gradient-primary', action: () => navigate('/reports') },
   ];
 
   const attendanceToday = [
@@ -152,6 +155,7 @@ export function ManagerDashboard() {
                   key={action.title}
                   className={`${action.color} h-auto p-4 flex-col gap-2`}
                   size="lg"
+                  onClick={action.action}
                 >
                   <Icon className="h-6 w-6" />
                   <span className="text-sm font-medium">{action.title}</span>

@@ -19,6 +19,7 @@ import Attendance from "./pages/Attendance";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Analytics from "./pages/Analytics";
+import EmployeeDuty from "./pages/EmployeeDuty";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -148,6 +149,16 @@ const App = () => (
                 <ProtectedRoute requiredRoles={['owner', 'manager']}>
                   <DashboardLayout>
                     <Analytics />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/employee-duty"
+              element={
+                <ProtectedRoute requiredRoles={['manager']}>
+                  <DashboardLayout>
+                    <EmployeeDuty />
                   </DashboardLayout>
                 </ProtectedRoute>
               }

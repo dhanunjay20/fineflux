@@ -11,6 +11,7 @@ import {
   CreditCard,
   Building2,
   FileText,
+  ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -49,6 +50,12 @@ const navigationItems: NavItem[] = [
     icon: Users,
     href: '/employees',
     roles: ['owner', 'manager'],
+  },
+  {
+    title: 'Employee Duty',
+    icon: ClipboardList,
+    href: '/employee-duty',
+    roles: ['manager'],
   },
   {
     title: 'Tank Inventory',
