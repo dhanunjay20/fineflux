@@ -142,7 +142,7 @@ export function AppSidebar() {
         <div className="flex items-center gap-2 px-2">
           <Building2 className="h-8 w-8 text-primary" />
           <div className="group-data-[collapsible=icon]:hidden">
-            <h1 className="font-bold text-sidebar-foreground">PetrolBunk</h1>
+            <h1 className="font-bold text-sidebar-foreground">FineFlux</h1>
             <p className="text-xs text-sidebar-foreground/70">Management System</p>
           </div>
         </div>
