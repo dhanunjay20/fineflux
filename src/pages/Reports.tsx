@@ -17,6 +17,8 @@ import {
   Filter,
   Eye,
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import * as XLSX from 'xlsx';
 
 export default function Reports() {
   const { toast } = useToast();
@@ -56,129 +58,202 @@ export default function Reports() {
     return csvContent;
   };
 
-  // Helper function to generate HTML content for PDF-like reports
-  const generateHTMLReport = (reportType: string) => {
+  // Helper function to generate Excel workbook
+  const generateExcelWorkbook = (reportType: string) => {
+    let data: any[] = [];
+    
+    if (reportType.includes('Daily Sales')) {
+      data = [
+        ['Petrol Bunk Management System - Daily Sales Report'],
+        ['Generated on: ' + new Date().toLocaleDateString('en-IN')],
+        [],
+        ['Fuel Type', 'Opening (L)', 'Sales (L)', 'Closing (L)', 'Rate (₹)', 'Amount (₹)'],
+        ['Petrol', 5000, 1234, 3766, 102.50, 126485],
+        ['Diesel', 8000, 2156, 5844, 89.75, 193545],
+        ['Premium', 2000, 456, 1544, 115.20, 52531],
+        [],
+        ['Total Collection', '', '', '', '', 372561],
+      ];
+    } else if (reportType.includes('Monthly')) {
+      data = [
+        ['Petrol Bunk Management System - Monthly Summary'],
+        ['Generated on: ' + new Date().toLocaleDateString('en-IN')],
+        [],
+        ['Metric', 'Value'],
+        ['Total Sales', '₹12,45,680'],
+        ['Total Expenses', '₹4,23,150'],
+        ['Net Profit', '₹8,22,530'],
+        ['Growth vs Previous Month', '+12.5%'],
+      ];
+    } else if (reportType.includes('Inventory')) {
+      data = [
+        ['Petrol Bunk Management System - Inventory Report'],
+        ['Generated on: ' + new Date().toLocaleDateString('en-IN')],
+        [],
+        ['Tank', 'Fuel Type', 'Capacity', 'Current Stock', 'Status'],
+        ['Tank 1', 'Petrol', '10,000 L', '7,850 L', 'Good'],
+        ['Tank 2', 'Diesel', '15,000 L', '12,340 L', 'Good'],
+        ['Tank 3', 'Premium', '8,000 L', '2,100 L', 'Low Stock'],
+      ];
+    } else if (reportType.includes('Employee')) {
+      data = [
+        ['Petrol Bunk Management System - Employee Report'],
+        ['Generated on: ' + new Date().toLocaleDateString('en-IN')],
+        [],
+        ['Employee', 'Role', 'Attendance', 'Working Days', 'Salary'],
+        ['Rajesh Kumar', 'Operator', '95%', '29/31', '₹25,000'],
+        ['Priya Sharma', 'Cashier', '98%', '30/31', '₹22,000'],
+        ['Amit Patel', 'Supervisor', '100%', '31/31', '₹35,000'],
+      ];
+    } else {
+      data = [
+        ['Petrol Bunk Management System'],
+        [reportType],
+        ['Generated on: ' + new Date().toLocaleDateString('en-IN')],
+      ];
+    }
+    
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Report');
+    
+    return wb;
+  };
+
+  // Helper function to generate PDF
+  const generatePDF = (reportType: string) => {
+    const doc = new jsPDF();
     const currentDate = new Date().toLocaleDateString('en-IN');
     
-    return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>${reportType}</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 40px; background: #fff; }
-    .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
-    .header h1 { color: #333; margin: 0; }
-    .header p { color: #666; margin: 5px 0; }
-    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-    th { background: #333; color: white; padding: 12px; text-align: left; }
-    td { padding: 10px; border-bottom: 1px solid #ddd; }
-    tr:hover { background: #f5f5f5; }
-    .total { font-weight: bold; background: #f0f0f0; }
-    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #666; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>Petrol Bunk Management System</h1>
-    <h2>${reportType}</h2>
-    <p>Generated on: ${currentDate}</p>
-  </div>
-  
-  ${reportType.includes('Daily Sales') ? `
-    <h3>Daily Sales Report - ${currentDate}</h3>
-    <table>
-      <tr><th>Fuel Type</th><th>Opening (L)</th><th>Sales (L)</th><th>Closing (L)</th><th>Rate (₹)</th><th>Amount (₹)</th></tr>
-      <tr><td>Petrol</td><td>5,000</td><td>1,234</td><td>3,766</td><td>102.50</td><td>1,26,485</td></tr>
-      <tr><td>Diesel</td><td>8,000</td><td>2,156</td><td>5,844</td><td>89.75</td><td>1,93,545</td></tr>
-      <tr><td>Premium</td><td>2,000</td><td>456</td><td>1,544</td><td>115.20</td><td>52,531</td></tr>
-      <tr class="total"><td colspan="5">Total Collection</td><td>₹3,72,561</td></tr>
-    </table>
-  ` : ''}
-  
-  ${reportType.includes('Monthly') ? `
-    <h3>Monthly Summary - December 2023</h3>
-    <table>
-      <tr><th>Metric</th><th>Value</th></tr>
-      <tr><td>Total Sales</td><td>₹12,45,680</td></tr>
-      <tr><td>Total Expenses</td><td>₹4,23,150</td></tr>
-      <tr><td>Net Profit</td><td>₹8,22,530</td></tr>
-      <tr><td>Growth vs Previous Month</td><td>+12.5%</td></tr>
-    </table>
-  ` : ''}
-  
-  ${reportType.includes('Inventory') ? `
-    <h3>Inventory Report - ${currentDate}</h3>
-    <table>
-      <tr><th>Tank</th><th>Fuel Type</th><th>Capacity</th><th>Current Stock</th><th>Status</th></tr>
-      <tr><td>Tank 1</td><td>Petrol</td><td>10,000 L</td><td>7,850 L</td><td>Good</td></tr>
-      <tr><td>Tank 2</td><td>Diesel</td><td>15,000 L</td><td>12,340 L</td><td>Good</td></tr>
-      <tr><td>Tank 3</td><td>Premium</td><td>8,000 L</td><td>2,100 L</td><td>Low Stock</td></tr>
-    </table>
-  ` : ''}
-  
-  ${reportType.includes('Employee') ? `
-    <h3>Employee Report - December 2023</h3>
-    <table>
-      <tr><th>Employee</th><th>Role</th><th>Attendance</th><th>Working Days</th><th>Salary</th></tr>
-      <tr><td>Rajesh Kumar</td><td>Operator</td><td>95%</td><td>29/31</td><td>₹25,000</td></tr>
-      <tr><td>Priya Sharma</td><td>Cashier</td><td>98%</td><td>30/31</td><td>₹22,000</td></tr>
-      <tr><td>Amit Patel</td><td>Supervisor</td><td>100%</td><td>31/31</td><td>₹35,000</td></tr>
-    </table>
-  ` : ''}
-  
-  <div class="footer">
-    <p>This is a computer-generated report from Petrol Bunk Management System</p>
-    <p>For any queries, please contact the administrator</p>
-  </div>
-</body>
-</html>`;
+    // Header
+    doc.setFontSize(16);
+    doc.text('Petrol Bunk Management System', 105, 20, { align: 'center' });
+    doc.setFontSize(12);
+    doc.text(reportType, 105, 30, { align: 'center' });
+    doc.setFontSize(10);
+    doc.text(`Generated on: ${currentDate}`, 105, 38, { align: 'center' });
+    
+    let yPos = 50;
+    
+    if (reportType.includes('Daily Sales')) {
+      doc.setFontSize(11);
+      doc.text('Daily Sales Report', 14, yPos);
+      yPos += 10;
+      
+      const tableData = [
+        ['Fuel Type', 'Opening (L)', 'Sales (L)', 'Closing (L)', 'Rate (₹)', 'Amount (₹)'],
+        ['Petrol', '5,000', '1,234', '3,766', '102.50', '1,26,485'],
+        ['Diesel', '8,000', '2,156', '5,844', '89.75', '1,93,545'],
+        ['Premium', '2,000', '456', '1,544', '115.20', '52,531'],
+        ['', '', '', '', 'Total', '₹3,72,561'],
+      ];
+      
+      tableData.forEach((row, index) => {
+        let xPos = 14;
+        row.forEach((cell, cellIndex) => {
+          const cellWidth = index === 0 ? 30 : 30;
+          doc.text(cell, xPos, yPos);
+          xPos += cellWidth;
+        });
+        yPos += 8;
+      });
+    } else if (reportType.includes('Monthly')) {
+      doc.setFontSize(11);
+      doc.text('Monthly Summary - December 2023', 14, yPos);
+      yPos += 10;
+      
+      const data = [
+        ['Metric', 'Value'],
+        ['Total Sales', '₹12,45,680'],
+        ['Total Expenses', '₹4,23,150'],
+        ['Net Profit', '₹8,22,530'],
+        ['Growth vs Previous Month', '+12.5%'],
+      ];
+      
+      data.forEach((row) => {
+        doc.text(row[0], 14, yPos);
+        doc.text(row[1], 100, yPos);
+        yPos += 8;
+      });
+    } else if (reportType.includes('Inventory')) {
+      doc.setFontSize(11);
+      doc.text('Inventory Report', 14, yPos);
+      yPos += 10;
+      
+      const data = [
+        ['Tank', 'Fuel Type', 'Capacity', 'Current Stock', 'Status'],
+        ['Tank 1', 'Petrol', '10,000 L', '7,850 L', 'Good'],
+        ['Tank 2', 'Diesel', '15,000 L', '12,340 L', 'Good'],
+        ['Tank 3', 'Premium', '8,000 L', '2,100 L', 'Low Stock'],
+      ];
+      
+      data.forEach((row) => {
+        let xPos = 14;
+        row.forEach((cell) => {
+          doc.text(cell, xPos, yPos);
+          xPos += 38;
+        });
+        yPos += 8;
+      });
+    } else if (reportType.includes('Employee')) {
+      doc.setFontSize(11);
+      doc.text('Employee Report - December 2023', 14, yPos);
+      yPos += 10;
+      
+      const data = [
+        ['Employee', 'Role', 'Attendance', 'Days', 'Salary'],
+        ['Rajesh Kumar', 'Operator', '95%', '29/31', '₹25,000'],
+        ['Priya Sharma', 'Cashier', '98%', '30/31', '₹22,000'],
+        ['Amit Patel', 'Supervisor', '100%', '31/31', '₹35,000'],
+      ];
+      
+      data.forEach((row) => {
+        let xPos = 14;
+        row.forEach((cell) => {
+          doc.text(cell, xPos, yPos);
+          xPos += 38;
+        });
+        yPos += 8;
+      });
+    }
+    
+    // Footer
+    doc.setFontSize(8);
+    doc.text('This is a computer-generated report from Petrol Bunk Management System', 105, 280, { align: 'center' });
+    
+    return doc;
   };
 
   // Download handler
   const handleDownload = (reportType: string, format: string) => {
     try {
-      let content = '';
-      let mimeType = '';
-      let extension = '';
-      let filename = '';
-
       const sanitizedReportType = reportType.replace(/[^a-zA-Z0-9]/g, '_');
       const dateStr = new Date().toISOString().split('T')[0];
+      const filename = `${sanitizedReportType}_${dateStr}`;
 
       if (format === 'CSV') {
-        content = generateCSV(reportType);
-        mimeType = 'text/csv';
-        extension = 'csv';
+        const content = generateCSV(reportType);
+        const blob = new Blob([content], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${filename}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
       } else if (format === 'Excel') {
-        // For Excel, we'll use CSV format with .xls extension (simple approach)
-        content = generateCSV(reportType);
-        mimeType = 'application/vnd.ms-excel';
-        extension = 'xls';
+        const wb = generateExcelWorkbook(reportType);
+        XLSX.writeFile(wb, `${filename}.xlsx`);
       } else {
-        // PDF - we'll generate HTML that can be saved and opened
-        content = generateHTMLReport(reportType);
-        mimeType = 'text/html';
-        extension = 'html';
+        // PDF
+        const doc = generatePDF(reportType);
+        doc.save(`${filename}.pdf`);
       }
-
-      filename = `${sanitizedReportType}_${dateStr}.${extension}`;
-
-      // Create blob and download
-      const blob = new Blob([content], { type: mimeType });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
 
       toast({
         title: "Report Downloaded",
-        description: `${reportType} has been downloaded as ${extension.toUpperCase()}.`,
+        description: `${reportType} has been downloaded as ${format}.`,
       });
     } catch (error) {
       toast({
