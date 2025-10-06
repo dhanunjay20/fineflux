@@ -19,10 +19,13 @@ export function LoginForm() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!username || !password) {
+    const u = username.trim();
+    const p = password;
+
+    if (!u || !p) {
       toast({
         title: 'Error',
         description: 'Please enter both username and password',
@@ -31,11 +34,11 @@ export function LoginForm() {
       return;
     }
 
-    const ok = await login(username, password, rememberMe);
+    const ok = await login(u, p, rememberMe);
 
     if (ok) {
       toast({ title: 'Welcome back!', description: 'Login successful' });
-      const from = (location.state as any)?.from?.pathname;
+      const from = (location.state as any)?.from?.pathname as string | undefined;
       navigate(from || '/dashboard', { replace: true });
     } else {
       toast({
@@ -67,7 +70,7 @@ export function LoginForm() {
             <CardDescription>Enter your credentials to access your account</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
               <div className="space-y-2">
                 <Label htmlFor="username">Username</Label>
                 <Input
@@ -79,6 +82,7 @@ export function LoginForm() {
                   onChange={(e) => setUsername(e.target.value)}
                   disabled={isLoading}
                   className="transition-base"
+                  required
                 />
               </div>
 
@@ -94,13 +98,18 @@ export function LoginForm() {
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={isLoading}
                     className="pr-10 transition-base"
+                    required
+                    spellCheck={false}
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-controls="password"
+                    aria-expanded={showPassword}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4 text-muted-foreground" />

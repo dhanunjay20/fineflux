@@ -21,6 +21,7 @@ import Profile from "./pages/Profile";
 import Analytics from "./pages/Analytics";
 import EmployeeDuty from "./pages/EmployeeDuty";
 import NotFound from "./pages/NotFound";
+import OnboardOrganization from "./pages/OnboardOrganization";
 
 const queryClient = new QueryClient();
 
@@ -40,7 +41,9 @@ const App = () => (
             {/* Public Routes */}
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
-            
+            {/* Make OnboardOrganization public (no ProtectedRoute) */}
+            <Route path="/onboard-organization" element={<OnboardOrganization />} />
+
             {/* Protected Routes */}
             <Route
               path="/dashboard"
@@ -72,7 +75,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            
             <Route
               path="/sales"
               element={
@@ -163,7 +165,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            
+
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
           </Routes>

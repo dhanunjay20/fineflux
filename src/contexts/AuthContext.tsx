@@ -7,8 +7,10 @@ export interface User {
   id: string;
   name: string;
   role: UserRole;
-  email?: string; // optional since API may not return email
+  email?: string;
   employeeId?: string;
+  organizationId?: string; // added
+  empId?: string;          // added
   phone?: string;
   joinDate?: string;
   isActive?: boolean;
@@ -24,18 +26,29 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// Use Vite env for API; ensure .env defines VITE_API_LOGIN_URL
 const API_LOGIN =
   import.meta.env.VITE_API_LOGIN_URL ||
-  'https://pulse-620964158368.asia-south2.run.app/login';
+  'http://localhost:8080/api/auth/login';
 
+// Backend response from POST /api/auth/login
 type ApiResponse = {
-  employeeRole?: string;
-  employeeName?: string;
-  employeeId?: string | number;
-  token?: string;
+  id: string;
+  username: string;
+  role: string;
+  organizationId?: string; // new
+  empId?: string;          // new
   email?: string;
-  message?: string;
+  token?: string;
+  // add other fields if backend returns them
 };
+
+// Robust normalizer: trim + lowercase and map to allowed roles
+function normalizeRole(r?: string): UserRole {
+  const v = String(r ?? '').trim().toLowerCase();
+  if (v === 'owner' || v === 'manager' || v === 'employee') return v as UserRole;
+  return 'employee';
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -55,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setIsLoading(false);
     return () => {
-      if (controllerRef.current) controllerRef.current.abort();
+      try { controllerRef.current?.abort(); } catch {}
     };
   }, []);
 
@@ -63,48 +76,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
 
     // cancel any in-flight login
-    if (controllerRef.current) {
-      try { controllerRef.current.abort(); } catch {}
-    }
+    try { controllerRef.current?.abort(); } catch {}
     const controller = new AbortController();
     controllerRef.current = controller;
 
     try {
+      // Backend handles authentication; send JSON payload { username, password }
       const res = await axios.post<ApiResponse>(
         API_LOGIN,
         { username, password },
         {
           timeout: 10000,
           signal: controller.signal,
-          // withCredentials: true, // enable if backend uses cookies
+          withCredentials: true, // enable if backend issues session cookies
+          // headers: { 'Content-Type': 'application/json' }, // Axios sets this for plain objects
         }
       );
 
-      const data = res.data || {};
-      const role = (data.employeeRole || '').toLowerCase() as UserRole;
+      const data: ApiResponse = res.data || { id: '', username: '', role: '' };
+      const role: UserRole = normalizeRole(data.role);
 
       const nextUser: User = {
-        id: String(data.employeeId ?? username),
-        name: data.employeeName || username,
-        role,
-        email: data.email || username,
-        employeeId: data.employeeId ? String(data.employeeId) : undefined,
+        id: String(data.id ?? username),
+        name: data.username ?? username,
+        role, // already lowercase and validated
+        email: data.email,
+        employeeId: data.id ? String(data.id) : undefined,
+        organizationId: data.organizationId ?? undefined, // save org
+        empId: data.empId ?? undefined,                   // save emp id
         token: data.token,
       };
 
       const storage = remember ? localStorage : sessionStorage;
       storage.setItem('petrol_bunk_user', JSON.stringify(nextUser));
-      // optional extra flags for other parts of the app:
       storage.setItem('isLoggedIn', 'true');
-      storage.setItem('role', role);
+      storage.setItem('role', role); // persisted in lowercase
 
-      // also cache a loginTime for simple stale checks if desired
+      // Convenience keys for other features that read org/emp directly (e.g., creation forms)
+      if (nextUser.organizationId) localStorage.setItem('organizationId', nextUser.organizationId);
+      if (nextUser.empId) localStorage.setItem('empId', nextUser.empId);
+
       localStorage.setItem('loginTime', Date.now().toString());
 
       setUser(nextUser);
       return true;
     } catch (error: any) {
-      // surface 401 as invalid credentials; other errors as generic failures
+      // Treat any 401 as invalid credentials; other errors as generic failure
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        return false;
+      }
       return false;
     } finally {
       setIsLoading(false);
@@ -120,6 +140,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('petrol_bunk_user');
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('role');
+    localStorage.removeItem('organizationId'); 
+    localStorage.removeItem('empId');          
   };
 
   return (
