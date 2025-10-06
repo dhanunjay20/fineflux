@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { useState } from 'react';
 import {
   FileText,
   Download,
@@ -17,6 +19,176 @@ import {
 } from 'lucide-react';
 
 export default function Reports() {
+  const { toast } = useToast();
+  const [selectedReportType, setSelectedReportType] = useState('Daily Sales Report');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [selectedFormat, setSelectedFormat] = useState('PDF');
+
+  // Helper function to generate CSV content
+  const generateCSV = (reportType: string) => {
+    let csvContent = '';
+    
+    if (reportType.includes('Daily Sales')) {
+      csvContent = 'Date,Fuel Type,Opening,Sales,Closing,Rate,Amount\n';
+      csvContent += '08-Jan-2024,Petrol,5000,1234,3766,102.50,126485\n';
+      csvContent += '08-Jan-2024,Diesel,8000,2156,5844,89.75,193545\n';
+      csvContent += '08-Jan-2024,Premium,2000,456,1544,115.20,52531\n';
+      csvContent += '\nTotal Collection:,372561\n';
+    } else if (reportType.includes('Monthly')) {
+      csvContent = 'Month,Total Sales,Total Expenses,Net Profit,Growth\n';
+      csvContent += 'December 2023,₹12,45,680,₹4,23,150,₹8,22,530,+12.5%\n';
+    } else if (reportType.includes('Inventory')) {
+      csvContent = 'Tank,Fuel Type,Capacity,Current Stock,Status\n';
+      csvContent += 'Tank 1,Petrol,10000L,7850L,Good\n';
+      csvContent += 'Tank 2,Diesel,15000L,12340L,Good\n';
+      csvContent += 'Tank 3,Premium,8000L,2100L,Low\n';
+    } else if (reportType.includes('Employee')) {
+      csvContent = 'Employee,Role,Attendance,Working Days,Salary\n';
+      csvContent += 'Rajesh Kumar,Operator,95%,29,₹25000\n';
+      csvContent += 'Priya Sharma,Cashier,98%,30,₹22000\n';
+      csvContent += 'Amit Patel,Supervisor,100%,31,₹35000\n';
+    } else {
+      csvContent = 'Report Type,Date,Value\n';
+      csvContent += `${reportType},${new Date().toLocaleDateString()},Sample Data\n`;
+    }
+    
+    return csvContent;
+  };
+
+  // Helper function to generate HTML content for PDF-like reports
+  const generateHTMLReport = (reportType: string) => {
+    const currentDate = new Date().toLocaleDateString('en-IN');
+    
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${reportType}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 40px; background: #fff; }
+    .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+    .header h1 { color: #333; margin: 0; }
+    .header p { color: #666; margin: 5px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    th { background: #333; color: white; padding: 12px; text-align: left; }
+    td { padding: 10px; border-bottom: 1px solid #ddd; }
+    tr:hover { background: #f5f5f5; }
+    .total { font-weight: bold; background: #f0f0f0; }
+    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Petrol Bunk Management System</h1>
+    <h2>${reportType}</h2>
+    <p>Generated on: ${currentDate}</p>
+  </div>
+  
+  ${reportType.includes('Daily Sales') ? `
+    <h3>Daily Sales Report - ${currentDate}</h3>
+    <table>
+      <tr><th>Fuel Type</th><th>Opening (L)</th><th>Sales (L)</th><th>Closing (L)</th><th>Rate (₹)</th><th>Amount (₹)</th></tr>
+      <tr><td>Petrol</td><td>5,000</td><td>1,234</td><td>3,766</td><td>102.50</td><td>1,26,485</td></tr>
+      <tr><td>Diesel</td><td>8,000</td><td>2,156</td><td>5,844</td><td>89.75</td><td>1,93,545</td></tr>
+      <tr><td>Premium</td><td>2,000</td><td>456</td><td>1,544</td><td>115.20</td><td>52,531</td></tr>
+      <tr class="total"><td colspan="5">Total Collection</td><td>₹3,72,561</td></tr>
+    </table>
+  ` : ''}
+  
+  ${reportType.includes('Monthly') ? `
+    <h3>Monthly Summary - December 2023</h3>
+    <table>
+      <tr><th>Metric</th><th>Value</th></tr>
+      <tr><td>Total Sales</td><td>₹12,45,680</td></tr>
+      <tr><td>Total Expenses</td><td>₹4,23,150</td></tr>
+      <tr><td>Net Profit</td><td>₹8,22,530</td></tr>
+      <tr><td>Growth vs Previous Month</td><td>+12.5%</td></tr>
+    </table>
+  ` : ''}
+  
+  ${reportType.includes('Inventory') ? `
+    <h3>Inventory Report - ${currentDate}</h3>
+    <table>
+      <tr><th>Tank</th><th>Fuel Type</th><th>Capacity</th><th>Current Stock</th><th>Status</th></tr>
+      <tr><td>Tank 1</td><td>Petrol</td><td>10,000 L</td><td>7,850 L</td><td>Good</td></tr>
+      <tr><td>Tank 2</td><td>Diesel</td><td>15,000 L</td><td>12,340 L</td><td>Good</td></tr>
+      <tr><td>Tank 3</td><td>Premium</td><td>8,000 L</td><td>2,100 L</td><td>Low Stock</td></tr>
+    </table>
+  ` : ''}
+  
+  ${reportType.includes('Employee') ? `
+    <h3>Employee Report - December 2023</h3>
+    <table>
+      <tr><th>Employee</th><th>Role</th><th>Attendance</th><th>Working Days</th><th>Salary</th></tr>
+      <tr><td>Rajesh Kumar</td><td>Operator</td><td>95%</td><td>29/31</td><td>₹25,000</td></tr>
+      <tr><td>Priya Sharma</td><td>Cashier</td><td>98%</td><td>30/31</td><td>₹22,000</td></tr>
+      <tr><td>Amit Patel</td><td>Supervisor</td><td>100%</td><td>31/31</td><td>₹35,000</td></tr>
+    </table>
+  ` : ''}
+  
+  <div class="footer">
+    <p>This is a computer-generated report from Petrol Bunk Management System</p>
+    <p>For any queries, please contact the administrator</p>
+  </div>
+</body>
+</html>`;
+  };
+
+  // Download handler
+  const handleDownload = (reportType: string, format: string) => {
+    try {
+      let content = '';
+      let mimeType = '';
+      let extension = '';
+      let filename = '';
+
+      const sanitizedReportType = reportType.replace(/[^a-zA-Z0-9]/g, '_');
+      const dateStr = new Date().toISOString().split('T')[0];
+
+      if (format === 'CSV') {
+        content = generateCSV(reportType);
+        mimeType = 'text/csv';
+        extension = 'csv';
+      } else if (format === 'Excel') {
+        // For Excel, we'll use CSV format with .xls extension (simple approach)
+        content = generateCSV(reportType);
+        mimeType = 'application/vnd.ms-excel';
+        extension = 'xls';
+      } else {
+        // PDF - we'll generate HTML that can be saved and opened
+        content = generateHTMLReport(reportType);
+        mimeType = 'text/html';
+        extension = 'html';
+      }
+
+      filename = `${sanitizedReportType}_${dateStr}.${extension}`;
+
+      // Create blob and download
+      const blob = new Blob([content], { type: mimeType });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Report Downloaded",
+        description: `${reportType} has been downloaded as ${extension.toUpperCase()}.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Download Failed",
+        description: "There was an error downloading the report. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const reportTypes = [
     {
       id: 'daily-sales',
@@ -208,7 +380,11 @@ export default function Reports() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="report-type">Report Type</Label>
-              <select className="w-full p-2 border border-border rounded-md bg-background">
+              <select 
+                className="w-full p-2 border border-border rounded-md bg-background"
+                value={selectedReportType}
+                onChange={(e) => setSelectedReportType(e.target.value)}
+              >
                 <option>Daily Sales Report</option>
                 <option>Monthly Summary</option>
                 <option>Inventory Report</option>
@@ -219,21 +395,38 @@ export default function Reports() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="date-from">From Date</Label>
-              <Input id="date-from" type="date" />
+              <Input 
+                id="date-from" 
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="date-to">To Date</Label>
-              <Input id="date-to" type="date" />
+              <Input 
+                id="date-to" 
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="format">Format</Label>
-              <select className="w-full p-2 border border-border rounded-md bg-background">
+              <select 
+                className="w-full p-2 border border-border rounded-md bg-background"
+                value={selectedFormat}
+                onChange={(e) => setSelectedFormat(e.target.value)}
+              >
                 <option>PDF</option>
                 <option>Excel</option>
                 <option>CSV</option>
               </select>
             </div>
-            <Button className="w-full btn-gradient-success">
+            <Button 
+              className="w-full btn-gradient-success"
+              onClick={() => handleDownload(selectedReportType, selectedFormat)}
+            >
               <Download className="mr-2 h-4 w-4" />
               Generate & Download
             </Button>
@@ -259,11 +452,24 @@ export default function Reports() {
                         <h4 className="font-semibold text-foreground">{report.title}</h4>
                         <p className="text-sm text-muted-foreground">{report.description}</p>
                         <div className="flex gap-2 mt-2">
-                          <Button variant="outline" size="sm">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              toast({
+                                title: "Preview",
+                                description: "Preview feature coming soon!",
+                              });
+                            }}
+                          >
                             <Eye className="mr-1 h-3 w-3" />
                             Preview
                           </Button>
-                          <Button variant="outline" size="sm">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleDownload(report.title, 'PDF')}
+                          >
                             <Download className="mr-1 h-3 w-3" />
                             Generate
                           </Button>
@@ -309,10 +515,23 @@ export default function Reports() {
                 <div className="flex items-center gap-3">
                   {getFormatBadge(report.format)}
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        toast({
+                          title: "Preview",
+                          description: "Preview feature coming soon!",
+                        });
+                      }}
+                    >
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleDownload(report.name, report.format)}
+                    >
                       <Download className="h-4 w-4" />
                     </Button>
                   </div>
