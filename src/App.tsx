@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -11,6 +11,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Employees from "./pages/Employees";
 import Inventory from "./pages/Inventory";
+import InventoryHistory from "./pages/InventoryHistory";
 import Sales from "./pages/Sales";
 import Borrowers from "./pages/Borrowers";
 import Reports from "./pages/Reports";
@@ -22,6 +23,7 @@ import Analytics from "./pages/Analytics";
 import EmployeeDuty from "./pages/EmployeeDuty";
 import NotFound from "./pages/NotFound";
 import OnboardOrganization from "./pages/OnboardOrganization";
+import Products from "./pages/Products";
 
 const queryClient = new QueryClient();
 
@@ -41,7 +43,6 @@ const App = () => (
             {/* Public Routes */}
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
-            {/* Make OnboardOrganization public (no ProtectedRoute) */}
             <Route path="/onboard-organization" element={<OnboardOrganization />} />
 
             {/* Protected Routes */}
@@ -76,11 +77,31 @@ const App = () => (
               }
             />
             <Route
+              path="/inventory/history"
+              element={
+                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                  <DashboardLayout>
+                    <InventoryHistory />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/sales"
               element={
                 <ProtectedRoute requiredRoles={['owner', 'manager']}>
                   <DashboardLayout>
                     <Sales />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/products"
+              element={
+                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                  <DashboardLayout>
+                    <Products />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
@@ -166,7 +187,6 @@ const App = () => (
               }
             />
 
-            {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

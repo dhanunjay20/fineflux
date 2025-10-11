@@ -13,6 +13,7 @@ import {
   Building2,
   FileText,
   ClipboardList,
+  Archive,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
@@ -44,6 +45,7 @@ const navigationItems: NavItem[] = [
   { title: 'Employee Duty', icon: ClipboardList, href: '/employee-duty', roles: ['manager'] },
   { title: 'Tank Inventory', icon: Fuel, href: '/inventory', roles: ['owner', 'manager'] },
   { title: 'Sales & Collections', icon: DollarSign, href: '/sales', roles: ['owner', 'manager'] },
+  { title: 'Products', icon: Archive, href: '/products', roles: ['owner', 'manager'] },
   { title: 'Borrowers', icon: CreditCard, href: '/borrowers', roles: ['owner', 'manager'] },
   { title: 'Analytics', icon: BarChart3, href: '/analytics', roles: ['owner', 'manager'] },
   { title: 'Attendance', icon: UserCheck, href: '/attendance', roles: ['employee'] },
