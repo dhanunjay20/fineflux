@@ -15,7 +15,6 @@ import {
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 
-// Backend Models
 export type ShiftTiming = { start?: string; end?: string };
 export type Address = {
   line1?: string; line2?: string; city?: string; state?: string; postalCode?: string; country?: string;
@@ -58,7 +57,7 @@ const IN_STATES = [
   'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
 ];
 
-// Utility: EmployeeId Generation matches back-end (see controller note!)
+// Employee ID helpers
 function extractOrgLetters(org: string) {
   return (org.match(/[A-Za-z]+/g)?.join('') || '').toUpperCase();
 }
@@ -88,27 +87,36 @@ const formatTime = (t?: string) => t || '';
 export default function Employees() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [orgId] = useState(() => localStorage.getItem('organizationId') || '');
 
-  const { data = { content: [] }, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ['employees', orgId],
-    queryFn: async () => {
-      if (!orgId) return { content: [] };
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employees`, { timeout: 15000 });
-      return res.data || { content: [] };
-    },
-    enabled: !!orgId,
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
-    staleTime: 0,
-  });
+  // ---- Organization ID (robust, up-to-date) ----
+  const orgId = typeof window !== "undefined"
+    ? localStorage.getItem('organizationId') || ''
+    : '';
 
-  const employees: Employee[] = Array.isArray(data.content) ? data.content : [];
-  const nextEmpId = useMemo(() => {
-    if (!orgId) return '';
-    return getNextEmpId(orgId, employees);
-  }, [employees, orgId]);
+  if (!orgId) {
+    return <div className="p-10 text-center text-muted-foreground">Loading organization…</div>;
+  }
 
+  // Backend fetch (paging: .content)
+ const { data = [], isLoading, isError, error, refetch, isFetching } = useQuery({
+  queryKey: ['employees', orgId],
+  queryFn: async () => {
+    if (!orgId) return [];
+    const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employees`, { timeout: 15000 });
+    // Support both array or { content: [...] }
+    if (Array.isArray(res.data)) return res.data;
+    if (Array.isArray(res.data.content)) return res.data.content;
+    return [];
+  },
+  enabled: !!orgId,
+  refetchOnWindowFocus: false,
+  staleTime: 60_000,
+});
+
+const employees: Employee[] = Array.isArray(data) ? data : [];
+const nextEmpId = useMemo(() => getNextEmpId(orgId, employees), [orgId, employees]);
+
+  // Stats panel
   const stats = useMemo(() => {
     const total = employees.length;
     const active = employees.filter((e) => normalizeStatus(e.status) === 'active').length;
@@ -145,11 +153,12 @@ export default function Employees() {
     });
   }, [employees, search]);
 
-  // View, Edit, Add dialogs state
+  /*** VIEW & EDIT DIALOGS ***/
   const [viewOpen, setViewOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [selected, setSelected] = useState<Employee | null>(null);
 
+  // ----------------- CREATE EMPLOYEE -----------------
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<EmployeeCreateRequest>({
     empId: '',
@@ -177,13 +186,14 @@ export default function Employees() {
     }));
   }, [open, orgId, nextEmpId]);
 
+  // CREATE submit
   const [submitting, setSubmitting] = useState(false);
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload: EmployeeCreateRequest = {
       ...form,
       organizationId: orgId || form.organizationId,
-      empId: nextEmpId,
+      empId: nextEmpId, // FORCE new next empId before POST
       address: { ...(form.address || {}), country: 'India' },
     };
     const required = [
@@ -232,6 +242,7 @@ export default function Employees() {
     }
   };
 
+  /*** Edit state ***/
   const [editForm, setEditForm] = useState<EmployeeUpdateRequest | null>(null);
   const [updating, setUpdating] = useState(false);
   const onEdit = (emp: Employee) => {
@@ -306,7 +317,6 @@ export default function Employees() {
           </Button>
         </div>
       </div>
-
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {stats.map((stat) => {
@@ -450,52 +460,32 @@ export default function Employees() {
             {selected && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Employee ID</p>
-                    <p className="font-medium">{selected.empId}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Organization</p>
-                    <p className="font-medium">{selected.organizationId}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Role</p>
-                    <p className="font-medium">{selected.role}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Department</p>
-                    <p className="font-medium">{selected.department}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Name</p>
+                  <div><p className="text-sm text-muted-foreground">Employee ID</p>
+                    <p className="font-medium">{selected.empId}</p></div>
+                  <div><p className="text-sm text-muted-foreground">Organization</p>
+                    <p className="font-medium">{selected.organizationId}</p></div>
+                  <div><p className="text-sm text-muted-foreground">Role</p>
+                    <p className="font-medium">{selected.role}</p></div>
+                  <div><p className="text-sm text-muted-foreground">Department</p>
+                    <p className="font-medium">{selected.department}</p></div>
+                  <div><p className="text-sm text-muted-foreground">Name</p>
                     <p className="font-medium">
                       {selected.firstName} {selected.lastName}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Email</p>
-                    <p className="font-medium">{selected.emailId}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Phone</p>
-                    <p className="font-medium">{selected.phoneNumber || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Username</p>
-                    <p className="font-medium">{selected.username}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Joined</p>
-                    <p className="font-medium">{formatDate(selected.joinedDate)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Shift</p>
+                    </p></div>
+                  <div><p className="text-sm text-muted-foreground">Email</p>
+                    <p className="font-medium">{selected.emailId}</p></div>
+                  <div><p className="text-sm text-muted-foreground">Phone</p>
+                    <p className="font-medium">{selected.phoneNumber || '—'}</p></div>
+                  <div><p className="text-sm text-muted-foreground">Username</p>
+                    <p className="font-medium">{selected.username}</p></div>
+                  <div><p className="text-sm text-muted-foreground">Joined</p>
+                    <p className="font-medium">{formatDate(selected.joinedDate)}</p></div>
+                  <div><p className="text-sm text-muted-foreground">Shift</p>
                     <p className="font-medium">
                       {formatTime(selected.shiftTiming?.start) || '—'}
                       {selected.shiftTiming?.start || selected.shiftTiming?.end ? ' — ' : ''}
                       {formatTime(selected.shiftTiming?.end) || ''}
-                    </p>
-                  </div>
+                    </p></div>
                   <div>
                     <p className="text-sm text-muted-foreground">Address</p>
                     <p className="font-medium">
@@ -509,14 +499,12 @@ export default function Employees() {
                       ].filter(Boolean).join(', ') || '—'}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Emergency Contact</p>
+                  <div><p className="text-sm text-muted-foreground">Emergency Contact</p>
                     <p className="font-medium">
                       {selected.emergencyContact?.name || '—'}
                       {selected.emergencyContact?.phone ? ` (${selected.emergencyContact?.phone})` : ''}
                       {selected.emergencyContact?.relationship ? ` – ${selected.emergencyContact?.relationship}` : ''}
-                    </p>
-                  </div>
+                    </p></div>
                 </div>
               </div>
             )}
@@ -665,7 +653,7 @@ export default function Employees() {
               <DialogDescription>Fill in the details to create a new employee.</DialogDescription>
             </DialogHeader>
             <form onSubmit={onSubmit} className="space-y-4">
-              {/* Org / Emp ID (read-only) */}
+              {/* Organization ID and Employee ID (read-only) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="organizationId">Organization ID <span className="text-destructive">*</span></Label>
@@ -676,87 +664,96 @@ export default function Employees() {
                   <Input id="empId" value={nextEmpId} readOnly disabled required aria-required="true" className="bg-muted/50" />
                 </div>
               </div>
-              {/* Role / Department */}
+
+              {/* Role and Department */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="role">Role <span className="text-destructive">*</span></Label>
-                  <Input id="role" value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))} required aria-required="true" placeholder="e.g., Manager" />
+                  <Input id="role" value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))} required aria-required="true" placeholder="e.g., Manager" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="department">Department <span className="text-destructive">*</span></Label>
-                  <Input id="department" value={form.department} onChange={(e) => setForm((p) => ({ ...p, department: e.target.value }))} required aria-required="true" placeholder="e.g., Operations" />
+                  <Input id="department" value={form.department} onChange={e => setForm(p => ({ ...p, department: e.target.value }))} required aria-required="true" placeholder="e.g., Operations" />
                 </div>
               </div>
-              {/* Name */}
+
+              {/* First Name and Last Name */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name <span className="text-destructive">*</span></Label>
-                  <Input id="firstName" value={form.firstName} onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))} required aria-required="true" />
+                  <Input id="firstName" value={form.firstName} onChange={e => setForm(p => ({ ...p, firstName: e.target.value }))} required aria-required="true" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lastName">Last Name <span className="text-destructive">*</span></Label>
-                  <Input id="lastName" value={form.lastName} onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))} required aria-required="true" />
+                  <Input id="lastName" value={form.lastName} onChange={e => setForm(p => ({ ...p, lastName: e.target.value }))} required aria-required="true" />
                 </div>
               </div>
-              {/* Contact */}
+
+              {/* Phone and Email */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="phoneNumber">Phone</Label>
-                  <Input id="phoneNumber" value={form.phoneNumber || ''} onChange={(e) => setForm((p) => ({ ...p, phoneNumber: e.target.value }))} placeholder="+91 90000 00000" />
+                  <Input id="phoneNumber" value={form.phoneNumber || ''} onChange={e => setForm(p => ({ ...p, phoneNumber: e.target.value }))} placeholder="+91 90000 00000" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="emailId">Email <span className="text-destructive">*</span></Label>
-                  <Input id="emailId" type="email" value={form.emailId} onChange={(e) => setForm((p) => ({ ...p, emailId: e.target.value }))} required aria-required="true" />
+                  <Input id="emailId" type="email" value={form.emailId} onChange={e => setForm(p => ({ ...p, emailId: e.target.value }))} required aria-required="true" />
                 </div>
               </div>
-              {/* Auth */}
-              <div className="grid grid-cols-1 md-grid-cols-2 gap-4">
+
+              {/* Username and Password */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="username">Username <span className="text-destructive">*</span></Label>
-                  <Input id="username" value={form.username} onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))} required aria-required="true" />
+                  <Input id="username" value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} required aria-required="true" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Password <span className="text-destructive">*</span></Label>
-                  <Input id="password" type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} required aria-required="true" />
+                  <Input id="password" type="password" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} required aria-required="true" />
                 </div>
               </div>
-              {/* Shift timing */}
+
+              {/* Shift Timing */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="start">Shift Start</Label>
-                  <Input id="start" type="time" value={form.shiftTiming?.start || ''} onChange={(e) => setForm((p) => ({ ...p, shiftTiming: { ...(p.shiftTiming || {}), start: e.target.value } }))} />
+                  <Input id="start" type="time" value={form.shiftTiming?.start || ''} onChange={e => setForm(p => ({ ...p, shiftTiming: { ...(p.shiftTiming || {}), start: e.target.value } }))} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="end">Shift End</Label>
-                  <Input id="end" type="time" value={form.shiftTiming?.end || ''} onChange={(e) => setForm((p) => ({ ...p, shiftTiming: { ...(p.shiftTiming || {}), end: e.target.value } }))} />
+                  <Input id="end" type="time" value={form.shiftTiming?.end || ''} onChange={e => setForm(p => ({ ...p, shiftTiming: { ...(p.shiftTiming || {}), end: e.target.value } }))} />
                 </div>
               </div>
-              {/* Address */}
+
+              {/* Address Section */}
               <div className="space-y-2">
                 <Label>Address</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input placeholder="Address Line 1" value={form.address?.line1 || ''} onChange={(e) => setForm((p) => ({ ...p, address: { ...(p.address || {}), line1: e.target.value } }))} />
-                  <Input placeholder="Address Line 2" value={form.address?.line2 || ''} onChange={(e) => setForm((p) => ({ ...p, address: { ...(p.address || {}), line2: e.target.value } }))} />
-                  <Input placeholder="City" value={form.address?.city || ''} onChange={(e) => setForm((p) => ({ ...p, address: { ...(p.address || {}), city: e.target.value } }))} />
-                  <select className="w-full rounded-md border border-border bg-background p-2" value={form.address?.state || ''} onChange={(e) => setForm((p) => ({ ...p, address: { ...(p.address || {}), state: e.target.value } }))}>
+                  <Input placeholder="Address Line 1" value={form.address?.line1 || ''} onChange={e => setForm(p => ({ ...p, address: { ...(p.address || {}), line1: e.target.value } }))} />
+                  <Input placeholder="Address Line 2" value={form.address?.line2 || ''} onChange={e => setForm(p => ({ ...p, address: { ...(p.address || {}), line2: e.target.value } }))} />
+                  <Input placeholder="City" value={form.address?.city || ''} onChange={e => setForm(p => ({ ...p, address: { ...(p.address || {}), city: e.target.value } }))} />
+                  <select className="w-full rounded-md border border-border bg-background p-2" value={form.address?.state || ''} onChange={e => setForm(p => ({ ...p, address: { ...(p.address || {}), state: e.target.value } }))}>
                     <option value="">Select State</option>
                     {IN_STATES.map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
-                  <Input placeholder="Postal Code" value={form.address?.postalCode || ''} onChange={(e) => setForm((p) => ({ ...p, address: { ...(p.address || {}), postalCode: e.target.value } }))} />
+                  <Input placeholder="Postal Code" value={form.address?.postalCode || ''} onChange={e => setForm(p => ({ ...p, address: { ...(p.address || {}), postalCode: e.target.value } }))} />
                   <Input value={form.address?.country || 'India'} readOnly disabled />
                 </div>
               </div>
-              {/* Emergency contact */}
+
+              {/* Emergency Contact Section */}
               <div className="space-y-2">
                 <Label>Emergency Contact</Label>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Input placeholder="Name" value={form.emergencyContact?.name || ''} onChange={(e) => setForm((p) => ({ ...p, emergencyContact: { ...(p.emergencyContact || {}), name: e.target.value } }))} />
-                  <Input placeholder="Phone" value={form.emergencyContact?.phone || ''} onChange={(e) => setForm((p) => ({ ...p, emergencyContact: { ...(p.emergencyContact || {}), phone: e.target.value } }))} />
-                  <Input placeholder="Relationship" value={form.emergencyContact?.relationship || ''} onChange={(e) => setForm((p) => ({ ...p, emergencyContact: { ...(p.emergencyContact || {}), relationship: e.target.value } }))} />
+                  <Input placeholder="Name" value={form.emergencyContact?.name || ''} onChange={e => setForm(p => ({ ...p, emergencyContact: { ...(p.emergencyContact || {}), name: e.target.value } }))} />
+                  <Input placeholder="Phone" value={form.emergencyContact?.phone || ''} onChange={e => setForm(p => ({ ...p, emergencyContact: { ...(p.emergencyContact || {}), phone: e.target.value } }))} />
+                  <Input placeholder="Relationship" value={form.emergencyContact?.relationship || ''} onChange={e => setForm(p => ({ ...p, emergencyContact: { ...(p.emergencyContact || {}), relationship: e.target.value } }))} />
                 </div>
               </div>
+
+              {/* Submit Buttons */}
               <DialogFooter className="flex items-center justify-between gap-3 pt-2">
                 <div className="text-sm text-muted-foreground">Ensure details are correct before saving.</div>
                 <div className="flex gap-2">
@@ -768,6 +765,7 @@ export default function Employees() {
                   </Button>
                 </div>
               </DialogFooter>
+
             </form>
           </div>
         </DialogContent>

@@ -73,6 +73,16 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+             <Route
+              path="/employee-set-duty"
+              element={
+                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                  <DashboardLayout>
+                    <EmployeeSetDuty />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/inventory"
               element={
@@ -143,16 +153,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/employee-set-duty"
-              element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
-                  <DashboardLayout>
-                    <EmployeeSetDuty />
-                  </DashboardLayout>
-                </ProtectedRoute>
-              }
-            />
+           
             <Route
               path="/attendance"
               element={
