@@ -22,7 +22,7 @@ import Profile from "./pages/Profile";
 import Analytics from "./pages/Analytics";
 import NotFound from "./pages/NotFound";
 import OnboardOrganization from "./pages/OnboardOrganization";
-
+import EmployeeSetDuty from "./pages/EmployeeSetDuty";
 import Products from "./pages/Products";
 import GunInfo from "./pages/GunInfo";
 import SalesHistory from "./pages/SalesHistory";
@@ -139,6 +139,16 @@ const App = () => (
                 <ProtectedRoute requiredRoles={['owner', 'manager']}>
                   <DashboardLayout>
                     <Expenses />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/employee-set-duty"
+              element={
+                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                  <DashboardLayout>
+                    <EmployeeSetDuty />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
