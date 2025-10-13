@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation, NavLink } from 'react-router-dom';
+import { useLocation, NavLink, matchPath } from 'react-router-dom';
 import {
   BarChart3,
   Users,
@@ -14,6 +14,7 @@ import {
   FileText,
   ClipboardList,
   Archive,
+  Wrench
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
@@ -42,11 +43,11 @@ interface NavItem {
 const navigationItems: NavItem[] = [
   { title: 'Dashboard', icon: Home, href: '/dashboard', roles: ['owner', 'manager', 'employee'] },
   { title: 'Employee Management', icon: Users, href: '/employees', roles: ['owner', 'manager'] },
-  { title: 'Employee Duty', icon: ClipboardList, href: '/employee-duty', roles: ['manager'] },
   { title: 'Tank Inventory', icon: Fuel, href: '/inventory', roles: ['owner', 'manager'] },
   { title: 'Sales & Collections', icon: DollarSign, href: '/sales', roles: ['owner', 'manager'] },
   { title: 'Products', icon: Archive, href: '/products', roles: ['owner', 'manager'] },
   { title: 'Borrowers', icon: CreditCard, href: '/borrowers', roles: ['owner', 'manager'] },
+  { title: 'Gun Info', icon: Wrench, href: '/guninfo', roles: ['owner', 'manager'] },
   { title: 'Analytics', icon: BarChart3, href: '/analytics', roles: ['owner', 'manager'] },
   { title: 'Attendance', icon: UserCheck, href: '/attendance', roles: ['employee'] },
   { title: 'My Profile', icon: Users, href: '/profile', roles: ['employee'] },
@@ -58,15 +59,18 @@ export function AppSidebar() {
   const { user, logout } = useAuth();
   const location = useLocation();
 
-  // Read org and employee id from localStorage once on mount
   const [orgId, setOrgId] = useState<string>('');
   const [empId, setEmpId] = useState<string>('');
   useEffect(() => {
     setOrgId(localStorage.getItem('organizationId') || '');
     setEmpId(localStorage.getItem('empId') || '');
-  }, []); // localStorage persists values across sessions and is accessed via window.localStorage [web:13].
+  }, []);
 
   const filteredItems = navigationItems.filter((item) => user && item.roles.includes(user.role));
+
+  // Support for "active" highlighting on nested routes (e.g. /employees/123)
+  const isItemActive = (href: string) =>
+    !!matchPath({ path: href, end: false }, location.pathname);
 
   const getUserInitials = (name: string) =>
     name
@@ -77,7 +81,7 @@ export function AppSidebar() {
 
   const getRoleBadge = (role: UserRole) => {
     const badges = { owner: 'Owner', manager: 'Manager', employee: 'Employee' };
-    return badges[role];
+    return badges[role] || role;
   };
 
   return (
@@ -129,17 +133,17 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {filteredItems.map((item) => {
-                const isActive = location.pathname === item.href;
                 const Icon = item.icon;
+                const active = isItemActive(item.href);
                 return (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
                       asChild
-                      isActive={isActive}
+                      isActive={active}
                       className={[
                         'mx-2 rounded-lg',
                         'hover:bg-muted/60 transition-colors',
-                        isActive ? 'bg-primary/10 text-primary' : '',
+                        active ? 'bg-primary/10 text-primary' : '',
                       ].join(' ')}
                     >
                       <NavLink to={item.href} className="flex items-center gap-2 px-2 py-2">

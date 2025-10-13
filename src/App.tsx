@@ -20,10 +20,12 @@ import Attendance from "./pages/Attendance";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Analytics from "./pages/Analytics";
-import EmployeeDuty from "./pages/EmployeeDuty";
 import NotFound from "./pages/NotFound";
 import OnboardOrganization from "./pages/OnboardOrganization";
+
 import Products from "./pages/Products";
+import GunInfo from "./pages/GunInfo";
+import SalesHistory from "./pages/SalesHistory";
 
 const queryClient = new QueryClient();
 
@@ -33,12 +35,7 @@ const App = () => (
       <AuthProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
-          }}
-        >
+        <BrowserRouter>
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Index />} />
@@ -52,6 +49,16 @@ const App = () => (
                 <ProtectedRoute>
                   <DashboardLayout>
                     <Dashboard />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/guninfo"
+              element={
+                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                  <DashboardLayout>
+                    <GunInfo />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
@@ -177,11 +184,11 @@ const App = () => (
               }
             />
             <Route
-              path="/employee-duty"
+              path="/sales-history"
               element={
-                <ProtectedRoute requiredRoles={['manager']}>
+                <ProtectedRoute requiredRoles={['owner', 'manager']}>
                   <DashboardLayout>
-                    <EmployeeDuty />
+                    <SalesHistory />
                   </DashboardLayout>
                 </ProtectedRoute>
               }

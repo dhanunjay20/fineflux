@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,60 +8,22 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
-  Users,
-  Plus,
-  Search,
-  Edit,
-  Eye,
-  Phone,
-  Mail,
-  Calendar,
-  Filter,
-  X,
-  Clock, // added
+  Users, Plus, Search, Edit, Eye, Phone, Mail, Calendar, Filter, Clock,
 } from 'lucide-react';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogOverlay,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogOverlay,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 
-// Safe dev fallback for API base
-const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'http://localhost:8080';
-
-type Employee = {
-  empId: string;
-  organizationId: string;
-  role: string | unknown;
-  department: string | unknown;
-  firstName: string;
-  lastName: string;
-  phoneNumber?: string | unknown;
-  emailId: string;
-  username: string;
-  status?: unknown;
-  joinDate?: string | unknown;
-  salary?: number | unknown;
-  shift?: string | unknown;
-  shiftTiming?: { start?: string | unknown; end?: string | unknown };
-  address?: {
-    line1?: string | unknown;
-    line2?: string | unknown;
-    city?: string | unknown;
-    state?: string | unknown;
-    postalCode?: string | unknown;
-    country?: string | unknown;
-  };
-  emergencyContact?: { name?: string | unknown; phone?: string | unknown; relationship?: string | unknown };
+// Backend Models
+export type ShiftTiming = { start?: string; end?: string };
+export type Address = {
+  line1?: string; line2?: string; city?: string; state?: string; postalCode?: string; country?: string;
 };
+export type EmergencyContact = { name?: string; phone?: string; relationship?: string };
 
-type EmployeeCreateRequest = {
+export type Employee = {
+  id: string;
   empId: string;
   organizationId: string;
   role: string;
@@ -71,105 +33,85 @@ type EmployeeCreateRequest = {
   phoneNumber?: string;
   emailId: string;
   username: string;
-  password: string;
-  shiftTiming?: { start?: string; end?: string };
-  address?: {
-    line1?: string;
-    line2?: string;
-    city?: string;
-    state?: string;
-    postalCode?: string;
-    country?: string;
-  };
-  emergencyContact?: { name?: string; phone?: string; relationship?: string };
+  status: string;
+  joinedDate?: string;
+  shiftTiming?: ShiftTiming;
+  address?: Address;
+  emergencyContact?: EmergencyContact;
 };
 
-// Indian States + UTs
+export type EmployeeCreateRequest = Omit<Employee, "id" | "status" | "joinedDate"> & {
+  password: string;
+};
+export type EmployeeUpdateRequest = Partial<Omit<Employee, "id" | "joinedDate">> & {
+  newPassword?: string;
+};
+
+const API_BASE =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'http://localhost:8080';
+
 const IN_STATES = [
-  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh',
-  'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha',
-  'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
-  'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir',
-  'Ladakh', 'Lakshadweep', 'Puducherry'
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana',
+  'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya',
+  'Mizoram', 'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
+  'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Andaman and Nicobar Islands', 'Chandigarh',
+  'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
 ];
 
-// Safe normalizers to avoid .toLowerCase on non-strings
-const toLowerSafe = (v: unknown): string => {
-  if (typeof v === 'string') return v.toLowerCase();
-  if (v && typeof v === 'object') {
-    const any = v as any;
-    const candidate = any.name ?? any.value ?? any.status ?? '';
-    return typeof candidate === 'string' ? candidate.toLowerCase() : String(candidate ?? '').toLowerCase();
+// Utility: EmployeeId Generation matches back-end (see controller note!)
+function extractOrgLetters(org: string) {
+  return (org.match(/[A-Za-z]+/g)?.join('') || '').toUpperCase();
+}
+function buildEmpId(org: string, n: number) {
+  const prefix = extractOrgLetters(org);
+  const seq = n.toString().padStart(4, '0');
+  return `${prefix}EMP${seq}`;
+}
+function getNextEmpId(orgId: string, employees: Employee[]) {
+  const prefix = extractOrgLetters(orgId) + 'EMP';
+  const re = new RegExp(`^${prefix}(\\d{4})$`, 'i');
+  let max = 0;
+  for (const e of employees) {
+    const m = typeof e.empId === "string" && e.empId.match(re);
+    if (m) {
+      const num = parseInt(m[1], 10);
+      if (!Number.isNaN(num)) max = Math.max(max, num);
+    }
   }
-  return String(v ?? '').toLowerCase();
-}; // Ensures comparisons never call .toLowerCase on non-strings [web:380].
+  return buildEmpId(orgId, max + 1);
+}
 
-const toStringSafe = (v: unknown): string => {
-  if (v == null) return '';
-  if (typeof v === 'string') return v;
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-  if (typeof v === 'object') {
-    const any = v as any;
-    return String(any.name ?? any.value ?? any.status ?? '');
-  }
-  return String(v);
-}; // Converts unknown shapes to a usable string for UI joining and display [web:398].
-
-const normalizeStatus = (s: unknown) => toLowerSafe(s); // Single source for status logic across UI [web:398];
-
-// Added: date/time formatters for consistent UI
-const formatDate = (iso: unknown) => {
-  const s = toStringSafe(iso);
-  if (!s) return '—';
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return s;
-  return d.toLocaleDateString('en-IN'); // locale-friendly date string [web:380]
-};
-const formatTime = (t: unknown) => {
-  const s = toStringSafe(t);
-  if (!s) return '';
-  // If it's already "HH:mm" or similar, just show it; further parsing can be added if needed.
-  return s;
-};
+const normalizeStatus = (s: string | undefined) => (s ? s.toLowerCase() : '');
+const formatDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString('en-IN') : '—');
+const formatTime = (t?: string) => t || '';
 
 export default function Employees() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [orgId] = useState(() => localStorage.getItem('organizationId') || '');
 
-  // Org scope
-  const [orgId, setOrgId] = useState('');
-  useEffect(() => {
-    const stored = localStorage.getItem('organizationId') || '';
-    setOrgId(stored);
-  }, []); // localStorage holds org context for building scoped endpoints [web:398].
-
-  // Fetch employees (robust unwrapping for arrays)
-  const fetchEmployees = async (): Promise<Employee[]> => {
-    const url = `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/employees`;
-    const res = await axios.get(url, { timeout: 15000 });
-    const data = res.data;
-    if (Array.isArray(data)) return data as Employee[];
-    const keys = ['data', 'items', 'content', 'results', 'result', 'records', 'rows'];
-    for (const k of keys) {
-      if (Array.isArray((data as any)?.[k])) return (data as any)[k] as Employee[];
-    }
-    const firstArray = Object.values(data || {}).find((v) => Array.isArray(v)) as Employee[] | undefined;
-    return Array.isArray(firstArray) ? firstArray : [];
-  }; // Axios GET + shape unwrapping ensures list rendering across common API formats [web:398].
-
-  const { data: employees = [], isLoading, isError, error, refetch, isFetching } = useQuery({
+  const { data = { content: [] }, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['employees', orgId],
-    queryFn: fetchEmployees,
+    queryFn: async () => {
+      if (!orgId) return { content: [] };
+      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employees`, { timeout: 15000 });
+      return res.data || { content: [] };
+    },
     enabled: !!orgId,
-    refetchOnWindowFocus: false,
-    staleTime: 60_000,
-  }); // useQuery manages server state and reactivity for employees data [web:398].
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    staleTime: 0,
+  });
 
-  // Derived stats (safe status handling)
+  const employees: Employee[] = Array.isArray(data.content) ? data.content : [];
+  const nextEmpId = useMemo(() => {
+    if (!orgId) return '';
+    return getNextEmpId(orgId, employees);
+  }, [employees, orgId]);
+
   const stats = useMemo(() => {
     const total = employees.length;
     const active = employees.filter((e) => normalizeStatus(e.status) === 'active').length;
-    const numericSalary = (v: unknown) => (typeof v === 'number' ? v : Number(v) || 0);
-    const avg = total > 0 ? Math.round((employees.reduce((s, e) => s + numericSalary(e.salary), 0) / total) / 1000) : 0;
     return [
       {
         title: 'Total Employees',
@@ -186,106 +128,29 @@ export default function Employees() {
         icon: Users,
         color: 'text-success',
         bgColor: 'bg-success-soft',
-      },
-      {
-        title: 'Average Salary',
-        value: `₹${avg}K`,
-        change: 'Per month',
-        icon: Users,
-        color: 'text-accent',
-        bgColor: 'bg-accent-soft',
-      },
+      }
     ];
-  }, [employees, isFetching]); // Stats recompute from live server data using safe coercions [web:398].
+  }, [employees, isFetching]);
 
-  // Utilities
-  const getUserInitials = (name: string) =>
-    name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase(); // Simple initials fallback for avatars in list UI [web:398].
-
-  const getStatusBadge = (status?: unknown) => {
-    return normalizeStatus(status) === 'active' ? (
-      <Badge className="bg-success-soft text-success">Active</Badge>
-    ) : (
-      <Badge className="bg-muted text-muted-foreground">Inactive</Badge>
-    );
-  }; // Uses normalized status to avoid runtime type errors in badges [web:398].
-
-  const getRoleBadge = (role?: unknown) => {
-    const roleStr = toStringSafe(role);
-    const colors: Record<string, string> = {
-      Manager: 'bg-primary-soft text-primary',
-      Cashier: 'bg-accent-soft text-accent',
-      Attendant: 'bg-success-soft text-success',
-      Mechanic: 'bg-warning-soft text-warning',
-      Cleaner: 'bg-muted text-muted-foreground',
-    };
-    return <Badge className={colors[roleStr] || 'bg-muted text-muted-foreground'}>{roleStr || '—'}</Badge>;
-  }; // Ensures role rendering won’t break if role is not a plain string from API [web:398].
-
-  // Search/filter (with safe coercions)
   const [search, setSearch] = useState('');
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return employees;
     return employees.filter((e) => {
-      const fullName = `${toStringSafe(e.firstName)} ${toStringSafe(e.lastName)}`.trim();
+      const fullName = `${e.firstName} ${e.lastName}`.trim();
       const fields = [
-        fullName,
-        toStringSafe(e.empId),
-        toStringSafe(e.role),
-        toStringSafe(e.department),
-        toStringSafe(e.emailId),
-        toStringSafe(e.phoneNumber),
-        toStringSafe(e.username),
-        toStringSafe(e.status),
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
+        fullName, e.empId, e.role, e.department, e.emailId, e.phoneNumber, e.username, e.status
+      ].filter(Boolean).join(' ').toLowerCase();
       return fields.includes(q);
     });
-  }, [employees, search]); // Client-side filter with safe string conversion prevents errors during typing [web:398].
+  }, [employees, search]);
 
-  // Details dialog
+  // View, Edit, Add dialogs state
   const [viewOpen, setViewOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [selected, setSelected] = useState<Employee | null>(null);
-  const openView = (e: Employee) => {
-    setSelected(e);
-    setViewOpen(true);
-  }; // Eye button displays full employee profile from current list [web:398].
 
-  // Add employee dialog
-  const { toast: notify } = useToast();
   const [open, setOpen] = useState(false);
-
-  // Generate next empId based on orgId letters + 'EMP' + 4-digit counter
-  const extractOrgLetters = (org: string) => (org.match(/[A-Za-z]+/g)?.join('') || '').toUpperCase();
-  const buildEmpId = (org: string, n: number) => {
-    const prefix = extractOrgLetters(org);
-    const seq = n.toString().padStart(4, '0');
-    return `${prefix}EMP${seq}`;
-  }; // Emp ID rule: org letters + EMP + 0001 with +1 per new employee per org [web:398].
-
-  const nextEmpId = useMemo(() => {
-    if (!orgId) return '';
-    const prefix = extractOrgLetters(orgId) + 'EMP';
-    const re = new RegExp(`^${prefix}(\\d{4})$`, 'i');
-    let max = 0;
-    for (const e of employees) {
-      const m = toStringSafe(e.empId).match(re);
-      if (m) {
-        const num = parseInt(m[1], 10);
-        if (!Number.isNaN(num)) max = Math.max(max, num);
-      }
-    }
-    return buildEmpId(orgId, max + 1);
-  }, [orgId, employees]); // Computes next available employee id from current org employees [web:398].
-
-  // Create form state
   const [form, setForm] = useState<EmployeeCreateRequest>({
     empId: '',
     organizationId: '',
@@ -302,29 +167,25 @@ export default function Employees() {
     emergencyContact: { name: '', phone: '', relationship: '' },
   });
 
-  // Sync ids and generated empId when dialog opens or deps change
   useEffect(() => {
     if (!open) return;
     setForm((prev) => ({
       ...prev,
       organizationId: orgId || prev.organizationId,
-      empId: prev.empId || nextEmpId || '',
+      empId: nextEmpId,
       address: { ...(prev.address || {}), country: 'India' },
     }));
-  }, [open, orgId, nextEmpId]); // Keeps form ids aligned with org scope and computed emp id [web:398].
+  }, [open, orgId, nextEmpId]);
 
-  // Submit create
   const [submitting, setSubmitting] = useState(false);
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload: EmployeeCreateRequest = {
       ...form,
       organizationId: orgId || form.organizationId,
-      empId: form.empId || nextEmpId,
+      empId: nextEmpId,
       address: { ...(form.address || {}), country: 'India' },
     };
-
-    // Basic validations mirroring server constraints
     const required = [
       ['Employee ID', payload.empId],
       ['Organization ID', payload.organizationId],
@@ -338,20 +199,18 @@ export default function Employees() {
     ];
     for (const [label, value] of required) {
       if (!String(value || '').trim()) {
-        notify({ title: 'Validation', description: `${label} is required.`, variant: 'destructive' });
+        toast({ title: 'Validation', description: `${label} is required.`, variant: 'destructive' });
         return;
       }
     }
-
     try {
       setSubmitting(true);
-      const url = `${API_BASE}/api/organizations/${encodeURIComponent(payload.organizationId)}/employees`;
-      await axios.post(url, payload, { timeout: 15000 });
-      notify({ title: 'Employee created', description: `${payload.firstName} ${payload.lastName} added.` });
+      await axios.post(`${API_BASE}/api/organizations/${payload.organizationId}/employees`, payload, { timeout: 15000 });
+      toast({ title: 'Employee created', description: `${payload.firstName} ${payload.lastName} added.` });
       setOpen(false);
-      setForm((prev) => ({
-        ...prev,
+      setForm(() => ({
         empId: '',
+        organizationId: '',
         role: '',
         department: '',
         firstName: '',
@@ -363,19 +222,71 @@ export default function Employees() {
         shiftTiming: { start: '', end: '' },
         address: { line1: '', line2: '', city: '', state: '', postalCode: '', country: 'India' },
         emergencyContact: { name: '', phone: '', relationship: '' },
-        organizationId: orgId,
       }));
       await refetch();
+      await queryClient.invalidateQueries({ queryKey: ['employees', orgId] });
     } catch (err: any) {
-      notify({
-        title: 'Create failed',
-        description: err?.response?.data?.message || 'Unable to create employee.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Create failed', description: err?.response?.data?.message || 'Unable to create employee.', variant: 'destructive' });
     } finally {
       setSubmitting(false);
     }
-  }; // Axios serializes JSON body automatically and TanStack refetch syncs the UI with server [web:398].
+  };
+
+  const [editForm, setEditForm] = useState<EmployeeUpdateRequest | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const onEdit = (emp: Employee) => {
+    setSelected(emp);
+    setEditForm({
+      empId: emp.empId,
+      organizationId: emp.organizationId,
+      status: emp.status,
+      role: emp.role,
+      department: emp.department,
+      firstName: emp.firstName,
+      lastName: emp.lastName,
+      phoneNumber: emp.phoneNumber,
+      emailId: emp.emailId,
+      username: emp.username,
+      newPassword: '',
+      shiftTiming: emp.shiftTiming,
+      address: emp.address,
+      emergencyContact: emp.emergencyContact,
+    });
+    setEditOpen(true);
+  };
+  const handleUpdateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selected) return;
+    try {
+      setUpdating(true);
+      await axios.put(`${API_BASE}/api/organizations/${orgId}/employees/${selected.id}`, editForm, { timeout: 15000 });
+      toast({ title: 'Employee updated', description: `${editForm?.firstName} ${editForm?.lastName}` });
+      setEditOpen(false);
+      await refetch();
+      await queryClient.invalidateQueries({ queryKey: ['employees', orgId] });
+    } catch (err: any) {
+      toast({ title: 'Update failed', description: err?.response?.data?.message || 'Unable to update employee.', variant: 'destructive' });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const getUserInitials = (name: string) =>
+    name.split(' ').map((n) => n[0]).join('').toUpperCase();
+  const getStatusBadge = (status?: string) =>
+    normalizeStatus(status) === 'active'
+      ? <Badge className="bg-success-soft text-success">Active</Badge>
+      : <Badge className="bg-muted text-muted-foreground">Inactive</Badge>;
+  const getRoleBadge = (role?: string) => {
+    const colors: Record<string, string> = {
+      Manager: 'bg-primary-soft text-primary',
+      Cashier: 'bg-accent-soft text-accent',
+      Attendant: 'bg-success-soft text-success',
+      Mechanic: 'bg-warning-soft text-warning',
+      Cleaner: 'bg-muted text-muted-foreground',
+    };
+    return <Badge className={colors[role ?? ''] || 'bg-muted text-muted-foreground'}>{role ?? '—'}</Badge>;
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -397,7 +308,7 @@ export default function Employees() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -421,7 +332,7 @@ export default function Employees() {
         })}
       </div>
 
-      {/* Filters and Search */}
+      {/* Search bar */}
       <Card className="card-gradient">
         <CardContent className="p-6">
           <div className="flex gap-4">
@@ -459,16 +370,12 @@ export default function Employees() {
           {!isLoading && !isError && (
             <div className="space-y-4">
               {filtered.map((employee) => {
-                const fullName =
-                  `${toStringSafe(employee.firstName)} ${toStringSafe(employee.lastName)}`.trim() ||
-                  toStringSafe(employee.empId);
-                const salaryNum =
-                  typeof employee.salary === 'number' ? employee.salary : Number(employee.salary) || undefined;
+                const fullName = `${employee.firstName} ${employee.lastName}`.trim() || employee.empId;
                 const start = formatTime(employee.shiftTiming?.start);
                 const end = formatTime(employee.shiftTiming?.end);
                 return (
                   <div
-                    key={toStringSafe(employee.empId)}
+                    key={employee.empId}
                     className="flex items-center justify-between p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex items-center gap-4">
@@ -483,19 +390,19 @@ export default function Employees() {
                           {getRoleBadge(employee.role)}
                           {getStatusBadge(employee.status)}
                         </div>
-                        <p className="text-sm text-muted-foreground">ID: {toStringSafe(employee.empId)}</p>
+                        <p className="text-sm text-muted-foreground">ID: {employee.empId}</p>
                         <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Mail className="h-3 w-3" />
-                            {toStringSafe(employee.emailId)}
+                            {employee.emailId}
                           </div>
                           <div className="flex items-center gap-1">
                             <Phone className="h-3 w-3" />
-                            {toStringSafe(employee.phoneNumber) || '—'}
+                            {employee.phoneNumber || '—'}
                           </div>
                           <div className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            Joined: {formatDate(employee.joinDate)}
+                            Joined: {formatDate(employee.joinedDate)}
                           </div>
                           <div className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
@@ -504,23 +411,13 @@ export default function Employees() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-right space-y-1">
-                        <p className="font-semibold text-foreground">
-                          {salaryNum ? `₹${salaryNum.toLocaleString()}` : '—'}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {toStringSafe(employee.shift) || (start && end ? `${start} — ${end}` : '—')}
-                        </p>
-                      </div>
-                      <div className="flex gap-2 ml-4">
-                        <Button variant="outline" size="sm" onClick={() => openView(employee)} title="View">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="sm" title="Edit">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </div>
+                    <div className="flex gap-2 ml-4">
+                      <Button variant="outline" size="sm" onClick={() => { setSelected(employee); setViewOpen(true); }} title="View">
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => onEdit(employee)} title="Edit">
+                        <Edit className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 );
@@ -543,56 +440,53 @@ export default function Employees() {
             max-w-3xl p-0 sm:rounded-lg shadow-xl
           "
         >
-
-
           <div className="max-h-[80vh] overflow-y-auto p-4 sm:p-6">
             <DialogHeader>
               <DialogTitle>Employee Details</DialogTitle>
               <DialogDescription>
-                Full profile for {toStringSafe(selected?.firstName)} {toStringSafe(selected?.lastName)}
+                Full profile for {selected?.firstName} {selected?.lastName}
               </DialogDescription>
             </DialogHeader>
-
             {selected && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Employee ID</p>
-                    <p className="font-medium">{toStringSafe(selected.empId)}</p>
+                    <p className="font-medium">{selected.empId}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Organization</p>
-                    <p className="font-medium">{toStringSafe(selected.organizationId)}</p>
+                    <p className="font-medium">{selected.organizationId}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Role</p>
-                    <p className="font-medium">{toStringSafe(selected.role)}</p>
+                    <p className="font-medium">{selected.role}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Department</p>
-                    <p className="font-medium">{toStringSafe(selected.department)}</p>
+                    <p className="font-medium">{selected.department}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Name</p>
                     <p className="font-medium">
-                      {toStringSafe(selected.firstName)} {toStringSafe(selected.lastName)}
+                      {selected.firstName} {selected.lastName}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Email</p>
-                    <p className="font-medium">{toStringSafe(selected.emailId)}</p>
+                    <p className="font-medium">{selected.emailId}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Phone</p>
-                    <p className="font-medium">{toStringSafe(selected.phoneNumber) || '—'}</p>
+                    <p className="font-medium">{selected.phoneNumber || '—'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Username</p>
-                    <p className="font-medium">{toStringSafe(selected.username)}</p>
+                    <p className="font-medium">{selected.username}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Joined</p>
-                    <p className="font-medium">{formatDate(selected.joinDate)}</p>
+                    <p className="font-medium">{formatDate(selected.joinedDate)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Shift</p>
@@ -606,28 +500,151 @@ export default function Employees() {
                     <p className="text-sm text-muted-foreground">Address</p>
                     <p className="font-medium">
                       {[
-                        toStringSafe(selected.address?.line1),
-                        toStringSafe(selected.address?.line2),
-                        toStringSafe(selected.address?.city),
-                        toStringSafe(selected.address?.state),
-                        toStringSafe(selected.address?.postalCode),
-                        toStringSafe(selected.address?.country),
-                      ]
-                        .filter(Boolean)
-                        .join(', ') || '—'}
+                        selected.address?.line1,
+                        selected.address?.line2,
+                        selected.address?.city,
+                        selected.address?.state,
+                        selected.address?.postalCode,
+                        selected.address?.country,
+                      ].filter(Boolean).join(', ') || '—'}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Emergency Contact</p>
                     <p className="font-medium">
-                      {toStringSafe(selected.emergencyContact?.name) || '—'}{' '}
-                      {selected.emergencyContact?.phone ? `(${toStringSafe(selected.emergencyContact?.phone)})` : ''}{' '}
-                      {selected.emergencyContact?.relationship ? `– ${toStringSafe(selected.emergencyContact?.relationship)}` : ''}
+                      {selected.emergencyContact?.name || '—'}
+                      {selected.emergencyContact?.phone ? ` (${selected.emergencyContact?.phone})` : ''}
+                      {selected.emergencyContact?.relationship ? ` – ${selected.emergencyContact?.relationship}` : ''}
                     </p>
                   </div>
                 </div>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Employee Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogOverlay className="fixed inset-0 z-[90] grid place-items-center bg-background/80 backdrop-blur-sm" />
+        <DialogContent
+          className="
+            fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2
+            w-[96vw] sm:w-[92vw] md:w-[86vw] lg:w-[70vw] xl:w-[60vw]
+            max-w-5xl p-0 sm:rounded-lg shadow-xl
+          "
+        >
+          <div className="max-h-[85vh] overflow-y-auto p-4 sm:p-6 md:p-8">
+            <DialogHeader>
+              <DialogTitle>Edit Employee</DialogTitle>
+              <DialogDescription>Edit and save changes for this employee.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleUpdateSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="empId">Employee ID</Label>
+                  <Input id="empId" value={editForm?.empId || ''} readOnly disabled />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="organizationId">Organization ID</Label>
+                  <Input id="organizationId" value={editForm?.organizationId || ''} readOnly disabled />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="role">Role</Label>
+                  <Input id="role" value={editForm?.role || ''} onChange={e => setEditForm(f => ({ ...f!, role: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="department">Department</Label>
+                  <Input id="department" value={editForm?.department || ''} onChange={e => setEditForm(f => ({ ...f!, department: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name</Label>
+                  <Input id="firstName" value={editForm?.firstName || ''} onChange={e => setEditForm(f => ({ ...f!, firstName: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name</Label>
+                  <Input id="lastName" value={editForm?.lastName || ''} onChange={e => setEditForm(f => ({ ...f!, lastName: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="phoneNumber">Phone</Label>
+                  <Input id="phoneNumber" value={editForm?.phoneNumber || ''} onChange={e => setEditForm(f => ({ ...f!, phoneNumber: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="status">Status</Label>
+                  <select id="status" className="w-full rounded-md border p-2" value={editForm?.status || ""} onChange={e => setEditForm(f => ({ ...f!, status: e.target.value }))}>
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">Password (leave blank to keep)</Label>
+                  <Input id="newPassword" type="password" value={editForm?.newPassword || ''} onChange={e => setEditForm(f => ({ ...f!, newPassword: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="emailId">Email (read only)</Label>
+                  <Input id="emailId" value={editForm?.emailId || ''} readOnly disabled />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="start">Shift Start</Label>
+                  <Input id="start" type="time" value={editForm?.shiftTiming?.start || ''} onChange={e => setEditForm(f => ({
+                    ...f!,
+                    shiftTiming: { ...(f?.shiftTiming || {}), start: e.target.value }
+                  }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="end">Shift End</Label>
+                  <Input id="end" type="time" value={editForm?.shiftTiming?.end || ''} onChange={e => setEditForm(f => ({
+                    ...f!,
+                    shiftTiming: { ...(f?.shiftTiming || {}), end: e.target.value }
+                  }))} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Address</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input placeholder="Address Line 1" value={editForm?.address?.line1 || ''} onChange={e => setEditForm(f => ({ ...f!, address: { ...(f?.address || {}), line1: e.target.value } }))} />
+                  <Input placeholder="Address Line 2" value={editForm?.address?.line2 || ''} onChange={e => setEditForm(f => ({ ...f!, address: { ...(f?.address || {}), line2: e.target.value } }))} />
+                  <Input placeholder="City" value={editForm?.address?.city || ''} onChange={e => setEditForm(f => ({ ...f!, address: { ...(f?.address || {}), city: e.target.value } }))} />
+                  <select className="w-full rounded-md border border-border bg-background p-2" value={editForm?.address?.state || ''} onChange={e => setEditForm(f => ({ ...f!, address: { ...(f?.address || {}), state: e.target.value } }))}>
+                    <option value="">Select State</option>
+                    {IN_STATES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                  <Input placeholder="Postal Code" value={editForm?.address?.postalCode || ''} onChange={e => setEditForm(f => ({ ...f!, address: { ...(f?.address || {}), postalCode: e.target.value } }))} />
+                  <Input value={editForm?.address?.country || 'India'} readOnly disabled />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Emergency Contact</Label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Input placeholder="Name" value={editForm?.emergencyContact?.name || ''} onChange={e => setEditForm(f => ({ ...f!, emergencyContact: { ...(f?.emergencyContact || {}), name: e.target.value } }))} />
+                  <Input placeholder="Phone" value={editForm?.emergencyContact?.phone || ''} onChange={e => setEditForm(f => ({ ...f!, emergencyContact: { ...(f?.emergencyContact || {}), phone: e.target.value } }))} />
+                  <Input placeholder="Relationship" value={editForm?.emergencyContact?.relationship || ''} onChange={e => setEditForm(f => ({ ...f!, emergencyContact: { ...(f?.emergencyContact || {}), relationship: e.target.value } }))} />
+                </div>
+              </div>
+              <DialogFooter className="flex items-center justify-between gap-3 pt-2">
+                <div className="text-sm text-muted-foreground">Edit only the necessary details and save.</div>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" disabled={updating} onClick={() => setEditOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" className="btn-gradient-primary" disabled={updating}>
+                    {updating ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
+              </DialogFooter>
+            </form>
           </div>
         </DialogContent>
       </Dialog>
@@ -642,13 +659,11 @@ export default function Employees() {
             max-w-5xl p-0 sm:rounded-lg shadow-xl
           "
         >
-
           <div className="max-h-[85vh] overflow-y-auto p-4 sm:p-6 md:p-8">
             <DialogHeader>
               <DialogTitle>Add Employee</DialogTitle>
               <DialogDescription>Fill in the details to create a new employee.</DialogDescription>
             </DialogHeader>
-
             <form onSubmit={onSubmit} className="space-y-4">
               {/* Org / Emp ID (read-only) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -658,10 +673,9 @@ export default function Employees() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="empId">Employee ID <span className="text-destructive">*</span></Label>
-                  <Input id="empId" value={form.empId || nextEmpId} readOnly disabled required aria-required="true" className="bg-muted/50" />
+                  <Input id="empId" value={nextEmpId} readOnly disabled required aria-required="true" className="bg-muted/50" />
                 </div>
               </div>
-
               {/* Role / Department */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -673,7 +687,6 @@ export default function Employees() {
                   <Input id="department" value={form.department} onChange={(e) => setForm((p) => ({ ...p, department: e.target.value }))} required aria-required="true" placeholder="e.g., Operations" />
                 </div>
               </div>
-
               {/* Name */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -685,7 +698,6 @@ export default function Employees() {
                   <Input id="lastName" value={form.lastName} onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))} required aria-required="true" />
                 </div>
               </div>
-
               {/* Contact */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -697,9 +709,8 @@ export default function Employees() {
                   <Input id="emailId" type="email" value={form.emailId} onChange={(e) => setForm((p) => ({ ...p, emailId: e.target.value }))} required aria-required="true" />
                 </div>
               </div>
-
               {/* Auth */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md-grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="username">Username <span className="text-destructive">*</span></Label>
                   <Input id="username" value={form.username} onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))} required aria-required="true" />
@@ -709,7 +720,6 @@ export default function Employees() {
                   <Input id="password" type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} required aria-required="true" />
                 </div>
               </div>
-
               {/* Shift timing */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -721,7 +731,6 @@ export default function Employees() {
                   <Input id="end" type="time" value={form.shiftTiming?.end || ''} onChange={(e) => setForm((p) => ({ ...p, shiftTiming: { ...(p.shiftTiming || {}), end: e.target.value } }))} />
                 </div>
               </div>
-
               {/* Address */}
               <div className="space-y-2">
                 <Label>Address</Label>
@@ -739,7 +748,6 @@ export default function Employees() {
                   <Input value={form.address?.country || 'India'} readOnly disabled />
                 </div>
               </div>
-
               {/* Emergency contact */}
               <div className="space-y-2">
                 <Label>Emergency Contact</Label>
@@ -749,8 +757,6 @@ export default function Employees() {
                   <Input placeholder="Relationship" value={form.emergencyContact?.relationship || ''} onChange={(e) => setForm((p) => ({ ...p, emergencyContact: { ...(p.emergencyContact || {}), relationship: e.target.value } }))} />
                 </div>
               </div>
-
-              {/* Submit */}
               <DialogFooter className="flex items-center justify-between gap-3 pt-2">
                 <div className="text-sm text-muted-foreground">Ensure details are correct before saving.</div>
                 <div className="flex gap-2">
