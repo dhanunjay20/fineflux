@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  Users, Fuel, CreditCard, TrendingUp, DollarSign, AlertTriangle, BarChart3, Eye, RotateCcw
+  Users, Fuel, CreditCard, TrendingUp, DollarSign, AlertTriangle, BarChart3, Eye, RotateCcw,
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
@@ -29,7 +29,7 @@ export function OwnerDashboard() {
       setError({
         employees: "No Organization ID",
         tanks: "No Organization ID",
-        borrowers: "No Organization ID"
+        borrowers: "No Organization ID",
       });
       setLoading({ employees: false, tanks: false, borrowers: false });
       return;
@@ -51,7 +51,7 @@ export function OwnerDashboard() {
         setError({
           employees: err?.message || 'Error loading employees.',
           tanks: err?.message || 'Error loading inventory.',
-          borrowers: err?.message || 'Error loading borrowers.'
+          borrowers: err?.message || 'Error loading borrowers.',
         });
         setLoading({ employees: false, tanks: false, borrowers: false });
       });
@@ -112,9 +112,22 @@ export function OwnerDashboard() {
     status: borrower.status === 'overdue' ? 'overdue' : 'current',
   })), [borrowers]);
 
+  // ---- Total Stock Value Fix Here ----
+  // Replace "ratePerLitre" with your actual price property if different, e.g. "productRate" or "price"
   const financialSummary = useMemo(() => ({
     totalStockValue: safeArray(tanks)
-      .reduce((sum, tank) => sum + (Number(tank.currentLevel) || 0), 0),
+      .reduce(
+        (sum, tank) =>
+          sum +
+          (Number(tank.currentLevel) || 0) *
+          (
+            Number(tank.ratePerLitre) ||
+            Number(tank.productRate) ||
+            Number(tank.price) ||
+            0
+          ),
+        0
+      ),
     dailyCollection: safeArray(borrowers)
       .reduce((sum, b) => sum + (Number(b.amountBorrowed) || 0), 0),
     totalLiabilities: safeArray(borrowers)
@@ -281,19 +294,27 @@ export function OwnerDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="text-center space-y-2">
               <p className="text-sm text-muted-foreground">Total Stock Value</p>
-              <p className="text-2xl font-bold text-primary">₹{(financialSummary.totalStockValue / 100000).toFixed(1)}L</p>
+              <p className="text-2xl font-bold text-primary">
+                ₹{financialSummary.totalStockValue.toLocaleString()}
+              </p>
             </div>
             <div className="text-center space-y-2">
               <p className="text-sm text-muted-foreground">Daily Collection</p>
-              <p className="text-2xl font-bold text-success">₹{(financialSummary.dailyCollection / 1000).toFixed(0)}K</p>
+              <p className="text-2xl font-bold text-success">
+                ₹{(financialSummary.dailyCollection / 1000).toFixed(0)}K
+              </p>
             </div>
             <div className="text-center space-y-2">
               <p className="text-sm text-muted-foreground">Total Liabilities</p>
-              <p className="text-2xl font-bold text-warning">₹{(financialSummary.totalLiabilities / 100000).toFixed(1)}L</p>
+              <p className="text-2xl font-bold text-warning">
+                ₹{(financialSummary.totalLiabilities / 100000).toFixed(1)}L
+              </p>
             </div>
             <div className="text-center space-y-2">
               <p className="text-sm text-muted-foreground">Net Position</p>
-              <p className="text-2xl font-bold text-accent">₹{(financialSummary.netPosition / 100000).toFixed(1)}L</p>
+              <p className="text-2xl font-bold text-accent">
+                ₹{(financialSummary.netPosition / 100000).toFixed(1)}L
+              </p>
             </div>
           </div>
         </CardContent>

@@ -20,9 +20,9 @@ function formatDateTime(dateStr?: string) {
   return Number.isNaN(d.getTime())
     ? dateStr
     : `${d.toLocaleDateString("en-IN")} ${d.toLocaleTimeString("en-IN", {
-        hour: "2-digit",
-        minute: "2-digit"
-      })}`;
+      hour: "2-digit",
+      minute: "2-digit"
+    })}`;
 }
 
 function useLatestInventories(orgId, products) {
@@ -174,11 +174,11 @@ export default function Inventory() {
       value:
         activeTanks.length > 0
           ? `${(
-              activeTanks.reduce(
-                (sum, tank) => sum + Number(tank.tankCapacity || 0),
-                0
-              ) / 1000
-            ).toFixed(1)}K`
+            activeTanks.reduce(
+              (sum, tank) => sum + Number(tank.tankCapacity || 0),
+              0
+            ) / 1000
+          ).toFixed(1)}K`
           : "-",
       change: "Liters",
       icon: Fuel,
@@ -190,11 +190,11 @@ export default function Inventory() {
       value:
         activeTanks.length > 0
           ? `${(
-              activeTanks.reduce(
-                (sum, tank) => sum + Number(tank.currentLevel || 0),
-                0
-              ) / 1000
-            ).toFixed(1)}K`
+            activeTanks.reduce(
+              (sum, tank) => sum + Number(tank.currentLevel || 0),
+              0
+            ) / 1000
+          ).toFixed(1)}K`
           : "-",
       change: "Liters available",
       icon: TrendingUp,
@@ -407,8 +407,9 @@ export default function Inventory() {
                     </div>
                     <div>
                       <p className="text-muted-foreground">Last Refill</p>
-                      <p className="font-medium text-foreground">{refill || "—"}</p>
+                      <p className="font-medium text-foreground">{formatDateTime(tank.lastUpdated)}</p>
                     </div>
+
                   </div>
                   <div className="flex gap-2 pt-2">
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => openStockModal(tank)}>

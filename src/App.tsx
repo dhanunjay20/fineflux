@@ -26,6 +26,7 @@ import EmployeeSetDuty from "./pages/EmployeeSetDuty";
 import Products from "./pages/Products";
 import GunInfo from "./pages/GunInfo";
 import SalesHistory from "./pages/SalesHistory";
+import Documents from "./pages/Documents";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +70,16 @@ const App = () => (
                 <ProtectedRoute requiredRoles={['owner', 'manager']}>
                   <DashboardLayout>
                     <Employees />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+             <Route
+              path="/documents"
+              element={
+                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                  <DashboardLayout>
+                    <Documents />
                   </DashboardLayout>
                 </ProtectedRoute>
               }

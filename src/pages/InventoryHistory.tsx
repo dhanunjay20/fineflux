@@ -51,7 +51,7 @@ export default function InventoryHistory() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [chosenPeriod, setChosenPeriod] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
-  const [confirmDelete, setConfirmDelete] = useState<any | null>(null); // log to be deleted
+  const [confirmDelete, setConfirmDelete] = useState<any | null>(null);
 
   // Fetch products for dropdown
   const { data: products = [] } = useQuery({
@@ -213,48 +213,53 @@ export default function InventoryHistory() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm border border-separate border-spacing-0 rounded-lg">
-                <thead className="sticky top-0 z-[1] bg-muted">
-                  <tr>
-                    <th className="py-2 px-3 font-semibold text-center">Date/Time</th>
-                    <th className="py-2 px-3 font-semibold text-center">Product</th>
-                    <th className="py-2 px-3 font-semibold text-center">Stock Value</th>
-                    <th className="py-2 px-3 font-semibold text-center">Current Level</th>
-                    <th className="py-2 px-3 font-semibold text-center">Capacity</th>
-                    <th className="py-2 px-3 font-semibold text-center">Status</th>
-                    <th className="py-2 px-3 font-semibold text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {logs.map((log: any, i: number) => (
-                    <tr key={log.id || `${log.inventoryId}-${i}`} className={i % 2 === 0 ? "bg-background" : "bg-muted/30"}>
-                      <td className="py-2 px-3 text-center break-all whitespace-nowrap">{formatDateTime(log.lastUpdated)}</td>
-                      <td className="py-2 px-3 text-center break-all">{log.productName}</td>
-                      <td className="py-2 px-3 text-center">{typeof log.stockValue === "number" ? `₹${nf.format(log.stockValue)}` : "—"}</td>
-                      <td className="py-2 px-3 text-center">{typeof log.currentLevel === "number" ? nf.format(log.currentLevel) : "—"}</td>
-                      <td className="py-2 px-3 text-center">{log.totalCapacity ? nf.format(log.totalCapacity) : log.tankCapacity ? nf.format(log.tankCapacity) : "—"}</td>
-                      <td className="py-2 px-3 text-center">
-                        {log.status === false
-                          ? <span className="inline-block px-2 py-1 bg-destructive/10 text-destructive rounded text-xs font-medium">Inactive</span>
-                          : <span className="inline-block px-2 py-1 bg-success/10 text-success rounded text-xs font-medium">Active</span>
-                        }
-                      </td>
-                      <td className="py-2 px-3 text-center">
-                        {/* Delete button uses ONLY log.id; opens dialog */}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => startDelete(log)}
-                          disabled={deleteMutation.isPending}
-                          className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </td>
+              <div className="max-h-[350px] overflow-y-auto border border-border rounded-lg">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 z-[1] bg-muted">
+                    <tr>
+                      <th className="py-2 px-3 font-semibold text-center">Date/Time</th>
+                      <th className="py-2 px-3 font-semibold text-center">Product</th>
+                      <th className="py-2 px-3 font-semibold text-center">Stock Value</th>
+                      <th className="py-2 px-3 font-semibold text-center">Current Level</th>
+                      <th className="py-2 px-3 font-semibold text-center">Capacity</th>
+                      <th className="py-2 px-3 font-semibold text-center">Status</th>
+                      <th className="py-2 px-3 font-semibold text-center">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {logs.map((log: any, i: number) => (
+                      <tr key={log.id || `${log.inventoryId}-${i}`} className={
+                        i % 2 === 0
+                          ? "bg-background hover:bg-muted/20"
+                          : "bg-muted/30 hover:bg-muted/40"
+                      }>
+                        <td className="py-2 px-3 text-center break-all whitespace-nowrap">{formatDateTime(log.lastUpdated)}</td>
+                        <td className="py-2 px-3 text-center break-all">{log.productName}</td>
+                        <td className="py-2 px-3 text-center">{typeof log.stockValue === "number" ? `₹${nf.format(log.stockValue)}` : "—"}</td>
+                        <td className="py-2 px-3 text-center">{typeof log.currentLevel === "number" ? nf.format(log.currentLevel) : "—"}</td>
+                        <td className="py-2 px-3 text-center">{log.totalCapacity ? nf.format(log.totalCapacity) : log.tankCapacity ? nf.format(log.tankCapacity) : "—"}</td>
+                        <td className="py-2 px-3 text-center">
+                          {log.status === false
+                            ? <span className="inline-block px-2 py-1 bg-destructive/10 text-destructive rounded text-xs font-medium">Inactive</span>
+                            : <span className="inline-block px-2 py-1 bg-success/10 text-success rounded text-xs font-medium">Active</span>
+                          }
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => startDelete(log)}
+                            disabled={deleteMutation.isPending}
+                            className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </CardContent>

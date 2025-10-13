@@ -48,6 +48,7 @@ const navigationItems: NavItem[] = [
   { title: 'Sales & Collections', icon: DollarSign, href: '/sales', roles: ['owner', 'manager'] },
   { title: 'Products', icon: Archive, href: '/products', roles: ['owner', 'manager'] },
   { title: 'Borrowers', icon: CreditCard, href: '/borrowers', roles: ['owner', 'manager'] },
+  { title: 'Documents', icon: FileText, href: '/documents', roles: ['owner', 'manager'] },
   { title: 'Gun Info', icon: Wrench, href: '/guninfo', roles: ['owner', 'manager'] },
   { title: 'Analytics', icon: BarChart3, href: '/analytics', roles: ['owner', 'manager'] },
   { title: 'Attendance', icon: UserCheck, href: '/attendance', roles: ['employee'] },
