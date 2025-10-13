@@ -117,7 +117,7 @@ const App = () => (
             <Route
               path="/sales"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                <ProtectedRoute requiredRoles={['owner', 'manager', 'employee']}>
                   <DashboardLayout>
                     <Sales />
                   </DashboardLayout>
@@ -208,7 +208,7 @@ const App = () => (
             <Route
               path="/sales-history"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                <ProtectedRoute requiredRoles={['owner', 'manager', 'employee']}>
                   <DashboardLayout>
                     <SalesHistory />
                   </DashboardLayout>
