@@ -18,7 +18,9 @@ import {
   Edit3,
   X,
   Info,
+  Check,
 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://fineflux-spring.onrender.com";
@@ -57,8 +59,23 @@ type OrgForm = {
   ownerLastName: string;
 };
 
+type Product = {
+  id: string;
+  productName: string;
+  price?: number;
+};
+
+type FuelPriceRow = {
+  id: string;
+  name: string;
+  price: string; // keep as string for input control
+  saving?: boolean;
+  saved?: boolean;
+};
+
 export default function Settings() {
   const orgId = localStorage.getItem("organizationId") || "ORG-DEV-001";
+  const empId = localStorage.getItem("empId") || "EMP-DEV-001";
 
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState<OrgForm>({
@@ -77,7 +94,9 @@ export default function Settings() {
     ownerLastName: "",
   });
 
+  const [fuelPrices, setFuelPrices] = useState<FuelPriceRow[]>([]);
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   // Fetch organization by business key
   const {
@@ -157,16 +176,108 @@ export default function Settings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organization", orgId] });
       setEditMode(false);
+      toast({
+        title: "Organization updated",
+        description: "Company information saved successfully.",
+        variant: "default",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Update failed",
+        description: "Could not save company information.",
+        variant: "destructive",
+      });
     },
   });
 
-  // Demo data (unchanged sections)
-  const fuelTypes = [
-    { id: 1, name: "Petrol Premium", price: 110.5, active: true },
-    { id: 2, name: "Petrol Regular", price: 105.2, active: true },
-    { id: 3, name: "Diesel", price: 95.8, active: true },
-    { id: 4, name: "CNG", price: 75.6, active: true },
-  ];
+  // Fetch products for Fuel Types & Pricing
+  const {
+    data: products = [],
+    isLoading: isLoadingProducts,
+    isError: isProductsError,
+    refetch: refetchProducts,
+  } = useQuery<Product[]>({
+    queryKey: ["products", orgId],
+    queryFn: async () => {
+      const res = await axios.get(
+        `${API_BASE}/api/organizations/${orgId}/products`
+      );
+      const arr = Array.isArray(res.data) ? res.data : [];
+      return arr;
+    },
+    enabled: !!orgId,
+  });
+
+  // Seed fuelPrices from products
+  useEffect(() => {
+    if (!products) return;
+    setFuelPrices(
+      products.map((p) => ({
+        id: p.id,
+        name: p.productName,
+        price: p.price != null ? String(p.price) : "",
+        saving: false,
+        saved: false,
+      }))
+    );
+  }, [products]);
+
+  // Mutation to update price per product row with toast feedback
+  const priceMutation = useMutation({
+    mutationFn: async ({
+      id,
+      price,
+      empId,
+      idx,
+      name,
+    }: {
+      id: string;
+      price: number;
+      empId: string;
+      idx: number;
+      name: string;
+    }) => {
+      await axios.post(`${API_BASE}/product/${id}/update-price`, null, {
+        params: { price, empId },
+      });
+      return { idx, price, name };
+    },
+    onSuccess: async (_ret, { idx, price, name }) => {
+      setFuelPrices((rows) =>
+        rows.map((r, i) =>
+          i === idx ? { ...r, saving: false, saved: true } : r
+        )
+      );
+      // Refresh server list (optional, keeps cache consistent)
+      await refetchProducts();
+      setTimeout(
+        () =>
+          setFuelPrices((rows) =>
+            rows.map((r, i) => (i === idx ? { ...r, saved: false } : r))
+          ),
+        1500
+      );
+      toast({
+        title: "Fuel price updated",
+        description: `${name} set to ₹${price.toFixed(2)}`,
+        variant: "default",
+      });
+    },
+    onError: (_err, { idx, name }) => {
+      setFuelPrices((rows) =>
+        rows.map((r, i) => (i === idx ? { ...r, saving: false } : r))
+      );
+      toast({
+        title: "Failed to update price",
+        description: name
+          ? `Could not update ${name}. Please try again.`
+          : "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const systemSettings = [
     {
       id: "notifications",
@@ -205,6 +316,7 @@ export default function Settings() {
       enabled: true,
     },
   ];
+
   const taxSettings = [
     { name: "GST Rate", value: "18%", editable: true },
     { name: "Service Tax", value: "2%", editable: true },
@@ -327,12 +439,7 @@ export default function Settings() {
             {!editMode ? (
               <div className="space-y-2">
                 <Label htmlFor="addressDisplay">Address</Label>
-                <Input
-                  id="addressDisplay"
-                  value={addressDisplay}
-                  readOnly
-                  disabled
-                />
+                <Input id="addressDisplay" value={addressDisplay} readOnly disabled />
               </div>
             ) : (
               <>
@@ -501,7 +608,7 @@ export default function Settings() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Fuel Types & Pricing (demo) */}
+        {/* Fuel Types & Pricing (live, editable) */}
         <Card className="card-gradient">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -510,30 +617,79 @@ export default function Settings() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {fuelTypes.map((fuel) => (
-              <div
-                key={fuel.id}
-                className="flex items-center justify-between p-3 rounded-lg bg-muted/30"
-              >
-                <div className="flex items-center gap-3">
-                  <Switch defaultChecked={fuel.active} disabled />
+            {isLoadingProducts || isProductsError ? (
+              <div className="text-sm text-muted-foreground">
+                {isLoadingProducts ? "Loading products..." : "Failed to load products"}
+              </div>
+            ) : fuelPrices.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No products found</div>
+            ) : (
+              fuelPrices.map((fuel, idx) => (
+                <div
+                  key={fuel.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-muted/30"
+                >
                   <div>
                     <p className="font-medium text-foreground">{fuel.name}</p>
-                    <p className="text-sm text-muted-foreground">Active fuel type</p>
+                    <p className="text-xs text-muted-foreground">
+                      Update retail price per liter
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">₹</span>
+                    <Input
+                      className="w-24 text-right"
+                      type="number"
+                      step="0.01"
+                      value={fuel.price}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFuelPrices((rows) =>
+                          rows.map((r, i) =>
+                            i === idx ? { ...r, price: val, saved: false } : r
+                          )
+                        );
+                      }}
+                      disabled={fuel.saving}
+                    />
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="ml-2"
+                      disabled={
+                        fuel.saving ||
+                        !empId ||
+                        fuel.price.trim() === "" ||
+                        isNaN(Number(fuel.price))
+                      }
+                      onClick={() => {
+                        const priceNum = parseFloat(fuel.price);
+                        if (isNaN(priceNum)) return;
+                        setFuelPrices((rows) =>
+                          rows.map((r, i) => (i === idx ? { ...r, saving: true } : r))
+                        );
+                        priceMutation.mutate({
+                          id: fuel.id,
+                          price: priceNum,
+                          empId,
+                          idx,
+                          name: fuel.name,
+                        });
+                      }}
+                      title="Save Price"
+                    >
+                      {fuel.saved ? (
+                        <Check className="text-green-600" />
+                      ) : fuel.saving ? (
+                        <RefreshCw className="animate-spin" />
+                      ) : (
+                        <Save />
+                      )}
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">₹</span>
-                  <Input
-                    className="w-24 text-right"
-                    defaultValue={fuel.price.toString()}
-                    type="number"
-                    step="0.01"
-                    disabled
-                  />
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
 
