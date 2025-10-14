@@ -10,8 +10,13 @@ import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DollarSign, Plus, CreditCard, Banknote, Calendar, Clock, FileText, List } from "lucide-react";
 import dayjs from "dayjs";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 const RUPEE = "\u20B9";
@@ -610,8 +615,11 @@ export default function Sales() {
                   <div className="flex items-center gap-4">
                     <td>
                       <div className="text-sm text-muted-foreground min-w-[120px]">
-                        {sale.dateTime ? dayjs(sale.dateTime).format("DD/MM/YYYY HH:mm") : "--"}
+                        {sale.dateTime
+                          ? dayjs(sale.dateTime).tz('Asia/Kolkata').format("DD/MM/YYYY HH:mm")
+                          : "--"}
                       </div>
+
                     </td>
 
                     <div>
