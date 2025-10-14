@@ -608,9 +608,12 @@ export default function Sales() {
               ) : todaySales.map((sale: any, index: number) => (
                 <div key={sale.id || index} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
                   <div className="flex items-center gap-4">
-                    <div className="text-sm text-muted-foreground min-w-[80px]">
-                      {sale.dateTime ? dayjs(sale.dateTime).format("HH:mm") : "--"}
-                    </div>
+                    <td>
+                      <div className="text-sm text-muted-foreground min-w-[120px]">
+                        {sale.dateTime ? dayjs(sale.dateTime).format("DD/MM/YYYY HH:mm") : "--"}
+                      </div>
+                    </td>
+
                     <div>
                       <p className="font-medium text-foreground">{sale.productName}</p>
                       <p className="text-sm text-muted-foreground">
