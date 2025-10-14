@@ -29,7 +29,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 // Use Vite env for API; ensure .env defines VITE_API_LOGIN_URL
 const API_LOGIN =
   import.meta.env.VITE_API_LOGIN_URL ||
-  'http://localhost:8080/api/auth/login';
+  'https://fineflux-spring.onrender.com/api/auth/login';
 
 // Backend response from POST /api/auth/login
 type ApiResponse = {

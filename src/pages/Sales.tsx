@@ -18,7 +18,7 @@ import autoTable from "jspdf-autotable";
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://fineflux-spring.onrender.com";
 const RUPEE = "\u20B9";
 
 const rangeForPreset = (preset: string) => {
@@ -619,7 +619,6 @@ export default function Sales() {
                           ? dayjs(sale.dateTime).tz('Asia/Kolkata').format("DD/MM/YYYY HH:mm")
                           : "--"}
                       </div>
-
                     </td>
 
                     <div>
