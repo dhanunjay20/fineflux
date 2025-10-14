@@ -238,7 +238,7 @@ export default function Settings() {
       idx: number;
       name: string;
     }) => {
-      await axios.post(`${API_BASE}/product/${id}/update-price`, null, {
+      await axios.put(`${API_BASE}/product/${id}/update-price`, null, {
         params: { price, empId },
       });
       return { idx, price, name };
