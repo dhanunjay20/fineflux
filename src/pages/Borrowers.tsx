@@ -37,7 +37,6 @@ import { useToast } from '@/hooks/use-toast';
 // Safe dev fallback for API base
 const API_BASE =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'https://fineflux-spring.onrender.com';
-console.log('[Borrowers] API_BASE:', API_BASE);
 
 type Customer = {
   id?: string;

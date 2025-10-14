@@ -224,6 +224,7 @@ export default function Settings() {
   }, [products]);
 
   // Mutation to update price per product row with toast feedback
+  // IMPORTANT: keep hooks at component top-level, not inside event handlers
   const priceMutation = useMutation({
     mutationFn: async ({
       id,
@@ -238,16 +239,18 @@ export default function Settings() {
       idx: number;
       name: string;
     }) => {
-      await axios.put(`${API_BASE}/product/${id}/update-price`, null, {
-        params: { price, empId },
-      });
+      // Match Spring controller:
+      // PUT /api/organizations/{orgId}/appsettings/products/{productId}/price?price=...&empId=...
+      await axios.put(
+        `${API_BASE}/api/organizations/${orgId}/appsettings/products/${id}/price`,
+        null,
+        { params: { price, empId } }
+      );
       return { idx, price, name };
     },
     onSuccess: async (_ret, { idx, price, name }) => {
       setFuelPrices((rows) =>
-        rows.map((r, i) =>
-          i === idx ? { ...r, saving: false, saved: true } : r
-        )
+        rows.map((r, i) => (i === idx ? { ...r, saving: false, saved: true } : r))
       );
       // Refresh server list (optional, keeps cache consistent)
       await refetchProducts();
@@ -325,15 +328,17 @@ export default function Settings() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">System Settings</h1>
-          <p className="text-muted-foreground">
+      {/* Header: mobile-safe stacked, no overlap */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground truncate">
+            System Settings
+          </h1>
+          <p className="text-sm md:text-base text-muted-foreground">
             Configure your petrol pump management system
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-start sm:justify-end">
           <Button
             variant="outline"
             onClick={() => {
@@ -341,6 +346,7 @@ export default function Settings() {
               setEditMode(false);
             }}
             disabled={isLoading}
+            className="w-full sm:w-auto"
           >
             <RefreshCw className="mr-2 h-4 w-4" />
             Reset
@@ -370,12 +376,13 @@ export default function Settings() {
                   setEditMode(false);
                 }}
                 disabled={updateMutation.isPending}
+                className="w-full sm:w-auto"
               >
                 <X className="mr-2 h-4 w-4" />
                 Cancel
               </Button>
               <Button
-                className="btn-gradient-success"
+                className="btn-gradient-success w-full sm:w-auto"
                 onClick={() => updateMutation.mutate(form)}
                 disabled={updateMutation.isPending}
               >
@@ -384,7 +391,11 @@ export default function Settings() {
               </Button>
             </>
           ) : (
-            <Button onClick={() => setEditMode(true)} disabled={isLoading || isError}>
+            <Button
+              onClick={() => setEditMode(true)}
+              disabled={isLoading || isError}
+              className="w-full sm:w-auto"
+            >
               <Edit3 className="mr-2 h-4 w-4" />
               Edit
             </Button>

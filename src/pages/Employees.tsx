@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import axios from 'axios';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -98,23 +98,23 @@ export default function Employees() {
   }
 
   // Backend fetch (paging: .content)
- const { data = [], isLoading, isError, error, refetch, isFetching } = useQuery({
-  queryKey: ['employees', orgId],
-  queryFn: async () => {
-    if (!orgId) return [];
-    const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employees`, { timeout: 15000 });
-    // Support both array or { content: [...] }
-    if (Array.isArray(res.data)) return res.data;
-    if (Array.isArray(res.data.content)) return res.data.content;
-    return [];
-  },
-  enabled: !!orgId,
-  refetchOnWindowFocus: false,
-  staleTime: 60_000,
-});
+  const { data = [], isLoading, isError, error, refetch, isFetching } = useQuery({
+    queryKey: ['employees', orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employees`, { timeout: 15000 });
+      // Support both array or { content: [...] }
+      if (Array.isArray(res.data)) return res.data;
+      if (Array.isArray(res.data.content)) return res.data.content;
+      return [];
+    },
+    enabled: !!orgId,
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+  });
 
-const employees: Employee[] = Array.isArray(data) ? data : [];
-const nextEmpId = useMemo(() => getNextEmpId(orgId, employees), [orgId, employees]);
+  const employees: Employee[] = Array.isArray(data) ? data : [];
+  const nextEmpId = useMemo(() => getNextEmpId(orgId, employees), [orgId, employees]);
 
   // Stats panel
   const stats = useMemo(() => {
@@ -288,35 +288,72 @@ const nextEmpId = useMemo(() => getNextEmpId(orgId, employees), [orgId, employee
     normalizeStatus(status) === 'active'
       ? <Badge className="bg-success-soft text-success">Active</Badge>
       : <Badge className="bg-muted text-muted-foreground">Inactive</Badge>;
+  // Replace your current getRoleBadge with this version
   const getRoleBadge = (role?: string) => {
-    const colors: Record<string, string> = {
-      Manager: 'bg-primary-soft text-primary',
-      Cashier: 'bg-accent-soft text-accent',
-      Attendant: 'bg-success-soft text-success',
-      Mechanic: 'bg-warning-soft text-warning',
-      Cleaner: 'bg-muted text-muted-foreground',
+    const key = String(role || '').trim().toLowerCase();
+
+    // Core role palettes (capsule look)
+    const ROLE_STYLES: Record<string, string> = {
+      owner: 'bg-purple-100 text-purple-700 ring-1 ring-purple-200',
+      manager: 'bg-blue-100 text-blue-700 ring-1 ring-blue-200',
+      employee: 'bg-orange-100 text-orange-700 ring-1 ring-orange-200',
     };
-    return <Badge className={colors[role ?? ''] || 'bg-muted text-muted-foreground'}>{role ?? '—'}</Badge>;
+
+    // Map similar roles to a core category (optional)
+    const ALIASES: Record<string, string> = {
+      // treat these as "employee"-type
+      attendant: 'employee',
+      cashier: 'employee',
+      mechanic: 'employee',
+      cleaner: 'employee',
+      staff: 'employee',
+    };
+
+    const resolved = ROLE_STYLES[key] || ROLE_STYLES[ALIASES[key] || ''] || 'bg-muted text-muted-foreground ring-1 ring-border/40';
+
+    // Pretty label
+    const label = key ? key.charAt(0).toUpperCase() + key.slice(1) : '—';
+
+    return (
+      <Badge className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${resolved}`}>
+        {label}
+      </Badge>
+    );
   };
+
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Employee Management</h1>
-          <p className="text-muted-foreground">Manage team members and their information</p>
+      {/* Header: mobile-safe stacked, no overlap */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground truncate">
+            Employee Management
+          </h1>
+          <p className="text-sm md:text-base text-muted-foreground">
+            Manage team members and their information
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => refetch()} disabled={isFetching || !orgId}>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-start sm:justify-end">
+          <Button
+            variant="outline"
+            onClick={() => refetch()}
+            disabled={isFetching || !orgId}
+            className="w-full sm:w-auto"
+          >
             {isFetching ? 'Refreshing...' : 'Refresh'}
           </Button>
-          <Button className="btn-gradient-primary" onClick={() => setOpen(true)} disabled={!orgId}>
+          <Button
+            className="btn-gradient-primary w-full sm:w-auto"
+            onClick={() => setOpen(true)}
+            disabled={!orgId}
+          >
             <Plus className="mr-2 h-4 w-4" />
             Add Employee
           </Button>
         </div>
       </div>
+
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {stats.map((stat) => {
@@ -325,8 +362,8 @@ const nextEmpId = useMemo(() => getNextEmpId(orgId, employees), [orgId, employee
             <Card key={stat.title} className="stat-card hover-lift">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
+                  <div className="space-y-2 min-w-0">
+                    <p className="text-sm font-medium text-muted-foreground truncate">{stat.title}</p>
                     <div className="space-y-1">
                       <p className="text-2xl font-bold text-foreground">{stat.value}</p>
                       <p className="text-xs text-muted-foreground">{stat.change}</p>
@@ -342,13 +379,13 @@ const nextEmpId = useMemo(() => getNextEmpId(orgId, employees), [orgId, employee
         })}
       </div>
 
-      {/* Search bar */}
+      {/* Search bar: stack on mobile to avoid squeeze */}
       <Card className="card-gradient">
         <CardContent className="p-6">
-          <div className="flex gap-4">
-            <div className="flex-1">
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch">
+            <div className="flex-1 min-w-0">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search employees..."
                   className="pl-10"
@@ -357,7 +394,7 @@ const nextEmpId = useMemo(() => getNextEmpId(orgId, employees), [orgId, employee
                 />
               </div>
             </div>
-            <Button variant="outline">
+            <Button variant="outline" className="w-full sm:w-auto">
               <Filter className="mr-2 h-4 w-4" />
               Filter
             </Button>
@@ -386,25 +423,25 @@ const nextEmpId = useMemo(() => getNextEmpId(orgId, employees), [orgId, employee
                 return (
                   <div
                     key={employee.empId}
-                    className="flex items-center justify-between p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
                   >
-                    <div className="flex items-center gap-4">
-                      <Avatar className="h-12 w-12">
+                    <div className="flex items-start sm:items-center gap-4 min-w-0">
+                      <Avatar className="h-12 w-12 shrink-0">
                         <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
                           {getUserInitials(fullName)}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="space-y-1">
+                      <div className="space-y-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-semibold text-foreground">{fullName}</h3>
+                          <h3 className="font-semibold text-foreground truncate">{fullName}</h3>
                           {getRoleBadge(employee.role)}
                           {getStatusBadge(employee.status)}
                         </div>
-                        <p className="text-sm text-muted-foreground">ID: {employee.empId}</p>
+                        <p className="text-sm text-muted-foreground break-all">ID: {employee.empId}</p>
                         <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Mail className="h-3 w-3" />
-                            {employee.emailId}
+                          <div className="flex items-center gap-1 min-w-0">
+                            <Mail className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{employee.emailId}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <Phone className="h-3 w-3" />
@@ -421,11 +458,21 @@ const nextEmpId = useMemo(() => getNextEmpId(orgId, employees), [orgId, employee
                         </div>
                       </div>
                     </div>
-                    <div className="flex gap-2 ml-4">
-                      <Button variant="outline" size="sm" onClick={() => { setSelected(employee); setViewOpen(true); }} title="View">
+                    <div className="flex flex-wrap gap-2 sm:ml-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { setSelected(employee); setViewOpen(true); }}
+                        title="View"
+                      >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => onEdit(employee)} title="Edit">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onEdit(employee)}
+                        title="Edit"
+                      >
                         <Edit className="h-4 w-4" />
                       </Button>
                     </div>
@@ -473,11 +520,11 @@ const nextEmpId = useMemo(() => getNextEmpId(orgId, employees), [orgId, employee
                       {selected.firstName} {selected.lastName}
                     </p></div>
                   <div><p className="text-sm text-muted-foreground">Email</p>
-                    <p className="font-medium">{selected.emailId}</p></div>
+                    <p className="font-medium break-all">{selected.emailId}</p></div>
                   <div><p className="text-sm text-muted-foreground">Phone</p>
                     <p className="font-medium">{selected.phoneNumber || '—'}</p></div>
                   <div><p className="text-sm text-muted-foreground">Username</p>
-                    <p className="font-medium">{selected.username}</p></div>
+                    <p className="font-medium break-all">{selected.username}</p></div>
                   <div><p className="text-sm text-muted-foreground">Joined</p>
                     <p className="font-medium">{formatDate(selected.joinedDate)}</p></div>
                   <div><p className="text-sm text-muted-foreground">Shift</p>

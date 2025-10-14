@@ -30,6 +30,8 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  // IMPORTANT: hook to control open/close
+  useSidebar,
 } from '@/components/ui/sidebar';
 
 interface NavItem {
@@ -61,6 +63,10 @@ export function AppSidebar() {
   const { user, logout } = useAuth();
   const location = useLocation();
 
+  // Access sidebar controller (from your SidebarProvider)
+  const { isMobile, setOpenMobile } = useSidebar(); // closes the offcanvas on mobile
+  // If your API differs, use: const { toggleSidebar, openMobile } = useSidebar();
+
   const [orgId, setOrgId] = useState<string>('');
   const [empId, setEmpId] = useState<string>('');
   useEffect(() => {
@@ -84,6 +90,22 @@ export function AppSidebar() {
   const getRoleBadge = (role: UserRole) => {
     const badges = { owner: 'Owner', manager: 'Manager', employee: 'Employee' };
     return badges[role] || role;
+  };
+
+  // Close sidebar on mobile after any nav click
+  const handleNavClick = () => {
+    if (isMobile) {
+      // Close the offcanvas/sidebar in mobile mode
+      setOpenMobile?.(false);
+      // If your sidebar exposes toggleSidebar instead:
+      // toggleSidebar?.();
+    }
+  };
+
+  // Close on logout as well (mobile)
+  const handleLogout = () => {
+    logout();
+    if (isMobile) setOpenMobile?.(false);
   };
 
   return (
@@ -148,7 +170,11 @@ export function AppSidebar() {
                         active ? 'bg-primary/10 text-primary' : '',
                       ].join(' ')}
                     >
-                      <NavLink to={item.href} className="flex items-center gap-2 px-2 py-2">
+                      <NavLink
+                        to={item.href}
+                        className="flex items-center gap-2 px-2 py-2"
+                        onClick={handleNavClick}
+                      >
                         <Icon className="h-4 w-4" />
                         <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
                         {item.badge && (
@@ -170,7 +196,7 @@ export function AppSidebar() {
         <div className="mx-3 mb-2 h-px bg-border/60" />
         <Button
           variant="ghost"
-          onClick={logout}
+          onClick={handleLogout}
           className="mx-2 w-[calc(100%-1rem)] justify-start rounded-lg hover:bg-destructive hover:text-destructive-foreground"
         >
           <LogOut className="h-4 w-4 mr-2" />

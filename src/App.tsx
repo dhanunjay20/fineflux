@@ -36,7 +36,12 @@ const App = () => (
       <AuthProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
+        <BrowserRouter
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
+        >
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Index />} />
@@ -74,7 +79,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-             <Route
+            <Route
               path="/documents"
               element={
                 <ProtectedRoute requiredRoles={['owner', 'manager']}>
@@ -84,7 +89,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-             <Route
+            <Route
               path="/employee-set-duty"
               element={
                 <ProtectedRoute requiredRoles={['owner', 'manager']}>
@@ -164,7 +169,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-           
             <Route
               path="/attendance"
               element={

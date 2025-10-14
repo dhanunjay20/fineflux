@@ -10,7 +10,7 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://fineflux-spring.onrender.com';
 
-const safeArray = v =>
+const safeArray = (v: any) =>
   Array.isArray(v) ? v :
   Array.isArray(v?.content) ? v.content : [];
 
@@ -18,11 +18,11 @@ export function OwnerDashboard() {
   const navigate = useNavigate();
   const orgId = localStorage.getItem("organizationId") || "";
 
-  const [employees, setEmployees] = useState([]);
-  const [tanks, setTanks] = useState([]);
-  const [borrowers, setBorrowers] = useState([]);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [tanks, setTanks] = useState<any[]>([]);
+  const [borrowers, setBorrowers] = useState<any[]>([]);
   const [loading, setLoading] = useState({ employees: true, tanks: true, borrowers: true });
-  const [error, setError] = useState({ employees: null, tanks: null, borrowers: null });
+  const [error, setError] = useState<{ employees: string | null; tanks: string | null; borrowers: string | null }>({ employees: null, tanks: null, borrowers: null });
 
   const fetchAll = useCallback(() => {
     if (!orgId) {
@@ -71,7 +71,7 @@ export function OwnerDashboard() {
     },
     {
       title: 'Active Tanks',
-      value: loading.tanks ? '...' : String(tanks.filter((t) => t.status).length),
+      value: loading.tanks ? '...' : String(tanks.filter((t: any) => t.status).length),
       icon: Fuel,
       color: 'text-success',
       bgColor: 'bg-success-soft',
@@ -95,7 +95,7 @@ export function OwnerDashboard() {
     },
   ]), [employees, tanks, borrowers, loading.employees, loading.tanks, loading.borrowers]);
 
-  const tankData = useMemo(() => safeArray(tanks).map((tank) => ({
+  const tankData = useMemo(() => safeArray(tanks).map((tank: any) => ({
     id: tank.id,
     name: tank.productName,
     capacity: Number(tank.tankCapacity) || 0,
@@ -104,7 +104,7 @@ export function OwnerDashboard() {
     sales: 0 // Replace with real sales per tank if available
   })), [tanks]);
 
-  const recentBorrowers = useMemo(() => safeArray(borrowers).slice(0, 4).map((borrower) => ({
+  const recentBorrowers = useMemo(() => safeArray(borrowers).slice(0, 4).map((borrower: any) => ({
     id: borrower.id,
     name: borrower.customerName,
     amount: Number(borrower.amountBorrowed) || 0,
@@ -117,7 +117,7 @@ export function OwnerDashboard() {
   const financialSummary = useMemo(() => ({
     totalStockValue: safeArray(tanks)
       .reduce(
-        (sum, tank) =>
+        (sum: number, tank: any) =>
           sum +
           (Number(tank.currentLevel) || 0) *
           (
@@ -129,17 +129,17 @@ export function OwnerDashboard() {
         0
       ),
     dailyCollection: safeArray(borrowers)
-      .reduce((sum, b) => sum + (Number(b.amountBorrowed) || 0), 0),
+      .reduce((sum: number, b: any) => sum + (Number(b.amountBorrowed) || 0), 0),
     totalLiabilities: safeArray(borrowers)
-      .filter(b => b.status === 'overdue')
-      .reduce((sum, b) => sum + (Number(b.amountBorrowed) || 0), 0),
+      .filter((b: any) => b.status === 'overdue')
+      .reduce((sum: number, b: any) => sum + (Number(b.amountBorrowed) || 0), 0),
     netPosition: 0 // Provide real calculation if available.
   }), [tanks, borrowers]);
 
-  const getStockPercentage = (current, capacity) =>
+  const getStockPercentage = (current: number, capacity: number) =>
     capacity ? Math.round((current / capacity) * 100) : 0;
 
-  const getStockStatus = (percentage) => {
+  const getStockStatus = (percentage: number) => {
     if (percentage < 20) return { color: 'text-destructive', bg: 'bg-destructive-soft', label: 'Low' };
     if (percentage < 50) return { color: 'text-warning', bg: 'bg-warning-soft', label: 'Medium' };
     return { color: 'text-success', bg: 'bg-success-soft', label: 'Good' };
@@ -147,15 +147,27 @@ export function OwnerDashboard() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Owner Dashboard</h1>
-          <p className="text-muted-foreground">Complete overview of your petrol bunk operations</p>
+      {/* Header - mobile-safe stacked layout */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground truncate">
+            Owner Dashboard
+          </h1>
+          <p className="text-sm md:text-base text-muted-foreground">
+            Complete overview of your petrol bunk operations
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={fetchAll} variant="outline" title="Refresh Data"><RotateCcw className="mr-2 h-4 w-4" />Refresh</Button>
-          <Button className="btn-gradient-primary">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-start sm:justify-end">
+          <Button
+            onClick={fetchAll}
+            variant="outline"
+            title="Refresh Data"
+            className="w-full sm:w-auto"
+          >
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
+          <Button className="btn-gradient-primary w-full sm:w-auto">
             <BarChart3 className="mr-2 h-4 w-4" />
             View Analytics
           </Button>
@@ -170,8 +182,8 @@ export function OwnerDashboard() {
             <Card key={stat.title} className="stat-card hover-lift">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-muted-foreground truncate">{stat.title}</p>
                     <div>
                       <p className="text-2xl font-bold text-foreground">{stat.value}</p>
                       <p className="text-xs text-muted-foreground">{stat.change}</p>
@@ -209,8 +221,8 @@ export function OwnerDashboard() {
                       return (
                         <div key={tank.id} className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-foreground">{tank.name}</p>
+                            <div className="min-w-0">
+                              <p className="font-medium text-foreground truncate">{tank.name}</p>
                               <p className="text-sm text-muted-foreground">
                                 {tank.current.toLocaleString()}L / {tank.capacity.toLocaleString()}L
                               </p>
@@ -255,8 +267,8 @@ export function OwnerDashboard() {
                     ? <p>No borrowers found.</p>
                     : recentBorrowers.map((borrower) => (
                         <div key={borrower.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                          <div>
-                            <p className="font-medium text-foreground">{borrower.name}</p>
+                          <div className="min-w-0">
+                            <p className="font-medium text-foreground truncate">{borrower.name}</p>
                             <p className="text-sm text-muted-foreground">Last payment: {borrower.lastPayment}</p>
                           </div>
                           <div className="text-right space-y-1">
@@ -270,7 +282,9 @@ export function OwnerDashboard() {
                         </div>
                       ))}
               {borrowers.length > 0 && (
-                <Button variant="outline" className="w-full"
+                <Button
+                  variant="outline"
+                  className="w-full"
                   onClick={() => navigate('/borrowers')}
                 >
                   <Eye className="mr-2 h-4 w-4" />
