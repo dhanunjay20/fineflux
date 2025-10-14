@@ -421,14 +421,23 @@ export default function Inventory() {
                       Schedule Refill
                     </Button>
                   </div>
-                  <div className="flex gap-2 text-xs text-muted-foreground items-center mt-1">
-                    <Clock className="h-4 w-4" />
-                    <span>Last Updated:</span>
-                    <span>{formatDateTime(tank.lastUpdated)}</span>
+                  <div className="mt-3 flex items-center justify-center min-h-[88px]">
+                    <div className="text-center">
+                      <p className="text-[15px] text-muted-foreground uppercase tracking-wide">Stock Value</p>
+                      <p className="text-3xl sm:text-4xl font-extrabold text-primary">
+                        {
+                          Number(tank.price) && Number(tank.currentLevel)
+                            ? new Intl.NumberFormat("en-IN", {
+                              style: "currency",
+                              currency: "INR",
+                              maximumFractionDigits: 0
+                            }).format(Number(tank.currentLevel) * Number(tank.price))
+                            : "—"
+                        }
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Product ID: {tank.productId || "—"}
-                  </p>
+
                 </CardContent>
               </Card>
             );

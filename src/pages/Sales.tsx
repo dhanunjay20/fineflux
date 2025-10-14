@@ -20,6 +20,7 @@ dayjs.extend(timezone);
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://fineflux-spring.onrender.com";
 const RUPEE = "\u20B9";
+const SALES_PER_PAGE = 5;
 
 const rangeForPreset = (preset: string) => {
   const today = dayjs().startOf('day');
@@ -48,6 +49,9 @@ export default function Sales() {
   const [[from, to], setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => rangeForPreset("today") as [dayjs.Dayjs, dayjs.Dayjs]);
   const [dsrRecords, setDsrRecords] = useState<any[]>([]);
   const [dsrLoading, setDsrLoading] = useState(false);
+
+  // Pagination for Today's Sales
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Sales Entry form
   const [form, setForm] = useState({
@@ -83,8 +87,8 @@ export default function Sales() {
     queryFn: async () => (await axios.get(`${API_BASE}/api/organizations/${orgId}/collections`)).data || [],
   });
 
-  const filteredGuns = useMemo(() =>
-    !form.fuel ? [] : guns.filter((g: any) => g.productName === form.fuel),
+  const filteredGuns = useMemo(
+    () => (!form.fuel ? [] : guns.filter((g: any) => g.productName === form.fuel)),
     [form.fuel, guns]
   );
 
@@ -95,7 +99,8 @@ export default function Sales() {
       const gunObj = guns.find(
         (g: any) => g.guns === form.gun && (!form.fuel || g.productName === form.fuel)
       );
-      if (gunObj && typeof gunObj.currentReading !== "undefined") openingStock = gunObj.currentReading;
+      if (gunObj && typeof gunObj.currentReading !== "undefined")
+        openingStock = gunObj.currentReading;
     }
     if (form.fuel) {
       const prod = products.find((p: any) => p.productName === form.fuel);
@@ -277,7 +282,17 @@ export default function Sales() {
     };
   }, [sales]);
 
-  const todaySales = useMemo(() => sales.slice().reverse().slice(0, 10), [sales]);
+  // --------------------
+  // PAGINATION LOGIC
+  // --------------------
+  const todaySalesRaw = useMemo(() => sales.slice().reverse(), [sales]);
+  const totalPages = Math.ceil(todaySalesRaw.length / SALES_PER_PAGE);
+  const todaySales = useMemo(
+    () => todaySalesRaw.slice((currentPage - 1) * SALES_PER_PAGE, currentPage * SALES_PER_PAGE),
+    [todaySalesRaw, currentPage]
+  );
+  const handlePrevPage = () => setCurrentPage((p) => Math.max(1, p - 1));
+  const handleNextPage = () => setCurrentPage((p) => Math.min(totalPages, p + 1));
 
   // DSR/Report dialog handlers below
   const openDsrDialog = () => {
@@ -639,6 +654,20 @@ export default function Sales() {
                 </div>
               ))}
             </div>
+            {/* Pagination UI after sales list */}
+            {todaySalesRaw.length > SALES_PER_PAGE && (
+              <div className="flex justify-center items-center gap-4 mt-4">
+                <Button size="sm" variant="outline" disabled={currentPage === 1} onClick={handlePrevPage}>
+                  Prev
+                </Button>
+                <span className="text-xs">
+                  Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
+                </span>
+                <Button size="sm" variant="outline" disabled={currentPage === totalPages} onClick={handleNextPage}>
+                  Next
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

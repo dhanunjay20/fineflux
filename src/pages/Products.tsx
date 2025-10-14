@@ -364,9 +364,17 @@ export default function Products() {
               Product Created At: {formatDateTime(form.lastUpdated)}
             </div>
           )}
-          <Button type="submit" className="w-full btn-gradient-primary">
-            {editId ? 'Update Product' : 'Add Product'}
+          <Button type="submit" className="w-full btn-gradient-primary" disabled={updateMutation.isPending || createMutation.isPending}>
+            {editId
+              ? (updateMutation.isPending ?
+                (<><span className="spinner-border animate-spin h-4 w-4 mr-2"></span> Updating...</>)
+                : "Update Product")
+              : (createMutation.isPending ?
+                (<><span className="spinner-border animate-spin h-4 w-4 mr-2"></span> Adding...</>)
+                : "Add Product")
+            }
           </Button>
+
         </form>
       </div>
     </div>
