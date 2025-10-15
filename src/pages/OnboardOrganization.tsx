@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import WaveBackground from '@/components/lightswind/wave-background';
 import { ConfettiButton } from '@/components/lightswind/confetti-button';
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'https://finflux-64307221061.asia-south1.run.app ';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'https://finflux-64307221061.asia-south1.run.app';
 
 type OrganizationCreateRequest = {
   organizationId: string;

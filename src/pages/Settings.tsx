@@ -23,7 +23,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 
 const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app ";
+  import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
 
 type OrganizationResponse = {
   id?: string;
