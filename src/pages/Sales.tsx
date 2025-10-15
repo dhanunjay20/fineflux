@@ -18,7 +18,7 @@ import autoTable from "jspdf-autotable";
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://fineflux-spring.onrender.com";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
 const RUPEE = "\u20B9";
 const SALES_PER_PAGE = 5;
 

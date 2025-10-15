@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Trash2, Edit, Box, Archive, Layers, Database } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://fineflux-spring.onrender.com";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
 const GUNS_PER_PAGE = 5;
 
 export default function GunInfo() {
@@ -171,7 +171,7 @@ export default function GunInfo() {
   return (
     <div className="max-w-6xl mx-auto px-2 space-y-6">
       {/* Top Stat Cards */}
- 
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
         {statCards.map((stat) => {
           const Icon = stat.icon;
@@ -308,48 +308,49 @@ export default function GunInfo() {
                 <div>No guns found.</div>
               ) : (
                 <>
-                  {/* Full width table, centered text */}
-                  <table className="w-full text-sm border text-center">
-                    <thead>
-                      <tr className="bg-muted">
-                        <th className="p-2">Product</th>
-                        <th className="p-2">Gun Name</th>
-                        <th className="p-2">Serial Number</th>
-                        <th className="p-2">Current Reading</th>
-                        <th className="p-2">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pagedGuns.map((gun: any) => (
-                        <tr key={gun.id || gun._id}>
-                          <td className="p-2">{gun.productName}</td>
-                          <td className="p-2">{gun.guns}</td>
-                          <td className="p-2">{gun.serialNumber}</td>
-                          <td className="p-2">{gun.currentReading}</td>
-                          <td className="p-2">
-                            <div className="flex justify-center gap-2">
-                              <Button
-                                size="icon"
-                                variant="outline"
-                                onClick={() => handleEdit(gun)}
-                                title="Edit"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => deleteMutation.mutate(gun.id || gun._id)}
-                                title="Delete"
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
-                          </td>
+                  <div className="overflow-x-auto w-full">
+                    <table className="min-w-full text-sm border text-center">
+                      <thead>
+                        <tr className="bg-muted">
+                          <th className="p-2">Product</th>
+                          <th className="p-2">Gun Name</th>
+                          <th className="p-2">Serial Number</th>
+                          <th className="p-2">Current Reading</th>
+                          <th className="p-2">Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {pagedGuns.map((gun: any) => (
+                          <tr key={gun.id || gun._id}>
+                            <td className="p-2">{gun.productName}</td>
+                            <td className="p-2">{gun.guns}</td>
+                            <td className="p-2">{gun.serialNumber}</td>
+                            <td className="p-2">{gun.currentReading}</td>
+                            <td className="p-2">
+                              <div className="flex justify-center gap-2">
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  onClick={() => handleEdit(gun)}
+                                  title="Edit"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => deleteMutation.mutate(gun.id || gun._id)}
+                                  title="Delete"
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
                   {/* Pagination controls */}
                   {guns.length > GUNS_PER_PAGE && (

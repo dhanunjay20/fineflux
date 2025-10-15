@@ -12,7 +12,7 @@ import dayjs from "dayjs";
 import { Plus, Mail, Phone, Filter, Clock, Search } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://fineflux-spring.onrender.com";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
 
 type Employee = {
     empId: string;
