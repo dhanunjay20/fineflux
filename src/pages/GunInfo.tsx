@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Trash2, Edit, Box, Archive, Layers, Database } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app ";
 const GUNS_PER_PAGE = 5;
 
 export default function GunInfo() {

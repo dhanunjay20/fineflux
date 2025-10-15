@@ -36,7 +36,7 @@ import { useToast } from '@/hooks/use-toast';
 
 // Safe dev fallback for API base
 const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'http://localhost:8080';
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'https://finflux-64307221061.asia-south1.run.app ';
 
 type Customer = {
   id?: string;

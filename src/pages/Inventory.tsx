@@ -11,7 +11,7 @@ import {
   Fuel, Plus, TrendingUp, AlertTriangle, RefreshCw, BarChart3, Calendar, X, Download, Eye, History, PackageOpen, Trash2, Clock,
 } from "lucide-react";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app ";
 const LOW_STOCK_PHONE = "9640206605";
 
 function formatDateTime(dateStr?: string) {

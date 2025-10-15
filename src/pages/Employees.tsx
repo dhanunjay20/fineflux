@@ -49,7 +49,7 @@ export type EmployeeUpdateRequest = Partial<Omit<Employee, "id" | "joinedDate">>
 };
 
 const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'http://localhost:8080';
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'https://finflux-64307221061.asia-south1.run.app';
 
 const IN_STATES = [
   'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana',
