@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Calendar as CalendarIcon, Clock, List, RotateCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 const RUPEE = '\u20B9';
 
 const now = dayjs();

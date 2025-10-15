@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+
 import {
-  Users, Plus, Search, Edit, Eye, Phone, Mail, Calendar, Filter, Clock,
+  Users, Plus, Search, Edit, Eye, EyeOff, Phone, Mail, Calendar, Filter, Clock,
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogOverlay,
@@ -47,7 +49,7 @@ export type EmployeeUpdateRequest = Partial<Omit<Employee, "id" | "joinedDate">>
 };
 
 const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'https://finflux-64307221061.asia-south1.run.app';
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'http://localhost:8080';
 
 const IN_STATES = [
   'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana',
@@ -56,6 +58,7 @@ const IN_STATES = [
   'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Andaman and Nicobar Islands', 'Chandigarh',
   'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
 ];
+
 
 // Employee ID helpers
 function extractOrgLetters(org: string) {
@@ -160,6 +163,7 @@ export default function Employees() {
 
   // ----------------- CREATE EMPLOYEE -----------------
   const [open, setOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState<EmployeeCreateRequest>({
     empId: '',
     organizationId: '',
@@ -749,14 +753,48 @@ export default function Employees() {
               </div>
 
               {/* Username and Password */}
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username <span className="text-destructive">*</span></Label>
-                  <Input id="username" value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} required aria-required="true" />
+                  <Label htmlFor="username">
+                    Username <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="username"
+                    value={form.username}
+                    onChange={e => setForm(p => ({ ...p, username: e.target.value }))}
+                    required
+                    aria-required="true"
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password <span className="text-destructive">*</span></Label>
-                  <Input id="password" type="password" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} required aria-required="true" />
+                  <Label htmlFor="password">
+                    Password <span className="text-destructive">*</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={form.password}
+                      onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
+                      required
+                      aria-required="true"
+                      className="pr-12" // space for the icon
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(v => !v)}
+                      tabIndex={-1}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-2"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 

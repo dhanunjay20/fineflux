@@ -27,6 +27,7 @@ import Products from "./pages/Products";
 import GunInfo from "./pages/GunInfo";
 import SalesHistory from "./pages/SalesHistory";
 import Documents from "./pages/Documents";
+import { ResetPasswordPage } from "./contexts/ResetPasswordPage";
 
 const queryClient = new QueryClient();
 
@@ -89,6 +90,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route
               path="/employee-set-duty"
               element={
