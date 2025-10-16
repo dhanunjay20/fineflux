@@ -14,7 +14,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
-const getLocal = (k: string) => localStorage.getItem(k) || "";
+
+const getLocal = (k: string) => {
+  const v = localStorage.getItem(k);
+  return v ?? "";
+};
 
 type Expense = {
   id: string;
@@ -29,6 +33,7 @@ type Expense = {
   approvedBy?: string | null;
   receipt?: boolean;
 };
+
 type ExpenseCategory = {
   id: string;
   categoryName: string;
@@ -38,13 +43,17 @@ type ExpenseCategory = {
 export default function Expenses() {
   const { toast } = useToast();
 
-  // org/emp from localStorage for local dev (easily update to context!)
-  const orgId = getLocal("orgId") || "FOS-8127";
+  // Resolve org/emp from localStorage; prefer "organizationId", fallback to "orgId"
+  const orgId =
+    getLocal("organizationId") ||
+    getLocal("orgId") ||
+    "FOS-8127";
   const empId = getLocal("empId") || "EMP001";
 
   // DATA state
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
+
   // CRUD modal/fields for categories
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ExpenseCategory | null>(null);
@@ -67,18 +76,19 @@ export default function Expenses() {
   // For list refreshing after mutations
   const [refreshToken, setRefreshToken] = useState(0);
 
-  // Fetch expenses & categories on mount/operation
+  // Fetch expenses & categories on mount/operation (scoped by orgId)
   useEffect(() => {
     axios.get(`${API_BASE}/api/organizations/${orgId}/expenses`)
       .then(res => setExpenses(res.data))
       .catch(() => setExpenses([]));
+
     axios.get(`${API_BASE}/api/organizations/${orgId}/expense-categories`)
       .then(res => {
         setCategories(res.data);
         if (res.data.length && !expenseCat) setExpenseCat(res.data[0].categoryName);
       })
       .catch(() => setCategories([]));
-  }, [orgId, refreshToken]);
+  }, [orgId, refreshToken]); // org-scoped fetching
 
   // Stats
   const categoryStats = categories.map(cat => {
@@ -89,6 +99,7 @@ export default function Expenses() {
       count: catExpenses.length
     };
   });
+
   const stats = [
     {
       title: 'Total Expenses',
@@ -120,13 +131,16 @@ export default function Expenses() {
   const openCreateCategoryModal = () => {
     setEditingCategory(null); setNewCategoryName(''); setCategoryError(''); setShowCategoryModal(true);
   };
+
   const openEditCategoryModal = (cat: ExpenseCategory) => {
     setEditingCategory(cat); setNewCategoryName(cat.categoryName); setCategoryError(''); setShowCategoryModal(true);
   };
+
   const closeCategoryModal = () => {
     setEditingCategory(null); setShowCategoryModal(false); setCategoryLoading(false);
     setCategoryError(''); setNewCategoryName('');
   };
+
   const handleCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setCategoryError('');
@@ -135,14 +149,24 @@ export default function Expenses() {
     try {
       let message = '';
       if (editingCategory) {
-        const res = await axios.put(`${API_BASE}/api/organizations/${orgId}/expense-categories/${editingCategory.id}`, {
-          categoryName: newCategoryName.trim()
-        });
+        // UPDATE includes organizationId in body
+        const res = await axios.put(
+          `${API_BASE}/api/organizations/${orgId}/expense-categories/${editingCategory.id}`,
+          {
+            categoryName: newCategoryName.trim(),
+            organizationId: orgId,
+          }
+        );
         message = `Category "${res.data.categoryName}" updated.`;
       } else {
-        const res = await axios.post(`${API_BASE}/api/organizations/${orgId}/expense-categories`, {
-          categoryName: newCategoryName.trim()
-        });
+        // CREATE includes organizationId in body
+        const res = await axios.post(
+          `${API_BASE}/api/organizations/${orgId}/expense-categories`,
+          {
+            categoryName: newCategoryName.trim(),
+            organizationId: orgId,
+          }
+        );
         message = `Category "${res.data.categoryName}" created.`;
       }
       closeCategoryModal();
@@ -158,6 +182,7 @@ export default function Expenses() {
       setCategoryLoading(false);
     }
   };
+
   const handleDeleteCategory = async (id: string) => {
     setCategoryLoading(true); setCategoryError('');
     try {
@@ -182,6 +207,7 @@ export default function Expenses() {
     setExpenseDate(new Date().toISOString().slice(0, 10));
     setExpenseError('');
   };
+
   const closeExpenseModal = () => {
     setShowExpenseModal(false);
     setExpenseLoading(false);
@@ -190,6 +216,7 @@ export default function Expenses() {
     setExpenseCat(categories[0]?.categoryName || '');
     setExpenseError('');
   };
+
   const handleCreateExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     setExpenseError('');
@@ -239,6 +266,7 @@ export default function Expenses() {
 
   // --- UI helpers ---
   const formatDate = (date: string) => new Date(date).toLocaleDateString("en-IN");
+
   const getStatusBadge = (status?: string) => {
     if (!status) return null;
     const colors = { pending: "bg-warning-soft text-warning", approved: "bg-success-soft text-success", rejected: "bg-destructive-soft text-destructive" };
@@ -338,7 +366,7 @@ export default function Expenses() {
                       <div className="flex justify-end gap-2">
                         <Button
                           variant="destructive"
-                          onClick={() => handleDeleteCategory(deleteCategoryConfirmId)}
+                          onClick={() => handleDeleteCategory(deleteCategoryConfirmId!)}
                           disabled={categoryLoading}
                         >
                           {categoryLoading ? "Deleting..." : "Delete"}
@@ -421,7 +449,7 @@ export default function Expenses() {
                       <div className="flex justify-end gap-2">
                         <Button
                           variant="destructive"
-                          onClick={() => handleDeleteExpense(deleteExpenseConfirmId)}
+                          onClick={() => handleDeleteExpense(deleteExpenseConfirmId!)}
                           disabled={deleteExpenseLoading}
                         >
                           {deleteExpenseLoading ? "Deleting..." : "Delete"}

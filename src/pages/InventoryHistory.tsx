@@ -221,7 +221,7 @@ export default function InventoryHistory() {
                       <th className="py-2 px-3 font-semibold text-center">Product</th>
                       <th className="py-2 px-3 font-semibold text-center">Stock Value</th>
                       <th className="py-2 px-3 font-semibold text-center">Current Level</th>
-                      <th className="py-2 px-3 font-semibold text-center">Capacity</th>
+                      <th className="py-2 px-3 font-semibold text-center">Tank Capacity</th>
                       <th className="py-2 px-3 font-semibold text-center">Status</th>
                       <th className="py-2 px-3 font-semibold text-center">Actions</th>
                     </tr>
@@ -237,7 +237,7 @@ export default function InventoryHistory() {
                         <td className="py-2 px-3 text-center break-all">{log.productName}</td>
                         <td className="py-2 px-3 text-center">{typeof log.stockValue === "number" ? `₹${nf.format(log.stockValue)}` : "—"}</td>
                         <td className="py-2 px-3 text-center">{typeof log.currentLevel === "number" ? nf.format(log.currentLevel) : "—"}</td>
-                        <td className="py-2 px-3 text-center">{log.totalCapacity ? nf.format(log.totalCapacity) : log.tankCapacity ? nf.format(log.tankCapacity) : "—"}</td>
+                        <td className="py-2 px-3 text-center">{log.tankCapacity ? nf.format(log.tankCapacity) : log.tankCapacity ? nf.format(log.tankCapacity) : "—"}</td>
                         <td className="py-2 px-3 text-center">
                           {log.status === false
                             ? <span className="inline-block px-2 py-1 bg-destructive/10 text-destructive rounded text-xs font-medium">Inactive</span>

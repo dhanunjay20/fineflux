@@ -12,19 +12,17 @@ import { useNavigate } from "react-router-dom";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
 const RUPEE = '\u20B9';
 
-const now = dayjs();
-
 const rangeForPreset = (preset: string) => {
-  const today = now.startOf('day');
+  const today = dayjs();
   switch (preset) {
     case "today":
-      return [today, today.endOf('day')];
+      return [today.startOf('day'), today.endOf('day')];
     case "week":
       return [today.startOf('week'), today.endOf('week')];
     case "month":
       return [today.startOf('month'), today.endOf('month')];
     default:
-      return [today, today];
+      return [today.startOf('day'), today.endOf('day')];
   }
 };
 
@@ -40,10 +38,14 @@ export default function SalesHistory() {
     }
   }, [preset]);
 
+  // Format for Spring: ISO_LOCAL_DATE_TIME, e.g. 2025-10-16T00:00:00 (not UTC "Z")
+  const fromIso = from.startOf('day').format("YYYY-MM-DDTHH:mm:ss");
+  const toIso = to.endOf('day').format("YYYY-MM-DDTHH:mm:ss");
+
   const { data: records = [], isFetching, refetch } = useQuery({
-    queryKey: ["sale-history", orgId, from, to],
+    queryKey: ["sale-history", orgId, fromIso, toIso],
     queryFn: async () => {
-      const params = `from=${from.toISOString()}&to=${to.toISOString()}`;
+      const params = `from=${fromIso}&to=${toIso}`;
       const url = `${API_BASE}/api/organizations/${orgId}/sale-history/by-date?${params}`;
       const res = await axios.get(url);
       return Array.isArray(res.data) ? res.data : [];
@@ -52,15 +54,16 @@ export default function SalesHistory() {
   });
 
   const summary = useMemo(() => {
-    let totalSales = 0, cash = 0, upi = 0, card = 0, short = 0;
+    let totalSales = 0, cash = 0, upi = 0, card = 0, short = 0, received = 0;
     records.forEach((r: any) => {
       totalSales += r.salesInRupees || 0;
       cash += r.cashReceived || 0;
       upi += r.phonePay || 0;
       card += r.creditCard || 0;
       short += r.shortCollections || 0;
+      received += r.receivedTotal || 0;
     });
-    return { totalSales, cash, upi, card, short };
+    return { totalSales, cash, upi, card, short, received };
   }, [records]);
 
   const handleCustomChange = (which: "from" | "to", value: string) => {
@@ -71,10 +74,7 @@ export default function SalesHistory() {
     ]);
   };
 
-  // Use useNavigate() directly
-  const handleNavigateToSales = () => {
-    navigate("/sales");
-  };
+  const handleNavigateToSales = () => navigate("/sales");
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-8">
@@ -150,12 +150,18 @@ export default function SalesHistory() {
           </CardContent>
         </Card>
       </div>
-      {/* Short Collection card */}
-      <div className="mt-2">
+      {/* Short/Received Collection card */}
+      <div className="grid md:grid-cols-2 gap-4 mt-2">
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-muted-foreground font-semibold">Short Collections</p>
             <h3 className="text-2xl font-bold text-yellow-700">{RUPEE}{summary.short.toLocaleString()}</h3>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-muted-foreground font-semibold">Received Total</p>
+            <h3 className="text-2xl font-bold text-pink-700">{RUPEE}{summary.received.toLocaleString()}</h3>
           </CardContent>
         </Card>
       </div>
@@ -163,7 +169,9 @@ export default function SalesHistory() {
       {/* Records Table/List */}
       <Card>
         <CardHeader>
-          <CardTitle>Sale History: {from.format('DD MMM YYYY')} to {to.format('DD MMM YYYY')}</CardTitle>
+          <CardTitle>
+            Sale History: {from.format('DD MMM YYYY')} to {to.format('DD MMM YYYY')}
+          </CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           {isFetching ? (
@@ -178,6 +186,7 @@ export default function SalesHistory() {
                   <th className="p-2 text-left">Product</th>
                   <th className="p-2 text-left">Gun</th>
                   <th className="p-2 text-left">Liters</th>
+                  <th className="p-2 text-left">Testing</th>
                   <th className="p-2 text-left">Operator</th>
                   <th className="p-2 text-left">Total (₹)</th>
                   <th className="p-2 text-left">Cash</th>
@@ -193,6 +202,7 @@ export default function SalesHistory() {
                     <td className="p-2">{r.productName}</td>
                     <td className="p-2">{r.guns}</td>
                     <td className="p-2">{r.salesInLiters}</td>
+                    <td className="p-2">{r.testingTotal}</td>
                     <td className="p-2">{r.empId}</td>
                     <td className="p-2 font-bold text-primary">{RUPEE}{r.salesInRupees?.toLocaleString()}</td>
                     <td className="p-2 text-green-800">{RUPEE}{r.cashReceived}</td>
