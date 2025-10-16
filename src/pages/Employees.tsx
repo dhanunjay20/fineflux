@@ -6,9 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-
 import {
   Users, Plus, Search, Edit, Eye, EyeOff, Phone, Mail, Calendar, Filter, Clock,
 } from 'lucide-react';
@@ -35,6 +33,8 @@ export type Employee = {
   emailId: string;
   username: string;
   status: string;
+  gender?: string;
+  salary?: number;
   joinedDate?: string;
   shiftTiming?: ShiftTiming;
   address?: Address;
@@ -58,7 +58,6 @@ const IN_STATES = [
   'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Andaman and Nicobar Islands', 'Chandigarh',
   'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
 ];
-
 
 // Employee ID helpers
 function extractOrgLetters(org: string) {
@@ -91,7 +90,7 @@ export default function Employees() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // ---- Organization ID (robust, up-to-date) ----
+  // Organization ID
   const orgId = typeof window !== "undefined"
     ? localStorage.getItem('organizationId') || ''
     : '';
@@ -100,13 +99,12 @@ export default function Employees() {
     return <div className="p-10 text-center text-muted-foreground">Loading organization…</div>;
   }
 
-  // Backend fetch (paging: .content)
+  // Backend fetch
   const { data = [], isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['employees', orgId],
     queryFn: async () => {
       if (!orgId) return [];
       const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employees`, { timeout: 15000 });
-      // Support both array or { content: [...] }
       if (Array.isArray(res.data)) return res.data;
       if (Array.isArray(res.data.content)) return res.data.content;
       return [];
@@ -161,7 +159,7 @@ export default function Employees() {
   const [editOpen, setEditOpen] = useState(false);
   const [selected, setSelected] = useState<Employee | null>(null);
 
-  // ----------------- CREATE EMPLOYEE -----------------
+  // CREATE EMPLOYEE
   const [open, setOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState<EmployeeCreateRequest>({
@@ -175,6 +173,8 @@ export default function Employees() {
     emailId: '',
     username: '',
     password: '',
+    gender: '',
+    salary: undefined,
     shiftTiming: { start: '', end: '' },
     address: { line1: '', line2: '', city: '', state: '', postalCode: '', country: 'India' },
     emergencyContact: { name: '', phone: '', relationship: '' },
@@ -197,7 +197,7 @@ export default function Employees() {
     const payload: EmployeeCreateRequest = {
       ...form,
       organizationId: orgId || form.organizationId,
-      empId: nextEmpId, // FORCE new next empId before POST
+      empId: nextEmpId,
       address: { ...(form.address || {}), country: 'India' },
     };
     const required = [
@@ -210,7 +210,10 @@ export default function Employees() {
       ['Email', payload.emailId],
       ['Username', payload.username],
       ['Password', payload.password],
+      ['Gender', payload.gender],       
+      ['Salary', payload.salary],       
     ];
+
     for (const [label, value] of required) {
       if (!String(value || '').trim()) {
         toast({ title: 'Validation', description: `${label} is required.`, variant: 'destructive' });
@@ -233,6 +236,8 @@ export default function Employees() {
         emailId: '',
         username: '',
         password: '',
+        gender: '',
+        salary: undefined,
         shiftTiming: { start: '', end: '' },
         address: { line1: '', line2: '', city: '', state: '', postalCode: '', country: 'India' },
         emergencyContact: { name: '', phone: '', relationship: '' },
@@ -262,6 +267,8 @@ export default function Employees() {
       phoneNumber: emp.phoneNumber,
       emailId: emp.emailId,
       username: emp.username,
+      gender: emp.gender,
+      salary: emp.salary,
       newPassword: '',
       shiftTiming: emp.shiftTiming,
       address: emp.address,
@@ -292,32 +299,23 @@ export default function Employees() {
     normalizeStatus(status) === 'active'
       ? <Badge className="bg-success-soft text-success">Active</Badge>
       : <Badge className="bg-muted text-muted-foreground">Inactive</Badge>;
-  // Replace your current getRoleBadge with this version
+
   const getRoleBadge = (role?: string) => {
     const key = String(role || '').trim().toLowerCase();
-
-    // Core role palettes (capsule look)
     const ROLE_STYLES: Record<string, string> = {
       owner: 'bg-purple-100 text-purple-700 ring-1 ring-purple-200',
       manager: 'bg-blue-100 text-blue-700 ring-1 ring-blue-200',
       employee: 'bg-orange-100 text-orange-700 ring-1 ring-orange-200',
     };
-
-    // Map similar roles to a core category (optional)
     const ALIASES: Record<string, string> = {
-      // treat these as "employee"-type
       attendant: 'employee',
       cashier: 'employee',
       mechanic: 'employee',
       cleaner: 'employee',
       staff: 'employee',
     };
-
     const resolved = ROLE_STYLES[key] || ROLE_STYLES[ALIASES[key] || ''] || 'bg-muted text-muted-foreground ring-1 ring-border/40';
-
-    // Pretty label
     const label = key ? key.charAt(0).toUpperCase() + key.slice(1) : '—';
-
     return (
       <Badge className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${resolved}`}>
         {label}
@@ -325,10 +323,9 @@ export default function Employees() {
     );
   };
 
-
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header: mobile-safe stacked, no overlap */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl md:text-3xl font-bold text-foreground truncate">
@@ -383,7 +380,7 @@ export default function Employees() {
         })}
       </div>
 
-      {/* Search bar: stack on mobile to avoid squeeze */}
+      {/* Search bar */}
       <Card className="card-gradient">
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row gap-3 items-stretch">
@@ -529,6 +526,10 @@ export default function Employees() {
                     <p className="font-medium">{selected.phoneNumber || '—'}</p></div>
                   <div><p className="text-sm text-muted-foreground">Username</p>
                     <p className="font-medium break-all">{selected.username}</p></div>
+                  <div><p className="text-sm text-muted-foreground">Gender</p>
+                    <p className="font-medium">{selected.gender || '—'}</p></div>
+                  <div><p className="text-sm text-muted-foreground">Salary</p>
+                    <p className="font-medium">{selected.salary ? `₹${selected.salary.toLocaleString()}` : '—'}</p></div>
                   <div><p className="text-sm text-muted-foreground">Joined</p>
                     <p className="font-medium">{formatDate(selected.joinedDate)}</p></div>
                   <div><p className="text-sm text-muted-foreground">Shift</p>
@@ -620,6 +621,22 @@ export default function Employees() {
                     <option value="ACTIVE">Active</option>
                     <option value="INACTIVE">Inactive</option>
                   </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="gender">Gender</Label>
+                  <select id="gender" className="w-full rounded-md border p-2" value={editForm?.gender || ""} onChange={e => setEditForm(f => ({ ...f!, gender: e.target.value }))}>
+                    <option value="">Select Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="salary">Salary</Label>
+                  <Input id="salary" type="number" min="0" step="0.01" value={editForm?.salary || ''} onChange={e => setEditForm(f => ({ ...f!, salary: e.target.value ? parseFloat(e.target.value) : undefined }))} placeholder="₹" />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -720,11 +737,38 @@ export default function Employees() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="role">Role <span className="text-destructive">*</span></Label>
-                  <Input id="role" value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))} required aria-required="true" placeholder="e.g., Manager" />
+                  <select
+                    id="role"
+                    value={form.role}
+                    onChange={e => setForm(p => ({ ...p, role: e.target.value }))}
+                    required
+                    aria-required="true"
+                    className="w-full p-2 border rounded bg-background"
+                  >
+                    <option value="">Select Role</option>
+                    <option value="Owner">Owner</option>
+                    <option value="Manager">Manager</option>
+                    <option value="Employee">Employee</option>
+                  </select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="department">Department <span className="text-destructive">*</span></Label>
-                  <Input id="department" value={form.department} onChange={e => setForm(p => ({ ...p, department: e.target.value }))} required aria-required="true" placeholder="e.g., Operations" />
+                  <select
+                    id="department"
+                    value={form.department}
+                    onChange={e => setForm(p => ({ ...p, department: e.target.value }))}
+                    required
+                    aria-required="true"
+                    className="w-full p-2 border rounded bg-background"
+                  >
+                    <option value="">Select Department</option>
+                    <option value="Management">Management</option>
+                    <option value="Sales">Sales</option>
+                    <option value="Operations">Operations</option>
+                    <option value="Accounts">Accounts</option>
+                    <option value="HR">HR</option>
+                    <option value="Support">Support</option>
+                  </select>
                 </div>
               </div>
 
@@ -753,7 +797,6 @@ export default function Employees() {
               </div>
 
               {/* Username and Password */}
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="username">
@@ -779,7 +822,7 @@ export default function Employees() {
                       onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
                       required
                       aria-required="true"
-                      className="pr-12" // space for the icon
+                      className="pr-12"
                     />
                     <button
                       type="button"
@@ -795,6 +838,37 @@ export default function Employees() {
                       )}
                     </button>
                   </div>
+                </div>
+              </div>
+
+              {/* Gender and Salary */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="gender">Gender</Label>
+                  <select
+                    id="gender"
+                    value={form.gender}
+                    onChange={e => setForm(p => ({ ...p, gender: e.target.value }))}
+                    className="w-full p-2 border rounded bg-background"
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="salary">Salary</Label>
+                  <Input
+                    id="salary"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.salary || ''}
+                    onChange={e => setForm(p => ({ ...p, salary: e.target.value ? parseFloat(e.target.value) : undefined }))}
+                    placeholder="₹"
+                  />
                 </div>
               </div>
 
@@ -850,7 +924,6 @@ export default function Employees() {
                   </Button>
                 </div>
               </DialogFooter>
-
             </form>
           </div>
         </DialogContent>
