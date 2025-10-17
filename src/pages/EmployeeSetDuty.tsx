@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import axios from "axios";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom"; // Add this import
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogOverlay } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import dayjs from "dayjs";
-import { Plus, Mail, Phone, Filter, Clock, Search } from "lucide-react";
+import { Plus, Mail, Phone, Filter, Clock, Search, Eye } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
@@ -41,11 +42,10 @@ function formatTime(time?: string) {
 
 export default function EmployeeSetDuty() {
   const { toast } = useToast();
+  const navigate = useNavigate(); // Add this hook
 
-  // --- FIX: Always get orgId and BLOCK rendering until present ---
   const orgId = typeof window !== "undefined" ? localStorage.getItem("organizationId") || "" : "";
 
-  // BLOCK RENDERING unless orgId is present
   if (!orgId) {
     return (
       <div className="p-6 text-center text-muted-foreground">
@@ -61,7 +61,6 @@ export default function EmployeeSetDuty() {
     queryFn: async () => {
       if (!orgId) return [];
       const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employees`);
-      // Support both array or { content: [...] }
       if (Array.isArray(res.data)) return res.data;
       if (Array.isArray(res.data.content)) return res.data.content;
       return [];
@@ -160,6 +159,7 @@ export default function EmployeeSetDuty() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Header with View All Duties Button */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Set Employee Duty</h1>
@@ -167,6 +167,13 @@ export default function EmployeeSetDuty() {
             Assign specific tasks to any team member easily
           </p>
         </div>
+        <Button
+          className="btn-gradient-primary"
+          onClick={() => navigate('/all-employee-tasks')} // Use navigate instead
+        >
+          <Eye className="mr-2 h-4 w-4" />
+          View All Duties
+        </Button>
       </div>
 
       <Card className="card-gradient">
@@ -210,7 +217,6 @@ export default function EmployeeSetDuty() {
                     key={emp.empId}
                     className="grid gap-3 sm:grid-cols-[1fr_auto] items-start sm:items-center p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
                   >
-                    {/* Left: content */}
                     <div className="flex items-center gap-4 min-w-0">
                       <Avatar className="h-12 w-12 shrink-0">
                         <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
@@ -243,7 +249,6 @@ export default function EmployeeSetDuty() {
                       </div>
                     </div>
 
-                    {/* Right: button */}
                     <Button
                       size="sm"
                       variant="default"

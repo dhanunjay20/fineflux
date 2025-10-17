@@ -30,7 +30,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  // IMPORTANT: hook to control open/close
   useSidebar,
 } from '@/components/ui/sidebar';
 
@@ -58,15 +57,14 @@ const navigationItems: NavItem[] = [
   { title: 'My Profile', icon: Users, href: '/profile', roles: ['employee'] },
   { title: 'Reports', icon: FileText, href: '/reports', roles: ['owner', 'manager'] },
   { title: 'Settings', icon: Settings, href: '/settings', roles: ['owner', 'manager'] },
+  { title: 'My Duties', icon: ClipboardList, href: '/employee-duty-info', roles: ['employee']},
 ];
 
 export function AppSidebar() {
   const { user, logout } = useAuth();
   const location = useLocation();
 
-  // Access sidebar controller (from your SidebarProvider)
-  const { isMobile, setOpenMobile } = useSidebar(); // closes the offcanvas on mobile
-  // If your API differs, use: const { toggleSidebar, openMobile } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar();
 
   const [orgId, setOrgId] = useState<string>('');
   const [empId, setEmpId] = useState<string>('');
@@ -77,7 +75,6 @@ export function AppSidebar() {
 
   const filteredItems = navigationItems.filter((item) => user && item.roles.includes(user.role));
 
-  // Support for "active" highlighting on nested routes (e.g. /employees/123)
   const isItemActive = (href: string) =>
     !!matchPath({ path: href, end: false }, location.pathname);
 
@@ -93,17 +90,12 @@ export function AppSidebar() {
     return badges[role] || role;
   };
 
-  // Close sidebar on mobile after any nav click
   const handleNavClick = () => {
     if (isMobile) {
-      // Close the offcanvas/sidebar in mobile mode
       setOpenMobile?.(false);
-      // If your sidebar exposes toggleSidebar instead:
-      // toggleSidebar?.();
     }
   };
 
-  // Close on logout as well (mobile)
   const handleLogout = () => {
     logout();
     if (isMobile) setOpenMobile?.(false);
@@ -166,9 +158,10 @@ export function AppSidebar() {
                       asChild
                       isActive={active}
                       className={[
-                        'mx-2 rounded-lg',
-                        'hover:bg-muted/60 transition-colors',
-                        active ? 'bg-primary/10 text-primary' : '',
+                        'mx-2 rounded-lg transition-all duration-200 relative',
+                        active 
+                          ? 'bg-primary/15 text-primary font-medium hover:bg-primary/20 border-l-4 border-primary' 
+                          : 'hover:bg-muted/60 text-sidebar-foreground',
                       ].join(' ')}
                     >
                       <NavLink

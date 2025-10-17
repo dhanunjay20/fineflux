@@ -8,9 +8,11 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import {
-  User, Mail, Phone, Calendar, MapPin, Clock, Edit, Camera, Lock, Bell, Shield,
-  Briefcase, Home, UserCircle, AlertCircle, DollarSign
+  User, Mail, Phone, Calendar, Clock, Edit, Camera, Lock, Bell, Shield,
+  Briefcase, Home, UserCircle, AlertCircle, Eye, EyeOff
 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
@@ -73,12 +75,21 @@ export default function Profile() {
   const orgId = localStorage.getItem('organizationId') || '';
   const empId = localStorage.getItem('empId') || '';
 
+  const [showCurrentPwd, setShowCurrentPwd] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
+
   const [employee, setEmployee] = useState<EmployeeResponse | null>(null);
   const [internalId, setInternalId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+
+  // Change password dialog state
+  const [pwdDialogOpen, setPwdDialogOpen] = useState(false);
+  const [currentPwd, setCurrentPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [savingPwd, setSavingPwd] = useState(false);
 
   const [form, setForm] = useState<EmployeeUpdateRequest>({
     role: '',
@@ -102,6 +113,8 @@ export default function Profile() {
     },
     emergencyContact: { name: '', phone: '', relationship: '' },
   });
+
+  const { toast } = useToast();
 
   const fullName = useMemo(
     () => (employee ? `${employee.firstName || ''} ${employee.lastName || ''}`.trim() : ''),
@@ -167,8 +180,8 @@ export default function Profile() {
           salary: data.salary,
           status: (data.status?.toUpperCase() as any) || 'ACTIVE',
           shiftTiming: {
-            start: data.shiftTiming?.start ? toDatetimeLocal(data.shiftTiming.start) : '',
-            end: data.shiftTiming?.end ? toDatetimeLocal(data.shiftTiming.end) : '',
+            start: data.shiftTiming?.start || '',
+            end: data.shiftTiming?.end || '',
           },
           address: {
             line1: data.address?.line1 || '',
@@ -195,21 +208,6 @@ export default function Profile() {
       cancelled = true;
     };
   }, [orgId, empId]);
-
-  function toDatetimeLocal(iso: string) {
-    const d = new Date(iso);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    const mm = pad(d.getMonth() + 1);
-    const dd = pad(d.getDate());
-    const hh = pad(d.getHours());
-    const mi = pad(d.getMinutes());
-    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
-  }
-
-  function fromDatetimeLocal(val?: string) {
-    return val || '';
-  }
 
   const onEditToggle = () => setIsEditing(v => !v);
 
@@ -248,8 +246,8 @@ export default function Profile() {
         gender: form.gender,
         salary: form.salary,
         shiftTiming: {
-          start: fromDatetimeLocal(form.shiftTiming?.start),
-          end: fromDatetimeLocal(form.shiftTiming?.end),
+          start: form.shiftTiming?.start || '',
+          end: form.shiftTiming?.end || '',
         },
         address: form.address,
         emergencyContact: form.emergencyContact,
@@ -266,6 +264,33 @@ export default function Profile() {
     }
   };
 
+  async function handlePwdChange(e: React.FormEvent) {
+    e.preventDefault();
+    if (!currentPwd.trim() || !newPwd.trim()) {
+      toast({ title: "Validation", description: "Both fields are required!", variant: "destructive" });
+      return;
+    }
+    setSavingPwd(true);
+    try {
+      await axios.post(
+        `${API_BASE}/api/organizations/${orgId}/employees/${employee?.id}/change-password`,
+        {
+          empId: employee?.empId,
+          currentPassword: currentPwd,
+          newPassword: newPwd
+        }
+      );
+      setPwdDialogOpen(false);
+      setCurrentPwd('');
+      setNewPwd('');
+      toast({ title: "Password Changed", description: "Your password was updated successfully.", variant: "default" });
+    } catch (err: any) {
+      toast({ title: "Change Failed", description: err?.response?.data?.message || "Unable to update password.", variant: "destructive" });
+    } finally {
+      setSavingPwd(false);
+    }
+  }
+
   if (loading) {
     return <div className="p-8 text-center text-muted-foreground">Loading profile…</div>;
   }
@@ -279,6 +304,11 @@ export default function Profile() {
   }
   if (!employee) {
     return <div className="p-8 text-center text-muted-foreground">Profile not found.</div>;
+  }
+
+  function displayTime(val?: string) {
+    if (!val) return 'Not Set';
+    return val.length === 5 ? val : 'Not Set';
   }
 
   return (
@@ -430,10 +460,10 @@ export default function Profile() {
                 <div className="space-y-2">
                   <Label htmlFor="salary">Salary</Label>
                   {!isEditing ? (
-                    <Input 
-                      id="salary" 
-                      value={employee.salary ? `₹${employee.salary.toLocaleString('en-IN')}` : '—'} 
-                      disabled 
+                    <Input
+                      id="salary"
+                      value={employee.salary ? `₹${employee.salary.toLocaleString('en-IN')}` : '—'}
+                      disabled
                     />
                   ) : (
                     <Input
@@ -574,13 +604,13 @@ export default function Profile() {
                   {!isEditing ? (
                     <Input
                       id="shiftStart"
-                      value={employee.shiftTiming?.start ? new Date(employee.shiftTiming.start).toLocaleString('en-IN') : 'Not Set'}
+                      value={displayTime(employee.shiftTiming?.start)}
                       disabled
                     />
                   ) : (
                     <input
                       id="shiftStart"
-                      type="datetime-local"
+                      type="time"
                       value={form.shiftTiming?.start || ''}
                       onChange={e => handleShift('start', e.target.value)}
                       className="w-full p-2 border rounded-md bg-background text-foreground focus:ring-2 focus:ring-primary"
@@ -593,13 +623,13 @@ export default function Profile() {
                   {!isEditing ? (
                     <Input
                       id="shiftEnd"
-                      value={employee.shiftTiming?.end ? new Date(employee.shiftTiming.end).toLocaleString('en-IN') : 'Not Set'}
+                      value={displayTime(employee.shiftTiming?.end)}
                       disabled
                     />
                   ) : (
                     <input
                       id="shiftEnd"
-                      type="datetime-local"
+                      type="time"
                       value={form.shiftTiming?.end || ''}
                       onChange={e => handleShift('end', e.target.value)}
                       className="w-full p-2 border rounded-md bg-background text-foreground focus:ring-2 focus:ring-primary"
@@ -798,9 +828,7 @@ export default function Profile() {
                   </div>
                 )}
               </div>
-
               <Separator />
-
               <div className="space-y-3">
                 <h4 className="font-semibold text-sm text-foreground">Reporting Structure</h4>
                 <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
@@ -820,7 +848,12 @@ export default function Profile() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full justify-start" disabled>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => setPwdDialogOpen(true)}
+                disabled={savingPwd}
+              >
                 <Lock className="mr-2 h-4 w-4" />
                 Change Password
               </Button>
@@ -836,6 +869,88 @@ export default function Profile() {
           </Card>
         </div>
       </div>
-    </div>
+
+      {/* Change Password Dialog */}
+      <Dialog open={pwdDialogOpen} onOpenChange={setPwdDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>
+              Enter your current password and new password.
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handlePwdChange}>
+            <div>
+              <Label htmlFor="current-password">Current Password</Label>
+              <div className="relative">
+                <Input
+                  id="current-password"
+                  name="current-password"
+                  type={showCurrentPwd ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={currentPwd}
+                  onChange={e => setCurrentPwd(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowCurrentPwd(v => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-2"
+                  aria-label={showCurrentPwd ? "Hide password" : "Show password"}
+                >
+                  {showCurrentPwd ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="new-password">New Password</Label>
+              <div className="relative">
+                <Input
+                  id="new-password"
+                  name="new-password"
+                  type={showNewPwd ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={newPwd}
+                  onChange={e => setNewPwd(e.target.value)}
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowNewPwd(v => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-2"
+                  aria-label={showNewPwd ? "Hide password" : "Show password"}
+                >
+                  {showNewPwd ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+            </div>
+            <DialogFooter className="flex gap-2">
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => setPwdDialogOpen(false)}
+                disabled={savingPwd}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" className="btn-gradient-primary" disabled={savingPwd}>
+                {savingPwd ? "Saving..." : "Update Password"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div >
   );
 }

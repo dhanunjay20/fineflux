@@ -28,6 +28,9 @@ import GunInfo from "./pages/GunInfo";
 import SalesHistory from "./pages/SalesHistory";
 import Documents from "./pages/Documents";
 import { ResetPasswordPage } from "./contexts/ResetPasswordPage";
+import EmployeeDutyInfo from "./pages/EmployeeDutyInfo";
+import EmployeeTaskHistory from "./pages/EmployeeTaskHistory";
+import AllEmployeeTasks from "./pages/AllEmployeeTasks";
 
 const queryClient = new QueryClient();
 
@@ -86,6 +89,36 @@ const App = () => (
                 <ProtectedRoute requiredRoles={['owner', 'manager']}>
                   <DashboardLayout>
                     <Documents />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/all-employee-tasks"
+              element={
+                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                  <DashboardLayout>
+                    <AllEmployeeTasks />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/employee-duty-info"
+              element={
+                <ProtectedRoute requiredRoles={['employee']}>
+                  <DashboardLayout>
+                    <EmployeeDutyInfo />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/employee-task-history"
+              element={
+                <ProtectedRoute requiredRoles={['owner', 'manager', 'employee']}>
+                  <DashboardLayout>
+                    <EmployeeTaskHistory />
                   </DashboardLayout>
                 </ProtectedRoute>
               }

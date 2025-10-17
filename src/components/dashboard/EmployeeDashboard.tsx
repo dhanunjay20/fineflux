@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,8 +15,13 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
+
 export function EmployeeDashboard() {
   const { user } = useAuth();
+
+  const orgId = localStorage.getItem('organizationId') || '';
+  const empId = localStorage.getItem('empId') || '';
 
   const todayStats = [
     {
@@ -77,12 +84,42 @@ export function EmployeeDashboard() {
     nextPayday: '2024-01-31',
   };
 
-  const todayTasks = [
-    { id: 1, task: 'Check tank levels', completed: true, time: '08:30 AM' },
-    { id: 2, task: 'Record morning sales', completed: true, time: '12:00 PM' },
-    { id: 3, task: 'Customer service training', completed: false, time: '02:00 PM' },
-    { id: 4, task: 'End of shift report', completed: false, time: '04:00 PM' },
-  ];
+  const [todayTasks, setTodayTasks] = useState<any[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(true);
+
+  useEffect(() => {
+    if (!orgId || !empId) return;
+    setLoadingTasks(true);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    Promise.all([
+      axios.get(`${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=pending`),
+      axios.get(`${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=in-progress`),
+      axios.get(`${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=completed`)
+    ])
+      .then(([res1, res2, res3]) => {
+        // Get today's pending and in-progress tasks
+        const pendingInProgress = [...(res1?.data || []), ...(res2?.data || [])].filter(t => t.dueDate === todayStr);
+        
+        // Get last 2 completed tasks (regardless of date)
+        const completedTasks = (res3?.data || []).slice(-2).reverse();
+        
+        // Combine: today's active tasks + last 2 completed
+        setTodayTasks([...pendingInProgress, ...completedTasks]);
+      })
+      .finally(() => setLoadingTasks(false));
+  }, [orgId, empId]);
+
+  const handleTaskAction = async (taskId: string, newStatus: string) => {
+    await axios.put(`${API_BASE}/api/organizations/${orgId}/tasks/${taskId}/status?status=${encodeURIComponent(newStatus)}`);
+    setTodayTasks(ts => ts.map(t => (t.id === taskId ? { ...t, status: newStatus } : t)));
+  };
+
+  const isOverdue = (dueDate: string) => {
+    if (!dueDate) return false;
+    const now = new Date();
+    const due = new Date(dueDate);
+    return due < new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  };
 
   const getShiftStatusBadge = (status: string) => {
     return status === 'completed' ? (
@@ -101,7 +138,7 @@ export function EmployeeDashboard() {
           <p className="text-muted-foreground">Track your shifts, attendance, and performance</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => window.location.href = '/profile'}>
             <User className="mr-2 h-4 w-4" />
             My Profile
           </Button>
@@ -138,34 +175,76 @@ export function EmployeeDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Today's Tasks */}
+        {/* Today's Tasks + Last 2 Completed */}
         <Card className="card-gradient">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5" />
-              Today's Tasks
+              Today's Tasks & Recent Completed
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {loadingTasks && <div className="text-muted-foreground">Loading tasks...</div>}
+            {!loadingTasks && todayTasks.length === 0 && (
+              <span className="text-muted-foreground">No tasks to display</span>
+            )}
             {todayTasks.map((task) => (
-              <div key={task.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                  task.completed 
-                    ? 'bg-success border-success' 
-                    : 'border-muted-foreground'
-                }`}>
-                  {task.completed && <CheckCircle className="w-3 h-3 text-white" />}
-                </div>
+              <div key={task.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 relative">
                 <div className="flex-1 space-y-1">
-                  <p className={`font-medium ${
-                    task.completed ? 'line-through text-muted-foreground' : 'text-foreground'
-                  }`}>
-                    {task.task}
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-foreground">{task.taskTitle}</p>
+                    {task.priority === "High" && (
+                      <Badge className="bg-destructive-soft text-destructive">High</Badge>
+                    )}
+                    {isOverdue(task.dueDate) && task.status !== "completed" && (
+                      <span className="text-xs text-destructive animate-pulse ml-2 font-semibold">Overdue!</span>
+                    )}
+                    {task.status === "completed" && (
+                      <Badge className="bg-success-soft text-success">
+                        <CheckCircle className="h-3 w-3 mr-1 inline" />
+                        Completed
+                      </Badge>
+                    )}
+                  </div>
+                  {task.description && (
+                    <p className="text-sm text-muted-foreground">{task.description}</p>
+                  )}
+                  <p className="text-xs">
+                    Due: <span className={isOverdue(task.dueDate) ? "text-destructive" : ""}>{task.dueDate}</span>
+                    {" | "}Shift: {task.shift}
                   </p>
-                  <p className="text-sm text-muted-foreground">{task.time}</p>
                 </div>
+                {task.status === "pending" && !isOverdue(task.dueDate) && (
+                  <Button
+                    size="sm"
+                    className="btn-gradient-primary"
+                    onClick={() => handleTaskAction(task.id, 'in-progress')}
+                  >
+                    Start
+                  </Button>
+                )}
+                {task.status === "in-progress" && !isOverdue(task.dueDate) && (
+                  <Button
+                    size="sm"
+                    className="btn-gradient-success"
+                    onClick={() => handleTaskAction(task.id, 'completed')}
+                  >
+                    Complete
+                  </Button>
+                )}
+                {isOverdue(task.dueDate) && task.status !== "completed" && (
+                  <span className="text-xs text-destructive font-semibold ml-2">Overdue</span>
+                )}
               </div>
             ))}
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => window.location.href = "/employee-duty-info"}
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              View All Tasks
+            </Button>
           </CardContent>
         </Card>
 
