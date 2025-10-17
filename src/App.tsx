@@ -217,7 +217,7 @@ const App = () => (
             <Route
               path="/profile"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={['employee', 'manager','owner']}>
                   <DashboardLayout>
                     <Profile />
                   </DashboardLayout>

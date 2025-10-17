@@ -187,7 +187,7 @@ export default function SalesHistory() {
                   <th className="p-2 text-left">Gun</th>
                   <th className="p-2 text-left">Liters</th>
                   <th className="p-2 text-left">Testing</th>
-                  <th className="p-2 text-left">Operator</th>
+                  <th className="p-2 text-left">Employee</th>
                   <th className="p-2 text-left">Total (₹)</th>
                   <th className="p-2 text-left">Cash</th>
                   <th className="p-2 text-left">UPI</th>

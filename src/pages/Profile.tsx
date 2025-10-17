@@ -14,8 +14,8 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
+  // Replace with your actual API base URL
 
 type AddressDTO = {
   line1?: string;
@@ -272,7 +272,7 @@ export default function Profile() {
     }
     setSavingPwd(true);
     try {
-      await axios.post(
+      await axios.put(
         `${API_BASE}/api/organizations/${orgId}/employees/${employee?.id}/change-password`,
         {
           empId: employee?.empId,

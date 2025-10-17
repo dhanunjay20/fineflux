@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { DollarSign, Plus, CreditCard, Banknote, Calendar, Clock, FileText, List } from "lucide-react";
+import { DollarSign, Plus, CreditCard, Banknote, Calendar, Clock, FileText, List, IndianRupee } from "lucide-react";
 import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
@@ -51,7 +51,7 @@ const initialFormState = {
   phonePay: "",
   creditCard: "",
   shortCollections: "",
-  testingTotal: "", // independent input; excluded from money and short
+  testingTotal: "",
 };
 
 type FormState = typeof initialFormState;
@@ -782,8 +782,9 @@ export default function Sales() {
                     type="submit"
                     disabled={saleCollectionMutation.isPending || submittingRef.current}
                   >
-                    <DollarSign className="mr-2 h-4 w-4" />
+                    <IndianRupee className="mr-2 h-4 w-4" />
                     {saleCollectionMutation.isPending ? "Recording..." : "Record Sale & Collection"}
+
                   </Button>
                   <Button
                     className="w-full"

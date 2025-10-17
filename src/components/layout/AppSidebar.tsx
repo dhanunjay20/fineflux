@@ -54,7 +54,7 @@ const navigationItems: NavItem[] = [
   { title: 'Analytics', icon: BarChart3, href: '/analytics', roles: ['owner', 'manager'] },
   { title: 'Expenses', icon: DollarSign, href: '/expenses', roles: ['owner', 'manager'] },
   { title: 'Attendance', icon: UserCheck, href: '/attendance', roles: ['employee'] },
-  { title: 'My Profile', icon: Users, href: '/profile', roles: ['employee'] },
+  { title: 'My Profile', icon: Users, href: '/profile', roles: ['employee', 'manager','owner'] },
   { title: 'Reports', icon: FileText, href: '/reports', roles: ['owner', 'manager'] },
   { title: 'Settings', icon: Settings, href: '/settings', roles: ['owner', 'manager'] },
   { title: 'My Duties', icon: ClipboardList, href: '/employee-duty-info', roles: ['employee']},
