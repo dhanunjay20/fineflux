@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  FileText, Eye, Download, Pencil, Trash2, UploadCloud, 
+import {
+  FileText, Eye, Download, Pencil, Trash2, UploadCloud,
   Calendar, User, Building2, Clock, FileCheck, X, Loader2,
   Search, AlertCircle
 } from "lucide-react";
@@ -77,37 +77,37 @@ export default function Documents() {
     }).length;
 
     return [
-      { 
-        title: "Total Documents", 
-        value: total, 
+      {
+        title: "Total Documents",
+        value: total,
         change: "All documents",
-        icon: FileText, 
-        bg: "bg-primary-soft", 
-        color: "text-primary" 
+        icon: FileText,
+        bg: "bg-primary-soft",
+        color: "text-primary"
       },
-      { 
-        title: "Expiring Soon", 
-        value: expiringSoon, 
+      {
+        title: "Expiring Soon",
+        value: expiringSoon,
         change: "Within 30 days",
-        icon: Clock, 
-        bg: "bg-warning-soft", 
-        color: "text-warning" 
+        icon: Clock,
+        bg: "bg-warning-soft",
+        color: "text-warning"
       },
-      { 
-        title: "Expired", 
-        value: expired, 
+      {
+        title: "Expired",
+        value: expired,
         change: "Need renewal",
-        icon: AlertCircle, 
-        bg: "bg-destructive/10", 
-        color: "text-destructive" 
+        icon: AlertCircle,
+        bg: "bg-destructive/10",
+        color: "text-destructive"
       },
-      { 
-        title: "Valid", 
-        value: total - expired, 
+      {
+        title: "Valid",
+        value: total - expired,
         change: "Currently active",
-        icon: FileCheck, 
-        bg: "bg-success-soft", 
-        color: "text-success" 
+        icon: FileCheck,
+        bg: "bg-success-soft",
+        color: "text-success"
       },
     ];
   }, [documents]);
@@ -249,6 +249,10 @@ export default function Documents() {
     return { label: "Valid", color: "bg-success/10 text-success" };
   };
 
+  function closeModal(event: React.MouseEvent<HTMLDivElement>): void {
+    throw new Error("Function not implemented.");
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -356,9 +360,8 @@ export default function Documents() {
                     return (
                       <tr
                         key={doc.id}
-                        className={`border-b border-border transition-colors ${
-                          i % 2 === 0 ? "bg-background hover:bg-muted/20" : "bg-muted/20 hover:bg-muted/40"
-                        }`}
+                        className={`border-b border-border transition-colors ${i % 2 === 0 ? "bg-background hover:bg-muted/20" : "bg-muted/20 hover:bg-muted/40"
+                          }`}
                       >
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-2">
@@ -377,20 +380,20 @@ export default function Documents() {
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
-                            <span>{new Date(doc.issuedDate).toLocaleDateString('en-IN', { 
-                              day: '2-digit', 
-                              month: 'short', 
-                              year: 'numeric' 
+                            <span>{new Date(doc.issuedDate).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric'
                             })}</span>
                           </div>
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4 text-muted-foreground" />
-                            <span>{new Date(doc.expiryDate).toLocaleDateString('en-IN', { 
-                              day: '2-digit', 
-                              month: 'short', 
-                              year: 'numeric' 
+                            <span>{new Date(doc.expiryDate).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric'
                             })}</span>
                           </div>
                         </td>
@@ -461,7 +464,15 @@ export default function Documents() {
 
       {/* Add/Edit Modal - Full Screen Background */}
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (open ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
+        >
+
           <div className="relative bg-background shadow-2xl rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
               <div>
@@ -548,7 +559,14 @@ export default function Documents() {
 
       {/* Delete Confirmation Modal - Full Screen Background */}
       {deleteDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (deleteDialogOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
+        >
           <div className="bg-background p-8 rounded-2xl shadow-2xl relative w-full max-w-md">
             <button
               onClick={() => setDeleteDialogOpen(false)}

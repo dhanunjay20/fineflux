@@ -136,7 +136,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <div className="min-h-screen flex w-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950">
         <AppSidebar />
         
-        <SidebarInset className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+        <SidebarInset className="flex-1 flex flex-col min-w-0">
           {/* STICKY HEADER */}
           <motion.header
             initial={{ y: -20, opacity: 0 }}
@@ -147,7 +147,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <div className="flex items-center gap-4 h-16 px-6">
               {/* Left Section */}
               <div className="flex items-center gap-4 flex-1 min-w-0">
-                <SidebarTrigger className="hover:bg-white/50 dark:hover:bg-slate-800/50 transition-all rounded-lg p-2 shrink-0" />
+                <SidebarTrigger className="hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-all rounded-lg p-2 shrink-0" />
                 <Separator orientation="vertical" className="h-6 bg-gradient-to-b from-transparent via-border to-transparent" />
 
                 {/* Breadcrumbs */}
@@ -156,7 +156,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     <BreadcrumbItem>
                       <BreadcrumbLink
                         href="/dashboard"
-                        className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors group shrink-0"
+                        className="flex items-center gap-2 text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 transition-colors group shrink-0"
                       >
                         <div className="p-1.5 rounded-lg bg-gradient-to-br from-blue-500/10 to-indigo-500/10 group-hover:from-blue-500/20 group-hover:to-indigo-500/20 transition-all">
                           <Home className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
@@ -176,7 +176,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                           ) : (
                             <BreadcrumbLink
                               href={crumb.href}
-                              className="text-muted-foreground hover:text-foreground transition-colors font-medium whitespace-nowrap"
+                              className="text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 transition-colors font-medium whitespace-nowrap"
                             >
                               {crumb.title}
                             </BreadcrumbLink>
@@ -221,12 +221,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                               key={item.href}
                               type="button"
                               onClick={() => handleSearchSelect(item.href)}
-                              className="flex items-center gap-3 w-full px-4 py-2.5 text-left hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors group"
+                              className="flex items-center gap-3 w-full px-4 py-2.5 text-left hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors group"
                             >
                               <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900 group-hover:bg-blue-200 dark:group-hover:bg-blue-800 transition-colors">
                                 <item.Icon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                               </div>
-                              <span className="text-sm font-medium">{item.title}</span>
+                              <span className="text-sm font-medium group-hover:text-blue-600 dark:group-hover:text-blue-400">{item.title}</span>
                             </button>
                           ))}
                         </div>
@@ -246,7 +246,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowProfileMenu(!showProfileMenu)}
-                    className="gap-2 hover:bg-white/50 dark:hover:bg-slate-800/50 transition-all rounded-lg px-3"
+                    className="gap-2 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-all rounded-lg px-3"
                   >
                     <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
                       <User className="h-4 w-4 text-white" />
@@ -278,15 +278,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                         <div className="py-2">
                           <button
                             onClick={handleProfileClick}
-                            className="flex items-center gap-3 w-full px-4 py-2 text-sm text-foreground hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors"
+                            className="flex items-center gap-3 w-full px-4 py-2 text-sm text-foreground hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                           >
-                            <UserCircle className="h-4 w-4 text-blue-600" />
+                            <UserCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                             <span>My Profile</span>
                           </button>
                           <Separator className="my-1" />
                           <button
                             onClick={handleLogout}
-                            className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                            className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                           >
                             <LogOut className="h-4 w-4" />
                             <span>Logout</span>
@@ -300,7 +300,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
           </motion.header>
 
-          {/* Main Content */}
+          {/* Main Content - Scrollable */}
           <main className="flex-1 overflow-y-auto overflow-x-hidden">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -310,30 +310,30 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             >
               {children}
             </motion.div>
-          </main>
 
-          {/* Footer */}
-          <motion.footer
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="backdrop-blur-xl bg-white/70 dark:bg-slate-900/70 border-t border-white/20 dark:border-slate-700/50 px-6 py-4 shrink-0"
-          >
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <span>© 2025</span>
-                <span className="font-semibold text-foreground">FinFlux</span>
-                <span className="hidden sm:inline">• All rights reserved</span>
+            {/* Footer - NOT STICKY, scrolls with content */}
+            <motion.footer
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="backdrop-blur-xl bg-white/70 dark:bg-slate-900/70 border-t border-white/20 dark:border-slate-700/50 px-6 py-4 mt-8"
+            >
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <span>© 2025</span>
+                  <span className="font-semibold text-foreground">FinFlux</span>
+                  <span className="hidden sm:inline">• All rights reserved</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <a href="#" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Privacy</a>
+                  <Separator orientation="vertical" className="h-4" />
+                  <a href="#" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Terms</a>
+                  <Separator orientation="vertical" className="h-4" />
+                  <a href="#" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Support</a>
+                </div>
               </div>
-              <div className="flex items-center gap-4">
-                <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
-                <Separator orientation="vertical" className="h-4" />
-                <a href="#" className="hover:text-foreground transition-colors">Terms</a>
-                <Separator orientation="vertical" className="h-4" />
-                <a href="#" className="hover:text-foreground transition-colors">Support</a>
-              </div>
-            </div>
-          </motion.footer>
+            </motion.footer>
+          </main>
         </SidebarInset>
       </div>
     </SidebarProvider>

@@ -1,4 +1,4 @@
-import { useState, useMemo, useTransition } from 'react';
+import { useState, useMemo, useTransition, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import dayjs from 'dayjs';
@@ -15,7 +15,8 @@ import {
   Droplets, 
   Users,
   FileText,
-  FileSpreadsheet
+  FileSpreadsheet,
+  RefreshCw
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -42,10 +43,16 @@ import {
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
 const RUPEE = '₹';
 
+// Indian number format helper
+const formatIndianNumber = (num: number): string => {
+  return num.toLocaleString('en-IN');
+};
+
 export default function Analytics() {
   const orgId = localStorage.getItem('organizationId') || '';
   const [timeRange, setTimeRange] = useState('30d');
   const [isPending, startTransition] = useTransition();
+  const [lastRefresh, setLastRefresh] = useState(new Date());
 
   // Calculate date range based on selection
   const getDateRange = () => {
@@ -68,42 +75,72 @@ export default function Analytics() {
   const fromIso = from.startOf('day').format('YYYY-MM-DDTHH:mm:ss');
   const toIso = to.endOf('day').format('YYYY-MM-DDTHH:mm:ss');
 
-  // Fetch Sales History with caching
-  const { data: salesHistory = [], isLoading: loadingSales, isFetching: fetchingSales } = useQuery({
-    queryKey: ['sales-history-analytics', orgId, fromIso, toIso],
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLastRefresh(new Date());
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch Sales with real-time updates (FIXED ENDPOINT)
+  const { data: salesData = [], isLoading: loadingSales, isFetching: fetchingSales, refetch: refetchSales } = useQuery({
+    queryKey: ['sales-analytics', orgId, fromIso, toIso, lastRefresh],
     queryFn: async () => {
       const params = `from=${fromIso}&to=${toIso}`;
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/sale-history/by-date?${params}`);
+      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/sales/by-date?${params}`);
       return Array.isArray(res.data) ? res.data : [];
     },
     enabled: !!orgId,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    staleTime: 0,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
   });
 
-  // Fetch Expenses with caching
-  const { data: expenses = [], isLoading: loadingExpenses } = useQuery({
-    queryKey: ['expenses-analytics', orgId],
+  // Transform sales data to match expected format
+  const salesHistory = useMemo(() => {
+    return salesData.map((sale: any) => ({
+      ...sale,
+      salesInRupees: sale.totalAmount || sale.salesInRupees || 0,
+      salesInLiters: sale.quantity || sale.salesInLiters || 0,
+      productName: sale.productName || sale.product || 'Unknown',
+      dateTime: sale.saleDate || sale.dateTime || sale.createdAt
+    }));
+  }, [salesData]);
+
+  // Fetch Expenses with real-time updates
+  const { data: expenses = [], isLoading: loadingExpenses, refetch: refetchExpenses } = useQuery({
+    queryKey: ['expenses-analytics', orgId, lastRefresh],
     queryFn: async () => {
       const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/expenses`);
       return Array.isArray(res.data) ? res.data : [];
     },
     enabled: !!orgId,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
+    staleTime: 0,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
   });
 
-  // Fetch Latest Finance Summary with caching
-  const { data: financeSummary, isLoading: loadingFinance } = useQuery({
-    queryKey: ['finance-summary-latest', orgId],
+  // Fetch Latest Finance Summary with real-time updates
+  const { data: financeSummary, isLoading: loadingFinance, refetch: refetchFinance } = useQuery({
+    queryKey: ['finance-summary-latest', orgId, lastRefresh],
     queryFn: async () => {
       const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/finance-summary/latest`);
       return res.data;
     },
     enabled: !!orgId,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
+    staleTime: 0,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
   });
+
+  // Manual refresh all data
+  const handleRefresh = () => {
+    refetchSales();
+    refetchExpenses();
+    refetchFinance();
+    setLastRefresh(new Date());
+  };
 
   // Calculate KPIs
   const kpis = useMemo(() => {
@@ -168,41 +205,66 @@ export default function Analytics() {
     }));
   }, [salesHistory]);
 
-  // Daily Sales (Last 7 days - Bar Chart) - DYNAMIC
+  // Daily Sales (Last 7 days - Bar Chart) - FIXED
   const dailySalesData = useMemo(() => {
     const today = dayjs();
     const last7Days = Array.from({ length: 7 }, (_, i) => today.subtract(6 - i, 'day'));
     
     return last7Days.map(day => {
       const dayStr = day.format('DD MMM');
-      const daySales = salesHistory.filter(s => dayjs(s.dateTime).isSame(day, 'day'));
+      const daySales = salesHistory.filter(s => {
+        const saleDate = dayjs(s.dateTime);
+        return saleDate.isSame(day, 'day');
+      });
       
+      // Group by product
       const productMap: Record<string, number> = {};
+      let totalDaySales = 0;
+      
       daySales.forEach(s => {
-        const product = s.productName || 'Unknown';
-        productMap[product] = (productMap[product] || 0) + (s.salesInRupees || 0);
+        const product = (s.productName || 'Unknown').trim();
+        const amount = Number(s.salesInRupees) || 0;
+        productMap[product] = (productMap[product] || 0) + amount;
+        totalDaySales += amount;
       });
 
-      return {
+      // Create result with normalized product keys
+      const result: Record<string, any> = { 
         day: dayStr,
-        ...Object.fromEntries(
-          Object.entries(productMap).map(([k, v]) => [
-            k.toLowerCase().replace(/\s+/g, ''),
-            Math.round(v)
-          ])
-        ),
+        total: Math.round(totalDaySales)
       };
+      
+      // Add each product with normalized key
+      Object.entries(productMap).forEach(([product, amount]) => {
+        const key = product.toLowerCase().replace(/\s+/g, '');
+        result[key] = Math.round(amount);
+      });
+
+      return result;
     });
   }, [salesHistory]);
+
+  // Get all unique products for bar chart
+  const uniqueProducts = useMemo(() => {
+    const products = new Set<string>();
+    dailySalesData.forEach(day => {
+      Object.keys(day).forEach(key => {
+        if (key !== 'day' && key !== 'total') {
+          products.add(key);
+        }
+      });
+    });
+    return Array.from(products);
+  }, [dailySalesData]);
 
   // Export as CSV
   const exportToCSV = () => {
     const headers = ['Metric', 'Value'];
     const kpiRows = [
-      ['Total Revenue', `${RUPEE}${kpis.totalRevenue.toLocaleString()}`],
-      ['Net Profit', `${RUPEE}${kpis.netProfit.toLocaleString()}`],
-      ['Total Expenses', `${RUPEE}${kpis.totalExpenses.toLocaleString()}`],
-      ['Fuel Sold (Liters)', kpis.totalLiters.toLocaleString()],
+      ['Total Revenue', `${RUPEE}${formatIndianNumber(kpis.totalRevenue)}`],
+      ['Net Profit', `${RUPEE}${formatIndianNumber(kpis.netProfit)}`],
+      ['Total Expenses', `${RUPEE}${formatIndianNumber(kpis.totalExpenses)}`],
+      ['Fuel Sold (Liters)', formatIndianNumber(kpis.totalLiters)],
       ['Total Transactions', salesHistory.length.toString()],
     ];
 
@@ -266,15 +328,15 @@ export default function Analytics() {
           <div class="kpi-grid">
             <div class="kpi-card">
               <div>Total Revenue</div>
-              <div class="kpi-value">${RUPEE}${kpis.totalRevenue.toLocaleString()}</div>
+              <div class="kpi-value">${RUPEE}${formatIndianNumber(kpis.totalRevenue)}</div>
             </div>
             <div class="kpi-card">
               <div>Net Profit</div>
-              <div class="kpi-value">${RUPEE}${kpis.netProfit.toLocaleString()}</div>
+              <div class="kpi-value">${RUPEE}${formatIndianNumber(kpis.netProfit)}</div>
             </div>
             <div class="kpi-card">
               <div>Fuel Sold</div>
-              <div class="kpi-value">${kpis.totalLiters.toLocaleString()} L</div>
+              <div class="kpi-value">${formatIndianNumber(kpis.totalLiters)} L</div>
             </div>
             <div class="kpi-card">
               <div>Transactions</div>
@@ -298,9 +360,9 @@ export default function Analytics() {
               ${monthlySalesData.map(m => `
                 <tr>
                   <td>${m.name}</td>
-                  <td>${RUPEE}${m.sales.toLocaleString()}</td>
-                  <td>${RUPEE}${m.expenses.toLocaleString()}</td>
-                  <td>${RUPEE}${m.profit.toLocaleString()}</td>
+                  <td>${RUPEE}${formatIndianNumber(m.sales)}</td>
+                  <td>${RUPEE}${formatIndianNumber(m.expenses)}</td>
+                  <td>${RUPEE}${formatIndianNumber(m.profit)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -320,7 +382,7 @@ export default function Analytics() {
               ${fuelTypeData.map(f => `
                 <tr>
                   <td>${f.name}</td>
-                  <td>${RUPEE}${f.value.toLocaleString()}</td>
+                  <td>${RUPEE}${formatIndianNumber(f.value)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -332,11 +394,11 @@ export default function Analytics() {
           ${financeSummary ? `
             <table>
               <tbody>
-                <tr><td><strong>Cash Received</strong></td><td>${RUPEE}${financeSummary.cashReceived?.toLocaleString()}</td></tr>
-                <tr><td><strong>UPI/PhonePe</strong></td><td>${RUPEE}${financeSummary.phonePay?.toLocaleString()}</td></tr>
-                <tr><td><strong>Credit Card</strong></td><td>${RUPEE}${financeSummary.creditCard?.toLocaleString()}</td></tr>
-                <tr><td><strong>Total Expenses</strong></td><td>${RUPEE}${financeSummary.totalExpenses?.toLocaleString()}</td></tr>
-                <tr style="background: #f0f0f0;"><td><strong>Net Total</strong></td><td><strong>${RUPEE}${financeSummary.total?.toLocaleString()}</strong></td></tr>
+                <tr><td><strong>Cash Received</strong></td><td>${RUPEE}${formatIndianNumber(financeSummary.cashReceived || 0)}</td></tr>
+                <tr><td><strong>UPI/PhonePe</strong></td><td>${RUPEE}${formatIndianNumber(financeSummary.phonePay || 0)}</td></tr>
+                <tr><td><strong>Credit Card</strong></td><td>${RUPEE}${formatIndianNumber(financeSummary.creditCard || 0)}</td></tr>
+                <tr><td><strong>Total Expenses</strong></td><td>${RUPEE}${formatIndianNumber(financeSummary.totalExpenses || 0)}</td></tr>
+                <tr style="background: #f0f0f0;"><td><strong>Net Total</strong></td><td><strong>${RUPEE}${formatIndianNumber(financeSummary.total || 0)}</strong></td></tr>
               </tbody>
             </table>
           ` : '<p>No finance summary available</p>'}
@@ -366,7 +428,10 @@ export default function Analytics() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="text-muted-foreground">Loading analytics...</div>
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">Loading real-time analytics...</p>
+        </div>
       </div>
     );
   }
@@ -377,9 +442,25 @@ export default function Analytics() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Analytics Dashboard</h1>
-          <p className="text-muted-foreground">Comprehensive business insights and performance metrics</p>
+          <p className="text-muted-foreground flex items-center gap-2">
+            Comprehensive business insights and performance metrics
+            {fetchingSales && <RefreshCw className="h-3 w-3 animate-spin text-primary" />}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Last updated: {lastRefresh.toLocaleTimeString('en-IN')} • Auto-refreshes every 30 seconds
+          </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
+          <Button
+            onClick={handleRefresh}
+            variant="outline"
+            disabled={fetchingSales}
+            className="hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950 hover:text-emerald-600 dark:hover:text-emerald-400"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${fetchingSales ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          
           <Select value={timeRange} onValueChange={handleTimeRangeChange} disabled={isPending || fetchingSales}>
             <SelectTrigger className="w-[180px]">
               <CalendarDays className="h-4 w-4 mr-2" />
@@ -393,7 +474,6 @@ export default function Analytics() {
             </SelectContent>
           </Select>
           
-          {/* Export Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -421,7 +501,7 @@ export default function Analytics() {
           <div className="bg-card p-6 rounded-lg shadow-lg">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Loading analytics data...</p>
+              <p className="text-muted-foreground">Loading real-time data...</p>
             </div>
           </div>
         </div>
@@ -436,7 +516,7 @@ export default function Analytics() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-              {RUPEE}{kpis.totalRevenue.toLocaleString()}
+              {RUPEE}{formatIndianNumber(kpis.totalRevenue)}
             </div>
             <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center mt-1">
               <TrendingUp className="h-3 w-3 mr-1" />
@@ -452,7 +532,7 @@ export default function Analytics() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-900 dark:text-green-100">
-              {RUPEE}{kpis.netProfit.toLocaleString()}
+              {RUPEE}{formatIndianNumber(kpis.netProfit)}
             </div>
             <p className="text-xs text-green-600 dark:text-green-400 flex items-center mt-1">
               Revenue - Expenses
@@ -467,7 +547,7 @@ export default function Analytics() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
-              {kpis.totalLiters.toLocaleString()} L
+              {formatIndianNumber(kpis.totalLiters)} L
             </div>
             <p className="text-xs text-orange-600 dark:text-orange-400 flex items-center mt-1">
               Total liters sold
@@ -482,7 +562,7 @@ export default function Analytics() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-              {salesHistory.length.toLocaleString()}
+              {formatIndianNumber(salesHistory.length)}
             </div>
             <p className="text-xs text-purple-600 dark:text-purple-400 flex items-center mt-1">
               Total sales recorded
@@ -509,8 +589,8 @@ export default function Analytics() {
                 <LineChart data={monthlySalesData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => [`${RUPEE}${(value as number).toLocaleString()}`, '']} />
+                  <YAxis tickFormatter={(value) => `${RUPEE}${(value / 1000).toFixed(0)}K`} />
+                  <Tooltip formatter={(value) => [`${RUPEE}${formatIndianNumber(value as number)}`, '']} />
                   <Legend />
                   <Line type="monotone" dataKey="sales" stroke="#3b82f6" strokeWidth={2} name="Sales" />
                   <Line type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={2} name="Profit" />
@@ -541,20 +621,20 @@ export default function Analytics() {
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
-                    label={({ name, value }) => `${name}: ${RUPEE}${value.toLocaleString()}`}
+                    label={({ name, value }) => `${name}: ${RUPEE}${formatIndianNumber(value)}`}
                   >
                     {fuelTypeData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value) => `${RUPEE}${(value as number).toLocaleString()}`} />
+                  <Tooltip formatter={(value) => `${RUPEE}${formatIndianNumber(value as number)}`} />
                 </PieChart>
               </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
 
-        {/* Daily Sales by Fuel Type */}
+        {/* Daily Sales by Fuel Type - FIXED */}
         <Card>
           <CardHeader>
             <CardTitle>Daily Sales (Last 7 Days)</CardTitle>
@@ -563,30 +643,57 @@ export default function Analytics() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {dailySalesData.length === 0 || dailySalesData.every(d => Object.keys(d).length === 1) ? (
+            {dailySalesData.length === 0 || dailySalesData.every(d => d.total === 0) ? (
               <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                No daily sales data available
+                No daily sales data available for the last 7 days
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={dailySalesData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="day" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => [`${RUPEE}${(value as number).toLocaleString()}`, '']} />
-                  <Legend />
-                  {Object.keys(dailySalesData[0] || {})
-                    .filter(key => key !== 'day')
-                    .map((key, idx) => (
-                      <Bar 
-                        key={key} 
-                        dataKey={key} 
-                        fill={['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][idx % 5]} 
-                        name={key.charAt(0).toUpperCase() + key.slice(1)} 
-                      />
-                    ))}
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="space-y-4">
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={dailySalesData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="day" />
+                    <YAxis tickFormatter={(value) => `${RUPEE}${(value / 1000).toFixed(0)}K`} />
+                    <Tooltip 
+                      formatter={(value) => [`${RUPEE}${formatIndianNumber(value as number)}`, '']}
+                      contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #ccc' }}
+                    />
+                    <Legend />
+                    {uniqueProducts.length > 0 ? (
+                      uniqueProducts.map((key, idx) => (
+                        <Bar 
+                          key={key} 
+                          dataKey={key} 
+                          fill={['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][idx % 5]} 
+                          name={key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim()} 
+                        />
+                      ))
+                    ) : (
+                      <Bar dataKey="total" fill="#3b82f6" name="Total Sales" />
+                    )}
+                  </BarChart>
+                </ResponsiveContainer>
+                
+                {/* Summary Table */}
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="text-left p-2 font-medium">Date</th>
+                        <th className="text-right p-2 font-medium">Total Sales</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dailySalesData.map((day, idx) => (
+                        <tr key={idx} className="border-t hover:bg-muted/50">
+                          <td className="p-2">{day.day}</td>
+                          <td className="p-2 text-right font-semibold">{RUPEE}{formatIndianNumber(day.total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -604,25 +711,25 @@ export default function Analytics() {
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Cash Received</span>
-                  <span className="text-sm font-bold">{RUPEE}{financeSummary.cashReceived?.toLocaleString()}</span>
+                  <span className="text-sm font-bold">{RUPEE}{formatIndianNumber(financeSummary.cashReceived || 0)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">UPI/PhonePe</span>
-                  <span className="text-sm font-bold">{RUPEE}{financeSummary.phonePay?.toLocaleString()}</span>
+                  <span className="text-sm font-bold">{RUPEE}{formatIndianNumber(financeSummary.phonePay || 0)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Credit Card</span>
-                  <span className="text-sm font-bold">{RUPEE}{financeSummary.creditCard?.toLocaleString()}</span>
+                  <span className="text-sm font-bold">{RUPEE}{formatIndianNumber(financeSummary.creditCard || 0)}</span>
                 </div>
                 <div className="h-px bg-border my-2" />
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Total Expenses</span>
-                  <span className="text-sm font-bold text-destructive">{RUPEE}{financeSummary.totalExpenses?.toLocaleString()}</span>
+                  <span className="text-sm font-bold text-destructive">{RUPEE}{formatIndianNumber(financeSummary.totalExpenses || 0)}</span>
                 </div>
                 <div className="h-px bg-border my-2" />
                 <div className="flex items-center justify-between">
                   <span className="text-base font-bold">Net Total</span>
-                  <span className="text-lg font-bold text-green-600">{RUPEE}{financeSummary.total?.toLocaleString()}</span>
+                  <span className="text-lg font-bold text-green-600">{RUPEE}{formatIndianNumber(financeSummary.total || 0)}</span>
                 </div>
               </>
             )}
@@ -634,7 +741,7 @@ export default function Analytics() {
       <Card>
         <CardHeader>
           <CardTitle>Business Insights</CardTitle>
-          <CardDescription>Key observations from your data</CardDescription>
+          <CardDescription>Key observations from your real-time data</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -644,7 +751,7 @@ export default function Analytics() {
                 <div>
                   <h4 className="font-medium text-green-900 dark:text-green-100">Positive Profit Margin</h4>
                   <p className="text-sm text-green-700 dark:text-green-300 mt-1">
-                    Your business is generating {RUPEE}{kpis.netProfit.toLocaleString()} in net profit for the selected period.
+                    Your business is generating {RUPEE}{formatIndianNumber(kpis.netProfit)} in net profit for the selected period.
                   </p>
                 </div>
               </div>
@@ -654,7 +761,7 @@ export default function Analytics() {
                 <div>
                   <h4 className="font-medium text-orange-900 dark:text-orange-100">Review Expenses</h4>
                   <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
-                    Expenses exceed revenue by {RUPEE}{Math.abs(kpis.netProfit).toLocaleString()}. Consider cost optimization.
+                    Expenses exceed revenue by {RUPEE}{formatIndianNumber(Math.abs(kpis.netProfit))}. Consider cost optimization.
                   </p>
                 </div>
               </div>
@@ -666,7 +773,7 @@ export default function Analytics() {
                 <div>
                   <h4 className="font-medium text-blue-900 dark:text-blue-100">Top Selling Fuel</h4>
                   <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                    {fuelTypeData[0].name} is your best-performing product with {RUPEE}{fuelTypeData[0].value.toLocaleString()} in sales.
+                    {fuelTypeData[0].name} is your best-performing product with {RUPEE}{formatIndianNumber(fuelTypeData[0].value)} in sales.
                   </p>
                 </div>
               </div>
@@ -677,7 +784,7 @@ export default function Analytics() {
               <div>
                 <h4 className="font-medium text-purple-900 dark:text-purple-100">Transaction Volume</h4>
                 <p className="text-sm text-purple-700 dark:text-purple-300 mt-1">
-                  You processed {salesHistory.length} transactions totaling {kpis.totalLiters.toLocaleString()} liters of fuel.
+                  You processed {formatIndianNumber(salesHistory.length)} transactions totaling {formatIndianNumber(kpis.totalLiters)} liters of fuel.
                 </p>
               </div>
             </div>

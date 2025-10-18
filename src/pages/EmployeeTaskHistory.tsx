@@ -2,7 +2,10 @@ import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { FileText, CheckCircle, Timer, AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, Clock, Calendar } from 'lucide-react';
+import { 
+  FileText, CheckCircle, Timer, AlertCircle, ArrowLeft, ChevronLeft, 
+  ChevronRight, Clock, Calendar, Fuel, Target, Activity 
+} from 'lucide-react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import React from "react";
@@ -14,6 +17,7 @@ export default function EmployeeTaskHistory() {
   const orgId = localStorage.getItem('organizationId') || '';
   const empId = localStorage.getItem('empId') || '';
   const [tasks, setTasks] = useState<any[]>([]);
+  const [dailyDuties, setDailyDuties] = useState<any[]>([]);
   const [selectedTab, setSelectedTab] = useState('pending');
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -25,14 +29,16 @@ export default function EmployeeTaskHistory() {
       axios.get(`${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=pending`),
       axios.get(`${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=in-progress`),
       axios.get(`${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=completed`),
-    ]).then(([pending, inprogress, completed]) => {
+      axios.get(`${API_BASE}/api/organizations/${orgId}/employee-duties/employee/${empId}`),
+    ]).then(([pending, inprogress, completed, duties]) => {
       setTasks([
         ...pending.data.map((t: any) => ({ ...t, status: 'pending' })),
         ...inprogress.data.map((t: any) => ({ ...t, status: 'in-progress' })),
         ...completed.data.map((t: any) => ({ ...t, status: 'completed' })),
       ]);
+      setDailyDuties(duties.data || []);
       setLoading(false);
-    });
+    }).catch(() => setLoading(false));
   }, [orgId, empId]);
 
   const stats = useMemo(() => {
@@ -49,13 +55,29 @@ export default function EmployeeTaskHistory() {
         overdue++;
       }
     }
-    return { pending, inProgress, completed, overdue, total: tasks.length };
-  }, [tasks]);
+
+    const scheduledDuties = dailyDuties.filter(d => d.status === 'SCHEDULED').length;
+    const activeDuties = dailyDuties.filter(d => d.status === 'ACTIVE').length;
+    const completedDuties = dailyDuties.filter(d => d.status === 'COMPLETED').length;
+
+    return { 
+      pending, 
+      inProgress, 
+      completed, 
+      overdue, 
+      total: tasks.length,
+      dailyTotal: dailyDuties.length,
+      dailyScheduled: scheduledDuties,
+      dailyActive: activeDuties,
+      dailyCompleted: completedDuties
+    };
+  }, [tasks, dailyDuties]);
 
   const statuses = [
     { key: 'pending', label: 'Pending', color: 'text-warning', bgColor: 'bg-yellow-500', icon: Timer },
     { key: 'in-progress', label: 'In Progress', color: 'text-primary', bgColor: 'bg-blue-500', icon: FileText },
     { key: 'completed', label: 'Completed', color: 'text-success', bgColor: 'bg-green-500', icon: CheckCircle },
+    { key: 'daily-duties', label: 'Daily Duties', color: 'text-blue-600', bgColor: 'bg-blue-600', icon: Fuel },
   ];
 
   const isOverdue = (dueDate: string) => {
@@ -65,13 +87,181 @@ export default function EmployeeTaskHistory() {
     return due < new Date(now.getFullYear(), now.getMonth(), now.getDate());
   };
 
-  const filteredTasks = tasks.filter(t => t.status === selectedTab);
+  const filteredTasks = selectedTab === 'daily-duties' 
+    ? dailyDuties 
+    : tasks.filter(t => t.status === selectedTab);
+    
   const paginatedTasks = filteredTasks.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
   const totalPages = Math.ceil(filteredTasks.length / ITEMS_PER_PAGE);
 
   useEffect(() => {
     setPage(0);
   }, [selectedTab]);
+
+  const calculateHours = (start: string, end: string) => {
+    if (!start || !end) return '0';
+    const [startHour, startMin] = start.split(':').map(Number);
+    const [endHour, endMin] = end.split(':').map(Number);
+    let hours = endHour - startHour;
+    if (hours < 0) hours += 24;
+    const minutes = endMin - startMin;
+    return (hours + minutes / 60).toFixed(1);
+  };
+
+  const renderDailyDutyCard = (duty: any, index: number) => (
+    <motion.div
+      key={duty.id}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.05 }}
+      className="group relative p-5 rounded-xl bg-muted/30 border-2 border-transparent hover:border-blue-500/20 hover:shadow-lg transition-all duration-300"
+    >
+      <div className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl bg-blue-500" />
+      
+      <div className="space-y-3 ml-3">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="p-2 rounded-lg bg-blue-500/10">
+                <Fuel className="h-5 w-5 text-blue-600" />
+              </div>
+              <h4 className="font-bold text-lg text-foreground">Daily Pump Duty</h4>
+              <Badge className={
+                duty.status === 'COMPLETED' 
+                  ? 'bg-green-500/10 text-green-700 border-green-500/20'
+                  : duty.status === 'ACTIVE'
+                  ? 'bg-blue-500/10 text-blue-700 border-blue-500/20'
+                  : 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20'
+              }>
+                {duty.status || 'SCHEDULED'}
+              </Badge>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-border/50">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Date:</span>
+            <span className="text-sm font-semibold text-foreground">{duty.dutyDate}</span>
+          </div>
+          
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted">
+            <Target className="h-4 w-4 text-purple-600" />
+            <span className="text-sm text-muted-foreground">Product:</span>
+            <span className="text-sm font-semibold text-foreground">{duty.productId}</span>
+          </div>
+
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted">
+            <Clock className="h-4 w-4 text-orange-600" />
+            <span className="text-sm text-muted-foreground">Shift:</span>
+            <span className="text-sm font-semibold text-foreground">
+              {duty.shiftStart} - {duty.shiftEnd}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted">
+            <Timer className="h-4 w-4 text-green-600" />
+            <span className="text-sm text-muted-foreground">Hours:</span>
+            <span className="text-sm font-semibold text-foreground">
+              {duty.totalHours || calculateHours(duty.shiftStart, duty.shiftEnd)}h
+            </span>
+          </div>
+
+          {duty.gunIds && duty.gunIds.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted">
+              <Fuel className="h-4 w-4 text-red-600" />
+              <span className="text-sm text-muted-foreground">Guns:</span>
+              <span className="text-sm font-semibold text-foreground">{duty.gunIds.length} assigned</span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10">
+            <div className={`h-2 w-2 rounded-full ${
+              duty.status === 'SCHEDULED' ? 'bg-yellow-500 animate-pulse' :
+              duty.status === 'ACTIVE' ? 'bg-blue-500 animate-pulse' :
+              'bg-green-500'
+            }`} />
+            <span className="text-sm font-semibold text-foreground capitalize">
+              {duty.status || 'Scheduled'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+
+  const renderTaskCard = (task: any, index: number) => (
+    <motion.div
+      key={task.id}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.05 }}
+      className="group relative p-5 rounded-xl bg-muted/30 border-2 border-transparent hover:border-primary/20 hover:shadow-lg transition-all duration-300"
+    >
+      <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl ${
+        selectedTab === 'pending' ? 'bg-yellow-500' :
+        selectedTab === 'in-progress' ? 'bg-blue-500' :
+        'bg-green-500'
+      }`} />
+
+      <div className="space-y-3 ml-3">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="font-bold text-lg text-foreground">{task.taskTitle}</h4>
+              {task.priority === "High" && (
+                <Badge className="bg-destructive text-destructive-foreground shadow-md">
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  High Priority
+                </Badge>
+              )}
+              {isOverdue(task.dueDate) && task.status !== 'completed' && (
+                <Badge className="bg-orange-500 text-white shadow-md animate-pulse">
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  Overdue
+                </Badge>
+              )}
+            </div>
+            {task.description && (
+              <p className="text-sm text-muted-foreground leading-relaxed">{task.description}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 pt-3 border-t border-border/50">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Shift:</span>
+            <span className="text-sm font-semibold text-foreground">{task.shift}</span>
+          </div>
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
+            isOverdue(task.dueDate) ? 'bg-destructive/10' : 'bg-muted'
+          }`}>
+            <Calendar className={`h-4 w-4 ${
+              isOverdue(task.dueDate) ? 'text-destructive' : 'text-muted-foreground'
+            }`} />
+            <span className="text-sm text-muted-foreground">Due:</span>
+            <span className={`text-sm font-semibold ${
+              isOverdue(task.dueDate) ? 'text-destructive' : 'text-foreground'
+            }`}>
+              {task.dueDate}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted">
+            <div className={`h-2 w-2 rounded-full ${
+              selectedTab === 'pending' ? 'bg-yellow-500 animate-pulse' :
+              selectedTab === 'in-progress' ? 'bg-blue-500 animate-pulse' :
+              'bg-green-500'
+            }`} />
+            <span className="text-sm font-semibold text-foreground capitalize">
+              {task.status.replace('-', ' ')}
+            </span>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
 
   return (
     <div className="space-y-8">
@@ -83,7 +273,7 @@ export default function EmployeeTaskHistory() {
       >
         <div className="space-y-2">
           <h1 className="text-4xl font-bold text-foreground">Task History</h1>
-          <p className="text-muted-foreground">View all your assigned tasks organized by status</p>
+          <p className="text-muted-foreground">View all your assigned tasks and duties organized by status</p>
         </div>
         <Button 
           variant="outline" 
@@ -95,20 +285,15 @@ export default function EmployeeTaskHistory() {
         </Button>
       </motion.div>
 
-      {/* Stats Cards - Original Design with 3+2 Layout */}
+         {/* Stats Grid - 4 Cards in a Row */}
       <div className="space-y-6">
-        {/* First Row - 3 Cards */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-        >
-          <Card className="hover:shadow-lg transition-all">
+        {/* First Row - Special Tasks Stats (4 cards) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card className="stat-card hover-lift">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-muted-foreground">Total</p>
+                  <p className="text-sm font-medium text-muted-foreground">Special Tasks</p>
                   <p className="text-2xl font-bold text-foreground">{stats.total}</p>
                 </div>
                 <div className="bg-muted p-3 rounded-lg">
@@ -117,7 +302,7 @@ export default function EmployeeTaskHistory() {
               </div>
             </CardContent>
           </Card>
-          <Card className="hover:shadow-lg transition-all">
+          <Card className="stat-card hover-lift">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
@@ -130,7 +315,7 @@ export default function EmployeeTaskHistory() {
               </div>
             </CardContent>
           </Card>
-          <Card className="hover:shadow-lg transition-all">
+          <Card className="stat-card hover-lift">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
@@ -143,16 +328,7 @@ export default function EmployeeTaskHistory() {
               </div>
             </CardContent>
           </Card>
-        </motion.div>
-
-        {/* Second Row - 2 Cards Centered */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 max-w-3xl mx-auto"
-        >
-          <Card className="hover:shadow-lg transition-all">
+          <Card className="stat-card hover-lift">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
@@ -165,7 +341,50 @@ export default function EmployeeTaskHistory() {
               </div>
             </CardContent>
           </Card>
-          <Card className="hover:shadow-lg transition-all">
+        </div>
+
+        {/* Second Row - Daily Duties & Overdue (4 cards) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card className="stat-card hover-lift">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">Daily Duties</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.dailyTotal}</p>
+                </div>
+                <div className="bg-blue-500/10 p-3 rounded-lg">
+                  <Fuel className="h-6 w-6 text-blue-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="stat-card hover-lift">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">Scheduled</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.dailyScheduled}</p>
+                </div>
+                <div className="bg-yellow-500/10 p-3 rounded-lg">
+                  <Calendar className="h-6 w-6 text-yellow-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="stat-card hover-lift">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">Active Duties</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.dailyActive}</p>
+                </div>
+                <div className="bg-purple-500/10 p-3 rounded-lg">
+                  <Activity className="h-6 w-6 text-purple-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="stat-card hover-lift">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
@@ -178,18 +397,22 @@ export default function EmployeeTaskHistory() {
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
       </div>
 
       {/* Modern Tab Buttons */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+        transition={{ delay: 0.4 }}
         className="flex flex-wrap gap-3 p-1 bg-muted/30 rounded-xl border shadow-sm"
       >
         {statuses.map(stat => {
           const active = selectedTab === stat.key;
+          const count = stat.key === 'pending' ? stats.pending :
+                       stat.key === 'in-progress' ? stats.inProgress :
+                       stat.key === 'completed' ? stats.completed :
+                       stats.dailyTotal;
           return (
             <Button
               key={stat.key}
@@ -205,11 +428,9 @@ export default function EmployeeTaskHistory() {
               <span className={active ? 'font-semibold' : ''}>{stat.label}</span>
               <Badge 
                 variant={active ? "secondary" : "outline"}
-                className={`ml-2 ${active ? '' : ''}`}
+                className="ml-2"
               >
-                {stat.key === 'pending' && stats.pending}
-                {stat.key === 'in-progress' && stats.inProgress}
-                {stat.key === 'completed' && stats.completed}
+                {count}
               </Badge>
             </Button>
           );
@@ -220,7 +441,7 @@ export default function EmployeeTaskHistory() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
+        transition={{ delay: 0.5 }}
       >
         <Card className="shadow-lg">
           <CardHeader>
@@ -230,7 +451,7 @@ export default function EmployeeTaskHistory() {
                   React.createElement(statuses.find(s => s.key === selectedTab)!.icon, { className: "h-5 w-5" })
                 }
               </div>
-              {statuses.find(s => s.key === selectedTab)?.label} Tasks
+              {statuses.find(s => s.key === selectedTab)?.label}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
@@ -243,7 +464,7 @@ export default function EmployeeTaskHistory() {
                   className="flex flex-col items-center justify-center py-12"
                 >
                   <div className="h-12 w-12 rounded-full border-4 border-primary/30 border-t-primary animate-spin mb-4" />
-                  <p className="text-muted-foreground">Loading tasks...</p>
+                  <p className="text-muted-foreground">Loading...</p>
                 </motion.div>
               )}
 
@@ -257,89 +478,20 @@ export default function EmployeeTaskHistory() {
                   <div className="h-24 w-24 mx-auto mb-6 rounded-full bg-muted flex items-center justify-center">
                     <FileText className="h-12 w-12 text-muted-foreground" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-2">No Tasks Found</h3>
+                  <h3 className="text-xl font-semibold mb-2">No Items Found</h3>
                   <p className="text-muted-foreground">
-                    You don't have any {statuses.find(s => s.key === selectedTab)?.label.toLowerCase()} tasks at the moment.
+                    You don't have any {statuses.find(s => s.key === selectedTab)?.label.toLowerCase()} at the moment.
                   </p>
                 </motion.div>
               )}
 
               {!loading && filteredTasks.length > 0 && (
                 <div className="space-y-4">
-                  {paginatedTasks.map((task, index) => (
-                    <motion.div
-                      key={task.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="group relative p-5 rounded-xl bg-muted/30 border-2 border-transparent hover:border-primary/20 hover:shadow-lg transition-all duration-300"
-                    >
-                      {/* Colored Left Border Indicator */}
-                      <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl ${
-                        selectedTab === 'pending' ? 'bg-yellow-500' :
-                        selectedTab === 'in-progress' ? 'bg-blue-500' :
-                        'bg-green-500'
-                      }`} />
-
-                      <div className="space-y-3 ml-3">
-                        {/* Task Header */}
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h4 className="font-bold text-lg text-foreground">{task.taskTitle}</h4>
-                              {task.priority === "High" && (
-                                <Badge className="bg-destructive text-destructive-foreground shadow-md">
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  High Priority
-                                </Badge>
-                              )}
-                              {isOverdue(task.dueDate) && task.status !== 'completed' && (
-                                <Badge className="bg-orange-500 text-white shadow-md animate-pulse">
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  Overdue
-                                </Badge>
-                              )}
-                            </div>
-                            {task.description && (
-                              <p className="text-sm text-muted-foreground leading-relaxed">{task.description}</p>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Task Metadata */}
-                        <div className="flex flex-wrap items-center gap-4 pt-3 border-t border-border/50">
-                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">Shift:</span>
-                            <span className="text-sm font-semibold text-foreground">{task.shift}</span>
-                          </div>
-                          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
-                            isOverdue(task.dueDate) ? 'bg-destructive/10' : 'bg-muted'
-                          }`}>
-                            <Calendar className={`h-4 w-4 ${
-                              isOverdue(task.dueDate) ? 'text-destructive' : 'text-muted-foreground'
-                            }`} />
-                            <span className="text-sm text-muted-foreground">Due:</span>
-                            <span className={`text-sm font-semibold ${
-                              isOverdue(task.dueDate) ? 'text-destructive' : 'text-foreground'
-                            }`}>
-                              {task.dueDate}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted">
-                            <div className={`h-2 w-2 rounded-full ${
-                              selectedTab === 'pending' ? 'bg-yellow-500 animate-pulse' :
-                              selectedTab === 'in-progress' ? 'bg-blue-500 animate-pulse' :
-                              'bg-green-500'
-                            }`} />
-                            <span className="text-sm font-semibold text-foreground capitalize">
-                              {task.status.replace('-', ' ')}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
+                  {paginatedTasks.map((item, index) => 
+                    selectedTab === 'daily-duties' 
+                      ? renderDailyDutyCard(item, index)
+                      : renderTaskCard(item, index)
+                  )}
                 </div>
               )}
             </AnimatePresence>
@@ -349,7 +501,7 @@ export default function EmployeeTaskHistory() {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
+                transition={{ delay: 0.6 }}
                 className="flex items-center justify-between mt-6 pt-6 border-t border-border"
               >
                 <Button

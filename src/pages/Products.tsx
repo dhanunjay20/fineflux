@@ -21,6 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { useToast } from '@/components/ui/use-toast';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
 const RUPEE = '\u20B9';
@@ -57,6 +58,7 @@ function formatDateTime(val?: string) {
 export default function Products() {
   const orgId = localStorage.getItem('organizationId') || 'ORG-DEV-001';
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
@@ -118,6 +120,10 @@ export default function Products() {
     onSuccess: () => {
       refetch();
       closeModal();
+      toast({ title: "Product added successfully!", variant: "default" });
+    },
+    onError: () => {
+      toast({ title: "Failed to add product", variant: "destructive" });
     }
   });
 
@@ -140,6 +146,10 @@ export default function Products() {
     onSuccess: () => {
       refetch();
       closeModal();
+      toast({ title: "Product updated successfully!", variant: "default" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update product", variant: "destructive" });
     }
   });
 
@@ -152,6 +162,10 @@ export default function Products() {
       refetch();
       setDeleteTarget(null);
       setConfirmOpen(false);
+      toast({ title: "Product deleted successfully!", variant: "default" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete product", variant: "destructive" });
     }
   });
 
@@ -193,14 +207,30 @@ export default function Products() {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!form.productName) {
+      toast({ title: "Please select a product name", variant: "destructive" });
+      return;
+    }
+
+    if (!form.price || Number(form.price) <= 0) {
+      toast({ title: "Please enter a valid price", variant: "destructive" });
+      return;
+    }
+
     if (
       form.tankCapacity !== "" &&
       form.currentLevel !== "" &&
       parseFloat(form.currentLevel) > parseFloat(form.tankCapacity)
     ) {
-      setForm(f => ({ ...f, currentLevel: f.tankCapacity }));
+      toast({ 
+        title: "Invalid stock level", 
+        description: "Current level cannot exceed tank capacity",
+        variant: "destructive" 
+      });
       return;
     }
+
     if (editId) updateMutation.mutate({ ...form, id: editId });
     else createMutation.mutate(form);
   };
@@ -222,33 +252,52 @@ export default function Products() {
   const AddEditProductForm = (
     <div
       className={
-        "fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 overflow-y-auto " +
+        "fixed top-0 left-0 right-0 bottom-0 z-[9998] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
         (modalOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
       }
+      style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
       onClick={closeModal}
     >
       <div
         className={
-          "relative bg-background shadow-2xl rounded-3xl mx-auto w-full max-w-2xl max-h-[90vh] my-8 flex flex-col border border-border/50 transition-all duration-300 " +
+          "relative bg-background shadow-2xl rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-border/50 transition-all duration-300 " +
           (modalOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0')
         }
         onClick={(e) => e.stopPropagation()}
       >
-        <style>{`.modal-scroll { scrollbar-width: thin; scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent; } .modal-scroll::-webkit-scrollbar { width: 6px; } .modal-scroll::-webkit-scrollbar-track { background: transparent; } .modal-scroll::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.3); border-radius: 3px; }`}</style>
+        <style>{`
+          .modal-scroll { 
+            scrollbar-width: thin; 
+            scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent; 
+          } 
+          .modal-scroll::-webkit-scrollbar { 
+            width: 6px; 
+          } 
+          .modal-scroll::-webkit-scrollbar-track { 
+            background: transparent; 
+          } 
+          .modal-scroll::-webkit-scrollbar-thumb { 
+            background: hsl(var(--muted-foreground) / 0.3); 
+            border-radius: 3px; 
+          }
+          .modal-scroll::-webkit-scrollbar-thumb:hover {
+            background: hsl(var(--muted-foreground) / 0.5);
+          }
+        `}</style>
         
-        <div className="flex items-center justify-between p-6 pb-4 border-b border-border/50">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-gradient-to-r from-primary/5 to-accent/5">
           <div>
             <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
               {editId ? 'Edit Product' : 'Add New Product'}
             </h2>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground mt-0.5">
               {editId ? 'Update product information' : 'Create a new product entry'}
             </p>
           </div>
           <button
             type="button"
             onClick={closeModal}
-            className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition-all duration-200"
+            className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition-all duration-200 hover:rotate-90"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -256,162 +305,164 @@ export default function Products() {
         </div>
 
         <form
-          className="modal-scroll flex flex-col gap-5 p-6 overflow-y-auto"
+          className="modal-scroll flex-1 overflow-y-auto"
           onSubmit={handleFormSubmit}
           autoComplete="off"
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="flex flex-col gap-5 p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Product Name *</Label>
+                <Select
+                  value={form.productName}
+                  onValueChange={(value) => setForm(f => ({ ...f, productName: value }))}
+                >
+                  <SelectTrigger className="w-full h-11 border-border/50 focus:border-primary transition-colors">
+                    <SelectValue placeholder="Select Product" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[9999]">
+                    {PRODUCT_OPTIONS.map(opt => (
+                      <SelectItem key={opt} value={opt}>
+                        <div className="flex items-center gap-2">
+                          {getProductIcon(opt)}
+                          {opt}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Price (₹ per Liter) *</Label>
+                <Input
+                  name="price"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  value={form.price}
+                  min="0"
+                  required
+                  onChange={handleFormChange}
+                  className="h-11 border-border/50 focus:border-primary transition-colors"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Tank Capacity (L)</Label>
+                <Input
+                  name="tankCapacity"
+                  type="number"
+                  inputMode="decimal"
+                  step="1"
+                  value={form.tankCapacity}
+                  min="0"
+                  onChange={handleFormChange}
+                  className="h-11 border-border/50 focus:border-primary transition-colors"
+                  placeholder="0"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Current Level (L)</Label>
+                <Input
+                  name="currentLevel"
+                  type="number"
+                  inputMode="decimal"
+                  step="1"
+                  value={form.currentLevel}
+                  min="0"
+                  max={form.tankCapacity !== "" ? form.tankCapacity : undefined}
+                  onChange={handleFormChange}
+                  className="h-11 border-border/50 focus:border-primary transition-colors"
+                  placeholder="0"
+                />
+                {form.tankCapacity !== "" && form.currentLevel !== "" && parseFloat(form.currentLevel) > parseFloat(form.tankCapacity) && (
+                  <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                    <span className="h-1 w-1 rounded-full bg-destructive"></span>
+                    Current Level cannot exceed Tank Capacity
+                  </p>
+                )}
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Product Name *</Label>
+              <Label className="text-sm font-medium">Supplier</Label>
               <Select
-                value={form.productName}
-                onValueChange={(value) => setForm(f => ({ ...f, productName: value }))}
+                value={form.supplier}
+                onValueChange={(value) => setForm(f => ({ ...f, supplier: value }))}
               >
                 <SelectTrigger className="w-full h-11 border-border/50 focus:border-primary transition-colors">
-                  <SelectValue placeholder="Select Product" />
+                  <SelectValue placeholder="Select Supplier" />
                 </SelectTrigger>
-                <SelectContent>
-                  {PRODUCT_OPTIONS.map(opt => (
-                    <SelectItem key={opt} value={opt}>
-                      <div className="flex items-center gap-2">
-                        {getProductIcon(opt)}
-                        {opt}
-                      </div>
-                    </SelectItem>
+                <SelectContent className="z-[9999]">
+                  {SUPPLIER_OPTIONS.map(opt => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Price (₹ per Liter) *</Label>
+              <Label className="text-sm font-medium">Description</Label>
               <Input
-                name="price"
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                value={form.price}
-                min="0"
-                required
+                name="description"
+                value={form.description}
                 onChange={handleFormChange}
                 className="h-11 border-border/50 focus:border-primary transition-colors"
-                placeholder="0.00"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Tank Capacity (L)</Label>
-              <Input
-                name="tankCapacity"
-                type="number"
-                inputMode="decimal"
-                step="1"
-                value={form.tankCapacity}
-                min="0"
-                onChange={handleFormChange}
-                className="h-11 border-border/50 focus:border-primary transition-colors"
-                placeholder="0"
+                placeholder="Add product description..."
               />
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Current Level (L)</Label>
-              <Input
-                name="currentLevel"
-                type="number"
-                inputMode="decimal"
-                step="1"
-                value={form.currentLevel}
-                min="0"
-                max={form.tankCapacity !== "" ? form.tankCapacity : undefined}
-                onChange={handleFormChange}
-                className="h-11 border-border/50 focus:border-primary transition-colors"
-                placeholder="0"
-              />
-              {form.tankCapacity !== "" && form.currentLevel !== "" && parseFloat(form.currentLevel) > parseFloat(form.tankCapacity) && (
-                <p className="text-xs text-destructive flex items-center gap-1 mt-1">
-                  <span className="h-1 w-1 rounded-full bg-destructive"></span>
-                  Current Level cannot exceed Tank Capacity
-                </p>
-              )}
-            </div>
-          </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Metric</Label>
+                <Select
+                  value={form.metric}
+                  onValueChange={(value) => setForm(f => ({ ...f, metric: value }))}
+                >
+                  <SelectTrigger className="w-full h-11 border-border/50 focus:border-primary transition-colors">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[9999]">
+                    <SelectItem value="Liters">Liters</SelectItem>
+                    <SelectItem value="Gallons">Gallons</SelectItem>
+                    <SelectItem value="Kiloliters">Kiloliters</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Supplier</Label>
-            <Select
-              value={form.supplier}
-              onValueChange={(value) => setForm(f => ({ ...f, supplier: value }))}
-            >
-              <SelectTrigger className="w-full h-11 border-border/50 focus:border-primary transition-colors">
-                <SelectValue placeholder="Select Supplier" />
-              </SelectTrigger>
-              <SelectContent>
-                {SUPPLIER_OPTIONS.map(opt => (
-                  <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Description</Label>
-            <Input
-              name="description"
-              value={form.description}
-              onChange={handleFormChange}
-              className="h-11 border-border/50 focus:border-primary transition-colors"
-              placeholder="Add product description..."
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Metric</Label>
-              <Select
-                value={form.metric}
-                onValueChange={(value) => setForm(f => ({ ...f, metric: value }))}
-              >
-                <SelectTrigger className="w-full h-11 border-border/50 focus:border-primary transition-colors">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Liters">Liters</SelectItem>
-                  <SelectItem value="Gallons">Gallons</SelectItem>
-                  <SelectItem value="Kiloliters">Kiloliters</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Status</Label>
+                <Select
+                  value={form.status}
+                  onValueChange={(value) => setForm(f => ({ ...f, status: value }))}
+                >
+                  <SelectTrigger className="w-full h-11 border-border/50 focus:border-primary transition-colors">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[9999]">
+                    <SelectItem value="true">Active</SelectItem>
+                    <SelectItem value="false">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Status</Label>
-              <Select
-                value={form.status}
-                onValueChange={(value) => setForm(f => ({ ...f, status: value }))}
-              >
-                <SelectTrigger className="w-full h-11 border-border/50 focus:border-primary transition-colors">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">Active</SelectItem>
-                  <SelectItem value="false">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {form.lastUpdated && (
+              <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-muted/50 border border-border/30">
+                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">
+                  Created: {formatDateTime(form.lastUpdated)}
+                </span>
+              </div>
+            )}
           </div>
 
-          {form.lastUpdated && (
-            <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-muted/50 border border-border/30">
-              <CalendarDays className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">
-                Created: {formatDateTime(form.lastUpdated)}
-              </span>
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 px-6 py-4 border-t border-border/50 bg-muted/20">
             <Button 
               type="button" 
               variant="outline" 
@@ -449,7 +500,6 @@ export default function Products() {
         </Button>
       </div>
 
-      {/* ORIGINAL STAT CARD STRUCTURE - UNCHANGED */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map(stat => {
           const Icon = stat.icon;

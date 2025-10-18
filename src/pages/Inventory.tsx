@@ -273,6 +273,10 @@ export default function Inventory() {
     link.click();
     window.URL.revokeObjectURL(url);
   };
+  function closeModal(event: React.MouseEvent<HTMLDivElement, MouseEvent>): void {
+    throw new Error("Function not implemented.");
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* CSS Animations */}
@@ -468,22 +472,27 @@ export default function Inventory() {
 
       {/* ULTRA MODERN Add Purchase Modal */}
       {addModal && (
-        <div 
-          className="fixed inset-0 z-50 flex items-start justify-center bg-gradient-to-br from-black/60 via-blue-900/40 to-purple-900/40 backdrop-blur-md overflow-y-auto py-8"
-          onClick={() => setAddModal(false)}
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (addModal ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
         >
-          <div 
+
+          <div
             className="bg-gradient-to-br from-white/95 via-blue-50/90 to-indigo-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-indigo-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <button 
-              type="button" 
-              className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm" 
+            <button
+              type="button"
+              className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm"
               onClick={() => setAddModal(false)}
             >
               <X className="h-5 w-5" />
             </button>
-            
+
             <div className="mb-6 flex items-center gap-3">
               <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30">
                 <Plus className="h-6 w-6 text-white" />
@@ -525,12 +534,12 @@ export default function Inventory() {
                   Amount to Add (Liters)
                 </Label>
                 <div className="relative">
-                  <Input 
-                    type="number" 
-                    placeholder="Enter amount" 
+                  <Input
+                    type="number"
+                    placeholder="Enter amount"
                     value={addValue}
-                    onChange={e => setAddValue(e.target.value)} 
-                    required 
+                    onChange={e => setAddValue(e.target.value)}
+                    required
                     min="0"
                     className="h-12 pl-4 pr-16 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border-2 border-green-200/50 dark:border-green-800/50 hover:border-green-400 focus:border-green-500 focus:ring-4 focus:ring-green-500/20 transition-all rounded-xl shadow-sm text-lg font-semibold"
                   />
@@ -540,9 +549,9 @@ export default function Inventory() {
                 </div>
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full h-12 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all" 
+              <Button
+                type="submit"
+                className="w-full h-12 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all"
                 disabled={putStockMutation.isPending}
               >
                 {putStockMutation.isPending ? (
@@ -564,22 +573,27 @@ export default function Inventory() {
 
       {/* ULTRA MODERN Update Stock Modal */}
       {stockModal && (
-        <div 
-          className="fixed inset-0 z-50 flex items-start justify-center bg-gradient-to-br from-black/60 via-purple-900/40 to-pink-900/40 backdrop-blur-md overflow-y-auto py-8"
-          onClick={() => setStockModal(null)}
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (stockModal ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
         >
-          <div 
+
+          <div
             className="bg-gradient-to-br from-white/95 via-purple-50/90 to-pink-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-purple-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <button 
-              type="button" 
-              className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm" 
+            <button
+              type="button"
+              className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm"
               onClick={() => setStockModal(null)}
             >
               <X className="h-5 w-5" />
             </button>
-            
+
             <div className="mb-6 flex items-center gap-3">
               <div className="p-3 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg shadow-purple-500/30">
                 <TrendingUp className="h-6 w-6 text-white" />
@@ -625,9 +639,9 @@ export default function Inventory() {
                 </div>
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full h-12 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 hover:from-green-700 hover:via-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl shadow-lg shadow-green-500/30 hover:shadow-xl hover:shadow-green-500/40 transition-all" 
+              <Button
+                type="submit"
+                className="w-full h-12 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 hover:from-green-700 hover:via-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl shadow-lg shadow-green-500/30 hover:shadow-xl hover:shadow-green-500/40 transition-all"
                 disabled={putStockMutation.isPending || Number(stockValue) < 1}
               >
                 {putStockMutation.isPending ? "Updating..." : "Confirm Update"}
@@ -638,15 +652,20 @@ export default function Inventory() {
       )}
       {/* ULTRA MODERN Refill Schedule Modal */}
       {refillModal && (
-        <div 
-          className="fixed inset-0 z-50 flex items-start justify-center bg-gradient-to-br from-black/60 via-orange-900/40 to-red-900/40 backdrop-blur-md overflow-y-auto py-8"
-          onClick={() => setRefillModal(null)}
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (refillModal ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
         >
-          <div 
+
+          <div
             className="bg-gradient-to-br from-white/95 via-orange-50/90 to-red-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-orange-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <button 
+            <button
               type="button"
               className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm"
               onClick={() => setRefillModal(null)}
@@ -668,16 +687,16 @@ export default function Inventory() {
                   <Calendar className="h-4 w-4 text-orange-600" />
                   Select Refill Date
                 </Label>
-                <Input 
-                  type="date" 
+                <Input
+                  type="date"
                   value={refillDate}
-                  onChange={e => setRefillDate(e.target.value)} 
-                  required 
-                  className="h-12 px-4 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border-2 border-orange-200/50 dark:border-orange-800/50 hover:border-orange-400 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/20 transition-all rounded-xl shadow-sm text-lg font-semibold" 
+                  onChange={e => setRefillDate(e.target.value)}
+                  required
+                  className="h-12 px-4 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border-2 border-orange-200/50 dark:border-orange-800/50 hover:border-orange-400 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/20 transition-all rounded-xl shadow-sm text-lg font-semibold"
                 />
               </div>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="w-full h-12 bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 hover:from-orange-700 hover:via-red-700 hover:to-pink-700 text-white font-bold rounded-xl shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 transition-all"
               >
                 <Calendar className="mr-2 h-5 w-5" />
@@ -690,11 +709,16 @@ export default function Inventory() {
 
       {/* ULTRA MODERN Stock Report Modal */}
       {reportModal && (
-        <div 
-          className="fixed inset-0 z-50 flex items-start justify-center bg-gradient-to-br from-black/70 via-blue-900/60 to-purple-900/50 backdrop-blur-lg overflow-y-auto py-8"
-          onClick={() => { setReportModal(false); setReportProductId(""); setReportProduct(null); }}
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (reportModal ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
         >
-          <div 
+
+          <div
             className="bg-gradient-to-br from-white/95 via-violet-50/90 to-indigo-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-indigo-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-lg my-auto animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
@@ -713,7 +737,7 @@ export default function Inventory() {
             <div className="flex gap-4 mb-6">
               <div className="flex-1 space-y-2">
                 <Label className="text-sm font-semibold">Select Product</Label>
-                <Select 
+                <Select
                   value={reportProductId}
                   onValueChange={(value) => { setReportProductId(value); setReportProduct(null); }}
                 >
@@ -759,11 +783,16 @@ export default function Inventory() {
 
       {/* ULTRA MODERN Low Stock Alerts Modal */}
       {lowStockModal && (
-        <div 
-          className="fixed inset-0 z-50 flex items-start justify-center bg-gradient-to-br from-black/80 via-yellow-900/40 to-pink-900/40 backdrop-blur-lg overflow-y-auto py-8"
-          onClick={() => setLowStockModal(false)}
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (lowStockModal ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
         >
-          <div 
+
+          <div
             className="bg-gradient-to-br from-white/95 via-yellow-50/90 to-pink-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-yellow-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-lg max-h-[80vh] overflow-y-auto my-auto animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
@@ -813,11 +842,16 @@ export default function Inventory() {
 
       {/* ULTRA MODERN Delete Modal */}
       {deleteModal && (
-        <div 
-          className="fixed inset-0 z-50 flex items-start justify-center bg-gradient-to-br from-black/80 via-slate-900/60 to-red-900/40 backdrop-blur-lg overflow-y-auto py-8"
-          onClick={() => setDeleteModal(null)}
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (deleteModal ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
         >
-          <div 
+
+          <div
             className="bg-gradient-to-br from-white/95 via-slate-50/90 to-red-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-red-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
@@ -843,4 +877,3 @@ export default function Inventory() {
     </div>
   );
 }
-  

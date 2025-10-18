@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import axios from "axios";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import dayjs from "dayjs";
 import { Plus, Mail, Phone, Filter, Clock, Search, Eye, Users, UserCheck, Briefcase, ClipboardList, Star, Calendar, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
 
@@ -41,11 +42,12 @@ type TaskCreate = {
 type DailyDutyCreate = {
   organizationId: string;
   empId: string;
-  productName: string;
-  guns: string;
   dutyDate: string;
+  productId: string;
+  gunIds: string[];
   shiftStart: string;
   shiftEnd: string;
+  status?: string;
 };
 
 function formatTime(time?: string) {
@@ -55,6 +57,7 @@ function formatTime(time?: string) {
 export default function EmployeeSetDuty() {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const orgId = typeof window !== "undefined" ? localStorage.getItem("organizationId") || "" : "";
 
@@ -68,6 +71,7 @@ export default function EmployeeSetDuty() {
 
   const [search, setSearch] = useState("");
 
+  // Fetch employees
   const { data: employeesRaw = [], isLoading } = useQuery({
     queryKey: ["employees", orgId],
     queryFn: async () => {
@@ -80,6 +84,7 @@ export default function EmployeeSetDuty() {
     enabled: !!orgId,
   });
 
+  // Fetch products
   const { data: productsRaw = [] } = useQuery({
     queryKey: ["products", orgId],
     queryFn: async () => {
@@ -90,6 +95,7 @@ export default function EmployeeSetDuty() {
     enabled: !!orgId,
   });
 
+  // Fetch guns
   const { data: gunsRaw = [] } = useQuery({
     queryKey: ["guns", orgId],
     queryFn: async () => {
@@ -155,6 +161,7 @@ export default function EmployeeSetDuty() {
     });
   }, [employees, search]);
 
+  // Special Duty State
   const [specialDutyOpen, setSpecialDutyOpen] = useState(false);
   const [currentEmp, setCurrentEmp] = useState<Employee | null>(null);
   const [specialDutyForm, setSpecialDutyForm] = useState<TaskCreate>({
@@ -167,18 +174,97 @@ export default function EmployeeSetDuty() {
     dueDate: dayjs().add(1, "day").format("YYYY-MM-DD"),
   });
 
+  // Daily Duty State
   const [dailyDutyOpen, setDailyDutyOpen] = useState(false);
   const [dailyDutyForm, setDailyDutyForm] = useState<DailyDutyCreate>({
     organizationId: orgId,
     empId: "",
-    productName: "",
-    guns: "",
     dutyDate: dayjs().format("YYYY-MM-DD"),
+    productId: "",
+    gunIds: [],
     shiftStart: "",
     shiftEnd: "",
+    status: "SCHEDULED",
   });
 
-  const [submitting, setSubmitting] = useState(false);
+  // Mutation for creating daily duty
+  const createDutyMutation = useMutation({
+    mutationFn: async (data: DailyDutyCreate) => {
+      const response = await axios.post(
+        `${API_BASE}/api/organizations/${orgId}/employee-duties`,
+        data
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: `Daily duty assigned to ${currentEmp?.firstName} ${currentEmp?.lastName}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["employee-duties", orgId] });
+      setDailyDutyOpen(false);
+      resetDailyForm();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Assignment Failed",
+        description: error?.response?.data?.message || "Could not assign daily duty.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation for creating special task
+  const createTaskMutation = useMutation({
+    mutationFn: async (data: TaskCreate) => {
+      const response = await axios.post(
+        `${API_BASE}/api/organizations/${orgId}/tasks`,
+        data
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: `Special duty "${specialDutyForm.taskTitle}" assigned to ${currentEmp?.firstName} ${currentEmp?.lastName}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["tasks", orgId] });
+      setSpecialDutyOpen(false);
+      resetSpecialForm();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Assignment Failed",
+        description: error?.response?.data?.message || "Could not assign special duty.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  function resetDailyForm() {
+    setDailyDutyForm({
+      organizationId: orgId,
+      empId: "",
+      dutyDate: dayjs().format("YYYY-MM-DD"),
+      productId: "",
+      gunIds: [],
+      shiftStart: "",
+      shiftEnd: "",
+      status: "SCHEDULED",
+    });
+  }
+
+  function resetSpecialForm() {
+    setSpecialDutyForm({
+      organizationId: orgId,
+      taskTitle: "",
+      description: "",
+      priority: "medium",
+      shift: "",
+      assignedToEmpId: "",
+      dueDate: dayjs().add(1, "day").format("YYYY-MM-DD"),
+    });
+  }
 
   function openSpecialDutyDialog(emp: Employee) {
     setCurrentEmp(emp);
@@ -199,11 +285,12 @@ export default function EmployeeSetDuty() {
     setDailyDutyForm({
       organizationId: orgId,
       empId: emp.empId,
-      productName: "",
-      guns: "",
       dutyDate: dayjs().format("YYYY-MM-DD"),
-      shiftStart: emp.shiftTiming?.start || "",
-      shiftEnd: emp.shiftTiming?.end || "",
+      productId: "",
+      gunIds: [],
+      shiftStart: emp.shiftTiming?.start || "06:00",
+      shiftEnd: emp.shiftTiming?.end || "18:00",
+      status: "SCHEDULED",
     });
     setDailyDutyOpen(true);
   }
@@ -212,61 +299,66 @@ export default function EmployeeSetDuty() {
     e.preventDefault();
     if (!specialDutyForm.taskTitle || !specialDutyForm.assignedToEmpId || !specialDutyForm.priority) {
       toast({
-        title: "Validation",
+        title: "Validation Error",
         description: "Title, priority, and assignee required.",
         variant: "destructive"
       });
       return;
     }
-    try {
-      setSubmitting(true);
-      await axios.post(`${API_BASE}/api/organizations/${orgId}/tasks`, specialDutyForm);
-      toast({ title: "Special Duty Assigned", description: specialDutyForm.taskTitle });
-      setSpecialDutyOpen(false);
-    } catch (err: any) {
-      toast({
-        title: "Assignment Failed",
-        description: err?.response?.data?.message || "Could not assign special duty.",
-        variant: "destructive"
-      });
-    } finally {
-      setSubmitting(false);
-    }
+    createTaskMutation.mutate(specialDutyForm);
   }
 
   async function assignDailyDuty(e: React.FormEvent) {
     e.preventDefault();
-    if (!dailyDutyForm.empId || !dailyDutyForm.productName || !dailyDutyForm.guns) {
+
+    if (!dailyDutyForm.empId || !dailyDutyForm.productId || dailyDutyForm.gunIds.length === 0) {
       toast({
-        title: "Validation",
-        description: "Employee, product, and gun are required.",
-        variant: "destructive"
+        title: "Validation Error",
+        description: "Employee, product, and at least one gun are required.",
+        variant: "destructive",
       });
       return;
     }
-    try {
-      setSubmitting(true);
-      await axios.post(`${API_BASE}/api/organizations/${orgId}/duty-assignments`, dailyDutyForm);
-      toast({ title: "Daily Duty Assigned", description: `Pump duty assigned to ${currentEmp?.firstName}` });
-      setDailyDutyOpen(false);
-    } catch (err: any) {
+
+    if (!dailyDutyForm.shiftStart || !dailyDutyForm.shiftEnd) {
       toast({
-        title: "Assignment Failed",
-        description: err?.response?.data?.message || "Could not assign daily duty.",
-        variant: "destructive"
+        title: "Validation Error",
+        description: "Shift start and end times are required.",
+        variant: "destructive",
       });
-    } finally {
-      setSubmitting(false);
+      return;
     }
+
+    createDutyMutation.mutate(dailyDutyForm);
   }
+
+  const toggleGunSelection = (gunId: string) => {
+    setDailyDutyForm((prev) => {
+      const isSelected = prev.gunIds.includes(gunId);
+      return {
+        ...prev,
+        gunIds: isSelected
+          ? prev.gunIds.filter((id) => id !== gunId)
+          : [...prev.gunIds, gunId],
+      };
+    });
+  };
 
   const getUserInitials = (name: string) =>
     name.split(" ").map((n) => n[0]).join("").toUpperCase();
 
-  const filteredGuns = guns.filter((gun: any) => gun.productName === dailyDutyForm.productName);
+  const filteredGuns = guns.filter((gun: any) => {
+    const selectedProduct = products.find((p: any) => p.id === dailyDutyForm.productId);
+    return selectedProduct && gun.productName === selectedProduct.productName;
+  });
+
+  function closeModal(event: React.MouseEvent<HTMLDivElement>): void {
+    throw new Error("Function not implemented.");
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Set Employee Duty</h1>
@@ -280,6 +372,7 @@ export default function EmployeeSetDuty() {
         </Button>
       </div>
 
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
@@ -304,6 +397,7 @@ export default function EmployeeSetDuty() {
         })}
       </div>
 
+      {/* Search Bar */}
       <Card className="card-gradient">
         <CardContent className="p-6">
           <div className="flex gap-4">
@@ -311,7 +405,7 @@ export default function EmployeeSetDuty() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search employees..."
+                  placeholder="Search employees by name, email, role..."
                   className="pl-10"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -326,6 +420,7 @@ export default function EmployeeSetDuty() {
         </CardContent>
       </Card>
 
+      {/* Employee List */}
       <Card className="card-gradient">
         <CardHeader>
           <CardTitle>Active Employees ({filtered.length})</CardTitle>
@@ -410,14 +505,19 @@ export default function EmployeeSetDuty() {
         </CardContent>
       </Card>
 
-      {/* Special Duty Dialog */}
+      {/* SPECIAL DUTY MODAL */}
       {specialDutyOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm overflow-y-auto"
-          onClick={() => setSpecialDutyOpen(false)}
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (specialDutyOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
         >
+
           <div
-            className="relative bg-background shadow-2xl rounded-2xl mx-auto w-full max-w-lg max-h-[90vh] my-8 flex flex-col"
+            className="relative bg-background shadow-2xl rounded-2xl mx-auto w-full max-w-lg my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -428,7 +528,7 @@ export default function EmployeeSetDuty() {
             >
               <X className="h-5 w-5" />
             </button>
-            <form className="flex flex-col gap-5 p-8 pt-6 overflow-y-auto" onSubmit={assignSpecialDuty}>
+            <form className="flex flex-col gap-5 p-8 pt-6" onSubmit={assignSpecialDuty}>
               <div className="flex items-center gap-3 mb-2">
                 {currentEmp && (
                   <Avatar className="h-10 w-10">
@@ -441,7 +541,7 @@ export default function EmployeeSetDuty() {
                     )}
                   </Avatar>
                 )}
-                <h2 className="text-2xl font-bold">Special Duty for {currentEmp?.firstName} {currentEmp?.lastName}</h2>
+                <h2 className="text-2xl font-bold">Special Duty - {currentEmp?.firstName} {currentEmp?.lastName}</h2>
               </div>
 
               <div className="space-y-2">
@@ -451,16 +551,20 @@ export default function EmployeeSetDuty() {
                   value={specialDutyForm.taskTitle}
                   onChange={(e) => setSpecialDutyForm((f) => ({ ...f, taskTitle: e.target.value }))}
                   placeholder="e.g., Inventory Check"
+                  className="h-11"
                 />
               </div>
+
               <div className="space-y-2">
                 <Label>Description</Label>
                 <Input
                   value={specialDutyForm.description}
                   onChange={(e) => setSpecialDutyForm((f) => ({ ...f, description: e.target.value }))}
                   placeholder="Task details (optional)"
+                  className="h-11"
                 />
               </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Priority *</Label>
@@ -468,10 +572,10 @@ export default function EmployeeSetDuty() {
                     value={specialDutyForm.priority}
                     onValueChange={(value) => setSpecialDutyForm((f) => ({ ...f, priority: value }))}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[60]">
                       <SelectItem value="high">High</SelectItem>
                       <SelectItem value="medium">Medium</SelectItem>
                       <SelectItem value="low">Low</SelectItem>
@@ -484,9 +588,11 @@ export default function EmployeeSetDuty() {
                     value={specialDutyForm.shift}
                     placeholder="e.g., Morning"
                     onChange={(e) => setSpecialDutyForm((f) => ({ ...f, shift: e.target.value }))}
+                    className="h-11"
                   />
                 </div>
               </div>
+
               <div className="space-y-2">
                 <Label>Due Date *</Label>
                 <Input
@@ -494,14 +600,25 @@ export default function EmployeeSetDuty() {
                   required
                   value={specialDutyForm.dueDate}
                   onChange={(e) => setSpecialDutyForm((f) => ({ ...f, dueDate: e.target.value }))}
+                  className="h-11"
                 />
               </div>
-              <div className="flex gap-3 justify-end">
-                <Button type="button" onClick={() => setSpecialDutyOpen(false)} variant="outline" disabled={submitting}>
+              <div className="flex gap-3 justify-end mt-2">
+                <Button
+                  type="button"
+                  onClick={() => setSpecialDutyOpen(false)}
+                  variant="outline"
+                  disabled={createTaskMutation.isPending}
+                  className="h-11"
+                >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submitting} className="btn-gradient-primary">
-                  {submitting ? "Assigning..." : "Assign Special Duty"}
+                <Button
+                  type="submit"
+                  disabled={createTaskMutation.isPending}
+                  className="btn-gradient-primary h-11"
+                >
+                  {createTaskMutation.isPending ? "Assigning..." : "Assign Special Duty"}
                 </Button>
               </div>
             </form>
@@ -509,14 +626,18 @@ export default function EmployeeSetDuty() {
         </div>
       )}
 
-      {/* Daily Duty Dialog */}
+      {/* DAILY DUTY MODAL */}
       {dailyDutyOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm overflow-y-auto"
-          onClick={() => setDailyDutyOpen(false)}
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (dailyDutyOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
         >
           <div
-            className="relative bg-background shadow-2xl rounded-2xl mx-auto w-full max-w-lg max-h-[90vh] my-8 flex flex-col"
+            className="relative bg-background shadow-2xl rounded-2xl mx-auto w-full max-w-lg my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -527,7 +648,7 @@ export default function EmployeeSetDuty() {
             >
               <X className="h-5 w-5" />
             </button>
-            <form className="flex flex-col gap-5 p-8 pt-6 overflow-y-auto" onSubmit={assignDailyDuty}>
+            <form className="flex flex-col gap-5 p-8 pt-6" onSubmit={assignDailyDuty}>
               <div className="flex items-center gap-3 mb-2">
                 {currentEmp && (
                   <Avatar className="h-10 w-10">
@@ -540,7 +661,7 @@ export default function EmployeeSetDuty() {
                     )}
                   </Avatar>
                 )}
-                <h2 className="text-2xl font-bold">Daily Duty for {currentEmp?.firstName} {currentEmp?.lastName}</h2>
+                <h2 className="text-2xl font-bold">Daily Duty - {currentEmp?.firstName} {currentEmp?.lastName}</h2>
               </div>
 
               <div className="space-y-2">
@@ -550,49 +671,61 @@ export default function EmployeeSetDuty() {
                   required
                   value={dailyDutyForm.dutyDate}
                   onChange={(e) => setDailyDutyForm((f) => ({ ...f, dutyDate: e.target.value }))}
+                  className="h-11"
                 />
               </div>
+
               <div className="space-y-2">
                 <Label>Product *</Label>
                 <Select
-                  value={dailyDutyForm.productName}
-                  onValueChange={(value) => setDailyDutyForm((f) => ({ ...f, productName: value, guns: "" }))}
+                  value={dailyDutyForm.productId}
+                  onValueChange={(value) => setDailyDutyForm((f) => ({ ...f, productId: value, gunIds: [] }))}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11">
                     <SelectValue placeholder="Select Product" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[60]">
                     {products.map((product: any) => (
-                      <SelectItem key={product.id} value={product.productName}>
+                      <SelectItem key={product.id} value={product.id}>
                         {product.productName}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
               <div className="space-y-2">
-                <Label>Gun *</Label>
-                <Select
-                  value={dailyDutyForm.guns}
-                  onValueChange={(value) => setDailyDutyForm((f) => ({ ...f, guns: value }))}
-                  disabled={!dailyDutyForm.productName}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Gun" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredGuns.length === 0 ? (
-                      <SelectItem value="no-guns-available" disabled>No guns available</SelectItem>
-                    ) : (
-                      filteredGuns.map((gun: any) => (
-                        <SelectItem key={gun.id} value={gun.guns}>
-                          {gun.guns} ({gun.serialNumber})
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                <Label>Guns * (Select one or more)</Label>
+                <div className="border rounded-lg p-4 max-h-48 overflow-y-auto space-y-3 bg-muted/20">
+                  {!dailyDutyForm.productId && (
+                    <p className="text-sm text-muted-foreground">Please select a product first</p>
+                  )}
+                  {dailyDutyForm.productId && filteredGuns.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No guns available for this product</p>
+                  )}
+                  {dailyDutyForm.productId && filteredGuns.map((gun: any) => (
+                    <div key={gun.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={gun.id}
+                        checked={dailyDutyForm.gunIds.includes(gun.id)}
+                        onCheckedChange={() => toggleGunSelection(gun.id)}
+                      />
+                      <label
+                        htmlFor={gun.id}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        {gun.guns} - {gun.serialNumber || "N/A"}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                {dailyDutyForm.gunIds.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    ✓ {dailyDutyForm.gunIds.length} gun(s) selected
+                  </p>
+                )}
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Shift Start *</Label>
@@ -601,6 +734,7 @@ export default function EmployeeSetDuty() {
                     required
                     value={dailyDutyForm.shiftStart}
                     onChange={(e) => setDailyDutyForm((f) => ({ ...f, shiftStart: e.target.value }))}
+                    className="h-11"
                   />
                 </div>
                 <div className="space-y-2">
@@ -610,15 +744,27 @@ export default function EmployeeSetDuty() {
                     required
                     value={dailyDutyForm.shiftEnd}
                     onChange={(e) => setDailyDutyForm((f) => ({ ...f, shiftEnd: e.target.value }))}
+                    className="h-11"
                   />
                 </div>
               </div>
-              <div className="flex gap-3 justify-end">
-                <Button type="button" onClick={() => setDailyDutyOpen(false)} variant="outline" disabled={submitting}>
+
+              <div className="flex gap-3 justify-end mt-2">
+                <Button
+                  type="button"
+                  onClick={() => setDailyDutyOpen(false)}
+                  variant="outline"
+                  disabled={createDutyMutation.isPending}
+                  className="h-11"
+                >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submitting} className="btn-gradient-primary">
-                  {submitting ? "Assigning..." : "Assign Daily Duty"}
+                <Button
+                  type="submit"
+                  disabled={createDutyMutation.isPending}
+                  className="btn-gradient-primary h-11"
+                >
+                  {createDutyMutation.isPending ? "Assigning..." : "Assign Daily Duty"}
                 </Button>
               </div>
             </form>
@@ -628,3 +774,4 @@ export default function EmployeeSetDuty() {
     </div>
   );
 }
+

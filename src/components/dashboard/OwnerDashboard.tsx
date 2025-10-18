@@ -15,6 +15,23 @@ const safeArray = (v: any) =>
   Array.isArray(v) ? v :
     Array.isArray(v?.content) ? v.content : [];
 
+// Indian number format helper
+const formatIndianNumber = (num: number): string => {
+  return num.toLocaleString('en-IN');
+};
+
+// Format large numbers in Indian format (Lakhs, Crores)
+const formatIndianCurrency = (num: number): string => {
+  if (num >= 10000000) { // 1 Crore
+    return `₹${(num / 10000000).toFixed(2)} Cr`;
+  } else if (num >= 100000) { // 1 Lakh
+    return `₹${(num / 100000).toFixed(2)} L`;
+  } else if (num >= 1000) { // 1 Thousand
+    return `₹${(num / 1000).toFixed(2)} K`;
+  }
+  return `₹${formatIndianNumber(num)}`;
+};
+
 export function OwnerDashboard() {
   const navigate = useNavigate();
   const orgId = localStorage.getItem("organizationId") || "";
@@ -24,8 +41,8 @@ export function OwnerDashboard() {
   const [tanks, setTanks] = useState<any[]>([]);
   const [borrowers, setBorrowers] = useState<any[]>([]);
   const [loading, setLoading] = useState({ employees: true, tanks: true, borrowers: true });
-  const [error, setError] = useState<{ employees: string | null; tanks: string | null; borrowers: string | null }>({ 
-    employees: null, tanks: null, borrowers: null 
+  const [error, setError] = useState<{ employees: string | null; tanks: string | null; borrowers: string | null }>({
+    employees: null, tanks: null, borrowers: null
   });
 
   useEffect(() => {
@@ -88,7 +105,7 @@ export function OwnerDashboard() {
       title: 'Total Borrowers',
       value: loading.borrowers ? '...' : String(borrowers.length),
       change: borrowers.length
-        ? `₹${borrowers.reduce((sum, b) => sum + (Number(b.amountBorrowed) || 0), 0).toLocaleString()} outstanding`
+        ? `₹${formatIndianNumber(borrowers.reduce((sum, b) => sum + (Number(b.amountBorrowed) || 0), 0))} outstanding`
         : '',
       icon: CreditCard,
       color: 'text-warning',
@@ -108,7 +125,7 @@ export function OwnerDashboard() {
     name: tank.productName,
     capacity: Number(tank.tankCapacity) || 0,
     current: Number(tank.currentLevel) || 0,
-    lastRefill: tank.lastUpdated ? new Date(tank.lastUpdated).toLocaleDateString() : '',
+    lastRefill: tank.lastUpdated ? new Date(tank.lastUpdated).toLocaleDateString('en-IN') : '',
     sales: 0
   })), [tanks]);
 
@@ -202,22 +219,23 @@ export function OwnerDashboard() {
             onClick={fetchAll}
             variant="outline"
             title="Refresh Data"
-            className="w-full sm:w-auto border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300"
+            className="w-full sm:w-auto border-border/50 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-300"
           >
             <RotateCcw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
+
           <Button
-            className="w-full sm:w-auto bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl transition-all duration-300"
+            className="w-full sm:w-auto bg-primary text-white hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all duration-300"
             onClick={() => navigate('/analytics')}
           >
-            <BarChart3 className="mr-2 h-4 w-4" />
-            View Analytics
+            <BarChart3 className="mr-2 h-4 w-4 text-white" />
+            <span className="text-white">View Analytics</span>
           </Button>
         </div>
       </div>
 
-      {/* ORIGINAL STATS GRID - UNCHANGED STRUCTURE */}
+      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
@@ -270,10 +288,10 @@ export function OwnerDashboard() {
               tankData.map((tank, idx) => {
                 const percentage = getStockPercentage(tank.current, tank.capacity);
                 const status = getStockStatus(percentage);
-                
+
                 return (
-                  <div 
-                    key={tank.id} 
+                  <div
+                    key={tank.id}
                     className="space-y-3 p-4 rounded-xl border border-border/50 hover:border-primary/30 hover:bg-muted/20 transition-all duration-300 group"
                   >
                     <div className="flex items-center justify-between">
@@ -282,17 +300,17 @@ export function OwnerDashboard() {
                           {tank.name}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {tank.current.toLocaleString()}L / {tank.capacity.toLocaleString()}L
+                          {formatIndianNumber(tank.current)}L / {formatIndianNumber(tank.capacity)}L
                         </p>
                       </div>
-                      <Badge 
-                        variant="outline" 
+                      <Badge
+                        variant="outline"
                         className={`${status.color} whitespace-nowrap`}
                       >
                         {percentage}% • {status.label}
                       </Badge>
                     </div>
-                    
+
                     <div className="relative w-full bg-muted rounded-full h-3 overflow-hidden">
                       <div
                         className={`absolute inset-y-0 left-0 ${status.bg} rounded-full transition-all duration-1000 ease-out shadow-lg animate-progress`}
@@ -301,7 +319,7 @@ export function OwnerDashboard() {
                         <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 animate-shimmer" style={{ backgroundSize: '200% 100%' }} />
                       </div>
                     </div>
-                    
+
                     <div className="flex justify-between text-xs text-muted-foreground pt-1">
                       <span className="flex items-center gap-1">
                         <Activity className="h-3 w-3" />
@@ -342,8 +360,8 @@ export function OwnerDashboard() {
             ) : (
               <>
                 {recentBorrowers.map((borrower) => (
-                  <div 
-                    key={borrower.id} 
+                  <div
+                    key={borrower.id}
                     className="flex items-center justify-between p-4 rounded-xl bg-muted/30 hover:bg-muted/50 border border-border/30 hover:border-primary/30 transition-all duration-300 group"
                   >
                     <div className="flex-1 min-w-0">
@@ -356,10 +374,10 @@ export function OwnerDashboard() {
                     </div>
                     <div className="text-right space-y-1.5">
                       <p className="text-lg font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                        ₹{borrower.amount.toLocaleString()}
+                        ₹{formatIndianNumber(borrower.amount)}
                       </p>
-                      <Badge 
-                        variant={borrower.status === 'overdue' ? 'destructive' : 'outline'} 
+                      <Badge
+                        variant={borrower.status === 'overdue' ? 'destructive' : 'outline'}
                         className="text-xs"
                       >
                         {borrower.status === 'overdue' ? (
@@ -393,7 +411,7 @@ export function OwnerDashboard() {
       {/* Financial Summary */}
       <Card className="border-border/50 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden opacity-0 animate-slide-up stagger-3">
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-accent to-primary animate-shimmer" style={{ backgroundSize: '200% 100%' }} />
-        
+
         <CardHeader className="border-b border-border/50 bg-muted/30">
           <CardTitle className="flex items-center gap-2 text-xl">
             <div className="p-2 rounded-lg bg-green-500/10">
@@ -402,31 +420,31 @@ export function OwnerDashboard() {
             Money Management Summary
           </CardTitle>
         </CardHeader>
-        
+
         <CardContent className="p-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="text-center space-y-2">
               <p className="text-sm text-muted-foreground">Total Stock Value</p>
               <p className="text-2xl font-bold text-primary">
-                ₹{financialSummary.totalStockValue.toLocaleString()}
+                {formatIndianCurrency(financialSummary.totalStockValue)}
               </p>
             </div>
             <div className="text-center space-y-2">
               <p className="text-sm text-muted-foreground">Daily Collection</p>
               <p className="text-2xl font-bold text-success">
-                ₹{(financialSummary.dailyCollection / 1000).toFixed(0)}K
+                {formatIndianCurrency(financialSummary.dailyCollection)}
               </p>
             </div>
             <div className="text-center space-y-2">
               <p className="text-sm text-muted-foreground">Total Liabilities</p>
               <p className="text-2xl font-bold text-warning">
-                ₹{(financialSummary.totalLiabilities / 100000).toFixed(1)}L
+                {formatIndianCurrency(financialSummary.totalLiabilities)}
               </p>
             </div>
             <div className="text-center space-y-2">
               <p className="text-sm text-muted-foreground">Net Position</p>
               <p className="text-2xl font-bold text-accent">
-                ₹{(financialSummary.netPosition / 100000).toFixed(1)}L
+                {formatIndianCurrency(financialSummary.netPosition)}
               </p>
             </div>
           </div>

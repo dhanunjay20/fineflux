@@ -331,6 +331,10 @@ export default function Employees() {
     return t || '—';
   }
 
+  function closeModal(event: React.MouseEvent<HTMLDivElement>): void {
+    throw new Error('Function not implemented.');
+  }
+
   return (
     <div className="space-y-6 animate-fade-in -mt-6">
       <input
@@ -472,8 +476,12 @@ export default function Employees() {
       {/* VIEW DIALOG */}
       {viewOpen && currentEmp && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onClick={() => setViewOpen(false)}
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (viewOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
         >
           <div
             className="relative bg-background shadow-2xl rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
@@ -601,9 +609,14 @@ export default function Employees() {
       {/* CREATE DIALOG */}
       {createOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onClick={() => setCreateOpen(false)}
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (createOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
         >
+
           <div
             className="relative bg-background shadow-2xl rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}

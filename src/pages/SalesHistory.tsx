@@ -273,31 +273,7 @@ const exportToPDF = (records: SaleRecord[], from: Dayjs, to: Dayjs, summary: Sal
   );
 };
 
-// ============ Sub-Components ============
-const PaymentMethodBadge = ({
-  icon: Icon,
-  label,
-  amount,
-  color,
-}: {
-  icon: any;
-  label: string;
-  amount: number;
-  color: string;
-}) => {
-  if (amount <= 0) return null;
-
-  return (
-    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${color} transition-all hover:scale-105`}>
-      <Icon className="h-4 w-4" />
-      <div className="flex flex-col">
-        <span className="text-xs font-medium opacity-80">{label}</span>
-        <span className="text-sm font-bold">{formatCurrency(amount)}</span>
-      </div>
-    </div>
-  );
-};
-
+// ============ Compact Sale Record Card ============
 const SaleRecordCard = ({ record, index }: { record: SaleRecord; index: number }) => {
   const [expanded, setExpanded] = useState(false);
 
@@ -312,144 +288,129 @@ const SaleRecordCard = ({ record, index }: { record: SaleRecord; index: number }
       <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary/50 to-primary/10 ml-6" />
 
       {/* Timeline Dot */}
-      <div className="absolute left-4 top-8 w-5 h-5 bg-primary rounded-full border-4 border-background shadow-lg z-10" />
+      <div className="absolute left-4 top-6 w-4 h-4 bg-primary rounded-full border-4 border-background shadow-lg z-10" />
 
-      <div className="ml-16 mb-6">
-        <Card className="hover:shadow-2xl transition-all duration-300 border-l-4 border-l-primary overflow-hidden group">
-          <CardContent className="p-0">
-            <div className="p-6 space-y-4">
-              {/* Header */}
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl">
-                    <Fuel className="h-6 w-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-foreground">{record.productName}</h3>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5" />
-                        {dayjs(record.dateTime).format("hh:mm A")}
-                      </span>
-                      <Badge variant="secondary" className="flex items-center gap-1">
-                        <User className="h-3 w-3" />
-                        {record.empId}
-                      </Badge>
-                    </div>
-                  </div>
+      <div className="ml-16 mb-4">
+        <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-primary overflow-hidden group">
+          <CardContent className="p-4">
+            {/* Compact Header */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shrink-0">
+                  <Fuel className="h-5 w-5 text-white" />
                 </div>
-
-                {/* Total Amount - Prominent */}
-                <div className="text-right">
-                  <p className="text-sm text-muted-foreground font-medium">Total Sale</p>
-                  <p className="text-3xl font-bold bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
-                    {formatCurrency(record.salesInRupees)}
-                  </p>
-                </div>
-              </div>
-
-              {/* Sale Details */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 py-4 border-y border-border">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                    <Droplet className="h-4 w-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Quantity</p>
-                    <p className="font-bold text-foreground">{record.salesInLiters}L</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-purple-50 dark:bg-purple-950 rounded-lg">
-                    <Fuel className="h-4 w-4 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Gun</p>
-                    <p className="font-bold text-foreground">{record.guns}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-amber-50 dark:bg-amber-950 rounded-lg">
-                    <AlertCircle className="h-4 w-4 text-amber-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Testing</p>
-                    <p className="font-bold text-foreground">{record.testingTotal}</p>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-bold text-foreground truncate">{record.productName}</h3>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3" />
+                      {dayjs(record.dateTime).format("DD MMM YYYY")}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {dayjs(record.dateTime).format("hh:mm A")}
+                    </span>
+                    <Badge variant="secondary" className="flex items-center gap-1 text-xs px-2 py-0">
+                      <User className="h-3 w-3" />
+                      {record.empId}
+                    </Badge>
                   </div>
                 </div>
               </div>
 
-              {/* Payment Methods */}
-              <div>
-                <p className="text-sm font-semibold text-muted-foreground mb-3">Payment Breakdown</p>
-                <div className="flex flex-wrap gap-3">
-                  <PaymentMethodBadge
-                    icon={Wallet}
-                    label="Cash"
-                    amount={record.cashReceived}
-                    color="bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400"
-                  />
-                  <PaymentMethodBadge
-                    icon={Smartphone}
-                    label="UPI"
-                    amount={record.phonePay}
-                    color="bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400"
-                  />
-                  <PaymentMethodBadge
-                    icon={CreditCard}
-                    label="Card"
-                    amount={record.creditCard}
-                    color="bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400"
-                  />
-                  {record.shortCollections > 0 && (
-                    <PaymentMethodBadge
-                      icon={AlertCircle}
-                      label="Short"
-                      amount={record.shortCollections}
-                      color="bg-yellow-50 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400"
-                    />
-                  )}
-                </div>
+              {/* Total Amount - Compact */}
+              <div className="text-right shrink-0">
+                <p className="text-xs text-muted-foreground font-medium">Total</p>
+                <p className="text-2xl font-bold bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
+                  {formatCurrency(record.salesInRupees)}
+                </p>
               </div>
-
-              {/* Expand Button */}
-              {record.shortCollections > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setExpanded(!expanded)}
-                  className="w-full mt-2"
-                >
-                  {expanded ? "Show Less" : "View Details"}
-                  <ChevronRight
-                    className={`ml-2 h-4 w-4 transition-transform ${expanded ? "rotate-90" : ""}`}
-                  />
-                </Button>
-              )}
-
-              {/* Expanded Details */}
-              <AnimatePresence>
-                {expanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="pt-4 border-t border-border space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Received Total:</span>
-                        <span className="font-bold text-pink-600">
-                          {formatCurrency(record.receivedTotal)}
-                        </span>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
+
+            {/* Compact Sale Details - Single Row */}
+            <div className="flex items-center gap-3 py-2 mb-3 border-y border-border text-sm">
+              <div className="flex items-center gap-1.5">
+                <Droplet className="h-4 w-4 text-blue-600" />
+                <span className="font-bold">{record.salesInLiters}L</span>
+              </div>
+              <div className="h-4 w-px bg-border" />
+              <div className="flex items-center gap-1.5">
+                <Fuel className="h-4 w-4 text-purple-600" />
+                <span className="font-medium text-muted-foreground">Gun:</span>
+                <span className="font-bold">{record.guns}</span>
+              </div>
+              <div className="h-4 w-px bg-border" />
+              <div className="flex items-center gap-1.5">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <span className="font-medium text-muted-foreground">Testing:</span>
+                <span className="font-bold">{record.testingTotal}</span>
+              </div>
+            </div>
+
+            {/* Compact Payment Methods */}
+            <div className="flex flex-wrap gap-2">
+              {record.cashReceived > 0 && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400 text-xs">
+                  <Wallet className="h-3.5 w-3.5" />
+                  <span className="font-bold">{formatCurrency(record.cashReceived)}</span>
+                </div>
+              )}
+              {record.phonePay > 0 && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 text-xs">
+                  <Smartphone className="h-3.5 w-3.5" />
+                  <span className="font-bold">{formatCurrency(record.phonePay)}</span>
+                </div>
+              )}
+              {record.creditCard > 0 && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 text-xs">
+                  <CreditCard className="h-3.5 w-3.5" />
+                  <span className="font-bold">{formatCurrency(record.creditCard)}</span>
+                </div>
+              )}
+              {record.shortCollections > 0 && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-yellow-50 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400 text-xs">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  <span className="font-medium">Short:</span>
+                  <span className="font-bold">{formatCurrency(record.shortCollections)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Compact Expand Button */}
+            {record.shortCollections > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setExpanded(!expanded)}
+                className="w-full mt-2 h-7 text-xs"
+              >
+                {expanded ? "Hide" : "Details"}
+                <ChevronRight
+                  className={`ml-1 h-3 w-3 transition-transform ${expanded ? "rotate-90" : ""}`}
+                />
+              </Button>
+            )}
+
+            {/* Expanded Details */}
+            <AnimatePresence>
+              {expanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-3 border-t border-border mt-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Received Total:</span>
+                      <span className="font-bold text-pink-600">
+                        {formatCurrency(record.receivedTotal)}
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </CardContent>
         </Card>
       </div>
@@ -457,6 +418,7 @@ const SaleRecordCard = ({ record, index }: { record: SaleRecord; index: number }
   );
 };
 
+// ============ Date Range Selector ============
 const DateRangeSelector = ({
   preset,
   setPreset,
@@ -543,6 +505,7 @@ const DateRangeSelector = ({
   );
 };
 
+// ============ Pagination Controls ============
 const PaginationControls = ({
   currentPage,
   totalPages,

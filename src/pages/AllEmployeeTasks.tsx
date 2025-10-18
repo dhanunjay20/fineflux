@@ -20,7 +20,10 @@ import {
   Search,
   Filter,
   Loader2,
-  CalendarDays
+  CalendarDays,
+  Fuel,
+  Target,
+  Activity
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -31,7 +34,8 @@ export default function AllEmployeeTasks() {
   const orgId = localStorage.getItem('organizationId') || '';
   
   const [tasks, setTasks] = useState<any[]>([]);
-  const [selectedTab, setSelectedTab] = useState('pending');
+  const [dailyDuties, setDailyDuties] = useState<any[]>([]);
+  const [selectedTab, setSelectedTab] = useState('all');
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
@@ -43,15 +47,22 @@ export default function AllEmployeeTasks() {
   useEffect(() => {
     if (!orgId) return;
     setLoading(true);
-    axios.get(`${API_BASE}/api/organizations/${orgId}/tasks`)
-      .then(res => setTasks(res.data || []))
-      .catch(err => console.error('Failed to load tasks:', err))
+    Promise.all([
+      axios.get(`${API_BASE}/api/organizations/${orgId}/tasks`),
+      axios.get(`${API_BASE}/api/organizations/${orgId}/employee-duties`)
+    ])
+      .then(([tasksRes, dutiesRes]) => {
+        setTasks(tasksRes.data || []);
+        setDailyDuties(dutiesRes.data || []);
+      })
+      .catch(err => console.error('Failed to load data:', err))
       .finally(() => setLoading(false));
   }, [orgId]);
 
   const stats = useMemo(() => {
     let pending = 0, inProgress = 0, completed = 0, overdue = 0;
     const uniqueEmployees = new Set();
+    
     for (const t of tasks) {
       if (t.status === 'pending') pending++;
       if (t.status === 'in-progress') inProgress++;
@@ -65,13 +76,36 @@ export default function AllEmployeeTasks() {
         overdue++;
       }
     }
-    return { pending, inProgress, completed, overdue, total: tasks.length, employees: uniqueEmployees.size };
-  }, [tasks]);
+
+    // Daily duties stats
+    const scheduledDuties = dailyDuties.filter(d => d.status === 'SCHEDULED').length;
+    const activeDuties = dailyDuties.filter(d => d.status === 'ACTIVE').length;
+    const completedDuties = dailyDuties.filter(d => d.status === 'COMPLETED').length;
+    
+    dailyDuties.forEach(d => {
+      if (d.empId) uniqueEmployees.add(d.empId);
+    });
+
+    return { 
+      pending, 
+      inProgress, 
+      completed, 
+      overdue, 
+      total: tasks.length, 
+      employees: uniqueEmployees.size,
+      dailyTotal: dailyDuties.length,
+      dailyScheduled: scheduledDuties,
+      dailyActive: activeDuties,
+      dailyCompleted: completedDuties
+    };
+  }, [tasks, dailyDuties]);
 
   const statuses = [
+    { key: 'all', label: 'All Tasks', color: 'text-foreground', bgColor: 'bg-muted', icon: FileText },
     { key: 'pending', label: 'Pending', color: 'text-warning', bgColor: 'bg-warning-soft', icon: Timer },
-    { key: 'in-progress', label: 'In Progress', color: 'text-primary', bgColor: 'bg-primary-soft', icon: FileText },
+    { key: 'in-progress', label: 'In Progress', color: 'text-primary', bgColor: 'bg-primary-soft', icon: Activity },
     { key: 'completed', label: 'Completed', color: 'text-success', bgColor: 'bg-success-soft', icon: CheckCircle },
+    { key: 'daily-duties', label: 'Daily Duties', color: 'text-blue-600', bgColor: 'bg-blue-500/10', icon: Fuel },
   ];
 
   const dateFilters = [
@@ -123,29 +157,54 @@ export default function AllEmployeeTasks() {
     }
   };
 
-  // Filter by status, search, and date
-  const filteredTasks = useMemo(() => {
-    let filtered = tasks.filter(t => t.status === selectedTab);
-    
-    // Search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(task => 
-        task.taskTitle?.toLowerCase().includes(query) ||
-        task.description?.toLowerCase().includes(query) ||
-        task.assignedToName?.toLowerCase().includes(query) ||
-        task.assignedToEmpId?.toLowerCase().includes(query)
-      );
-    }
+  const calculateHours = (start: string, end: string) => {
+    if (!start || !end) return '0';
+    const [startHour, startMin] = start.split(':').map(Number);
+    const [endHour, endMin] = end.split(':').map(Number);
+    let hours = endHour - startHour;
+    if (hours < 0) hours += 24;
+    const minutes = endMin - startMin;
+    return (hours + minutes / 60).toFixed(1);
+  };
 
-    // Date filter
-    filtered = filtered.filter(task => isInDateRange(task.dueDate));
+  // Filter by status, search, and date
+  const filteredItems = useMemo(() => {
+    let filtered: any[] = [];
+
+    if (selectedTab === 'daily-duties') {
+      filtered = dailyDuties;
+      
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        filtered = filtered.filter(duty => 
+          duty.productId?.toLowerCase().includes(query) ||
+          duty.empId?.toLowerCase().includes(query) ||
+          duty.dutyDate?.toLowerCase().includes(query)
+        );
+      }
+
+      filtered = filtered.filter(duty => isInDateRange(duty.dutyDate));
+    } else {
+      filtered = selectedTab === 'all' ? tasks : tasks.filter(t => t.status === selectedTab);
+      
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        filtered = filtered.filter(task => 
+          task.taskTitle?.toLowerCase().includes(query) ||
+          task.description?.toLowerCase().includes(query) ||
+          task.assignedToName?.toLowerCase().includes(query) ||
+          task.assignedToEmpId?.toLowerCase().includes(query)
+        );
+      }
+
+      filtered = filtered.filter(task => isInDateRange(task.dueDate));
+    }
     
     return filtered;
-  }, [tasks, selectedTab, searchQuery, dateFilter, customStartDate, customEndDate]);
+  }, [tasks, dailyDuties, selectedTab, searchQuery, dateFilter, customStartDate, customEndDate]);
 
-  const paginatedTasks = filteredTasks.slice(page * pageSize, (page + 1) * pageSize);
-  const totalPages = Math.ceil(filteredTasks.length / pageSize);
+  const paginatedItems = filteredItems.slice(page * pageSize, (page + 1) * pageSize);
+  const totalPages = Math.ceil(filteredItems.length / pageSize);
 
   useEffect(() => {
     setPage(0);
@@ -161,21 +220,210 @@ export default function AllEmployeeTasks() {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-warning/10 text-warning border-warning/20';
-      case 'in-progress': return 'bg-primary/10 text-primary border-primary/20';
-      case 'completed': return 'bg-success/10 text-success border-success/20';
+    switch (status?.toLowerCase()) {
+      case 'pending':
+      case 'scheduled':
+        return 'bg-warning/10 text-warning border-warning/20';
+      case 'in-progress':
+      case 'active':
+        return 'bg-primary/10 text-primary border-primary/20';
+      case 'completed':
+        return 'bg-success/10 text-success border-success/20';
       default: return 'bg-muted text-muted-foreground';
     }
   };
 
+  const renderDailyDutyCard = (duty: any) => (
+    <Card key={duty.id} className="card-gradient hover-lift group">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 rounded-lg bg-blue-500/10">
+                <Fuel className="h-5 w-5 text-blue-600" />
+              </div>
+              <CardTitle className="text-lg">Daily Pump Duty</CardTitle>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge className={`border ${getStatusColor(duty.status || 'SCHEDULED')}`}>
+                {duty.status || 'SCHEDULED'}
+              </Badge>
+            </div>
+          </div>
+        </div>
+      </CardHeader>
+      
+      <CardContent className="space-y-4">
+        <div className="space-y-2.5 pt-3 border-t border-border/50">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+              <User className="h-4 w-4 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">Employee ID</p>
+              <p className="font-medium text-foreground truncate">{duty.empId}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-purple-500/10">
+              <Target className="h-4 w-4 text-purple-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">Product</p>
+              <p className="font-medium text-foreground">{duty.productId}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-success/10">
+              <Calendar className="h-4 w-4 text-success" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">Duty Date</p>
+              <p className="font-medium text-foreground">{duty.dutyDate}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-500/10">
+              <Clock className="h-4 w-4 text-orange-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">Shift Time</p>
+              <p className="font-medium text-foreground">{duty.shiftStart} - {duty.shiftEnd}</p>
+            </div>
+          </div>
+
+          {duty.totalHours && (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-green-500/10">
+                <Timer className="h-4 w-4 text-green-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground">Total Hours</p>
+                <p className="font-medium text-foreground">
+                  {duty.totalHours || calculateHours(duty.shiftStart, duty.shiftEnd)}h
+                </p>
+              </div>
+            </div>
+          )}
+
+          {duty.gunIds && duty.gunIds.length > 0 && (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-red-500/10">
+                <Fuel className="h-4 w-4 text-red-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground">Guns Assigned</p>
+                <p className="font-medium text-foreground">{duty.gunIds.length} gun(s)</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderTaskCard = (task: any) => (
+    <Card key={task.id} className="card-gradient hover-lift group">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-lg mb-3 line-clamp-2 group-hover:text-primary transition-colors">
+              {task.taskTitle}
+            </CardTitle>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge className={`border ${getStatusColor(task.status)}`}>
+                {task.status.replace('-', ' ').toUpperCase()}
+              </Badge>
+              
+              {task.priority && (
+                <Badge className={`border ${getPriorityColor(task.priority)}`}>
+                  {task.priority} Priority
+                </Badge>
+              )}
+              
+              {isOverdue(task.dueDate) && task.status !== 'completed' && (
+                <Badge className="bg-destructive text-destructive-foreground animate-pulse border-destructive">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  Overdue
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+      </CardHeader>
+      
+      <CardContent className="space-y-4">
+        {task.description && (
+          <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
+            {task.description}
+          </p>
+        )}
+
+        <div className="space-y-2.5 pt-3 border-t border-border/50">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+              <User className="h-4 w-4 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">Assigned to</p>
+              <p className="font-medium text-foreground truncate">
+                {task.assignedToName || task.assignedToEmpId}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent/10">
+              <Clock className="h-4 w-4 text-accent" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">Shift</p>
+              <p className="font-medium text-foreground">{task.shift}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${
+              isOverdue(task.dueDate) && task.status !== 'completed'
+                ? 'bg-destructive/10'
+                : 'bg-success/10'
+            }`}>
+              <Calendar className={`h-4 w-4 ${
+                isOverdue(task.dueDate) && task.status !== 'completed'
+                  ? 'text-destructive'
+                  : 'text-success'
+              }`} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">Due Date</p>
+              <p className={`font-medium ${
+                isOverdue(task.dueDate) && task.status !== 'completed'
+                  ? 'text-destructive'
+                  : 'text-foreground'
+              }`}>
+                {new Date(task.dueDate).toLocaleDateString('en-IN', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric'
+                })}
+              </p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header with Back Button */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">All Employee Tasks</h1>
-          <p className="text-muted-foreground">View and manage tasks for all employees in your organization</p>
+          <h1 className="text-3xl font-bold text-foreground">All Employee Tasks & Duties</h1>
+          <p className="text-muted-foreground">View and manage all tasks and duties for your organization</p>
         </div>
         <Button variant="outline" onClick={() => navigate('/employee-set-duty')}>
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -189,11 +437,24 @@ export default function AllEmployeeTasks() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Total Tasks</p>
+                <p className="text-sm font-medium text-muted-foreground">Special Tasks</p>
                 <p className="text-2xl font-bold text-foreground">{stats.total}</p>
               </div>
               <div className="bg-muted p-3 rounded-lg">
                 <FileText className="h-6 w-6 text-foreground" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="stat-card hover-lift">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">Daily Duties</p>
+                <p className="text-2xl font-bold text-foreground">{stats.dailyTotal}</p>
+              </div>
+              <div className="bg-blue-500/10 p-3 rounded-lg">
+                <Fuel className="h-6 w-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
@@ -219,7 +480,7 @@ export default function AllEmployeeTasks() {
                 <p className="text-2xl font-bold text-foreground">{stats.inProgress}</p>
               </div>
               <div className="bg-primary-soft p-3 rounded-lg">
-                <FileText className="h-6 w-6 text-primary" />
+                <Activity className="h-6 w-6 text-primary" />
               </div>
             </div>
           </CardContent>
@@ -233,19 +494,6 @@ export default function AllEmployeeTasks() {
               </div>
               <div className="bg-success-soft p-3 rounded-lg">
                 <CheckCircle className="h-6 w-6 text-success" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="stat-card hover-lift">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Overdue</p>
-                <p className="text-2xl font-bold text-foreground">{stats.overdue}</p>
-              </div>
-              <div className="bg-destructive-soft p-3 rounded-lg">
-                <AlertTriangle className="h-6 w-6 text-destructive" />
               </div>
             </div>
           </CardContent>
@@ -269,32 +517,36 @@ export default function AllEmployeeTasks() {
       <Card className="card-gradient">
         <CardContent className="p-4 space-y-4">
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4">
-            {/* Search Bar */}
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search tasks by title, description, or employee..."
+                placeholder="Search tasks, duties, or employees..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
               />
             </div>
 
-            {/* Status Filter Tabs */}
             <div className="flex gap-2 flex-wrap">
               {statuses.map(stat => {
                 const active = selectedTab === stat.key;
                 const Icon = stat.icon;
+                const count = stat.key === 'all' ? stats.total + stats.dailyTotal :
+                             stat.key === 'pending' ? stats.pending :
+                             stat.key === 'in-progress' ? stats.inProgress :
+                             stat.key === 'completed' ? stats.completed :
+                             stats.dailyTotal;
                 return (
                   <Button
                     key={stat.key}
                     variant={active ? "default" : "outline"}
                     onClick={() => setSelectedTab(stat.key)}
                     className={active ? 'btn-gradient-primary' : ''}
+                    size="sm"
                   >
                     <Icon className="h-4 w-4 mr-2" />
                     <span className="hidden sm:inline">{stat.label}</span>
-                    <span className="sm:hidden">{stat.label.split(' ')[0]}</span>
+                    <Badge variant="secondary" className="ml-2">{count}</Badge>
                   </Button>
                 );
               })}
@@ -321,7 +573,6 @@ export default function AllEmployeeTasks() {
               ))}
             </div>
 
-            {/* Custom Date Range Inputs */}
             {dateFilter === 'custom' && (
               <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <div className="flex-1 space-y-2">
@@ -344,7 +595,6 @@ export default function AllEmployeeTasks() {
             )}
           </div>
 
-          {/* Active Filters Display */}
           {(searchQuery || dateFilter !== 'all') && (
             <div className="pt-3 border-t border-border">
               <div className="flex items-center gap-2 flex-wrap text-sm">
@@ -368,18 +618,18 @@ export default function AllEmployeeTasks() {
         </CardContent>
       </Card>
 
-      {/* Loading State */}
+      {/* Loading */}
       {loading && (
         <Card className="card-gradient">
           <CardContent className="p-12 text-center">
             <Loader2 className="h-12 w-12 mx-auto mb-4 text-primary animate-spin" />
-            <p className="text-muted-foreground">Loading tasks...</p>
+            <p className="text-muted-foreground">Loading...</p>
           </CardContent>
         </Card>
       )}
 
       {/* Empty State */}
-      {!loading && filteredTasks.length === 0 && (
+      {!loading && filteredItems.length === 0 && (
         <Card className="card-gradient">
           <CardContent className="p-12 text-center">
             <div className="flex flex-col items-center gap-4">
@@ -387,11 +637,11 @@ export default function AllEmployeeTasks() {
                 <FileText className="h-12 w-12 text-muted-foreground" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold mb-2">No Tasks Found</h3>
+                <h3 className="text-lg font-semibold mb-2">No Items Found</h3>
                 <p className="text-muted-foreground">
                   {searchQuery || dateFilter !== 'all'
-                    ? 'No tasks match your current filters' 
-                    : `No ${statuses.find(s => s.key === selectedTab)?.label.toLowerCase()} tasks available.`}
+                    ? 'No items match your current filters' 
+                    : `No items available.`}
                 </p>
               </div>
               {(searchQuery || dateFilter !== 'all') && (
@@ -404,109 +654,22 @@ export default function AllEmployeeTasks() {
         </Card>
       )}
 
-      {/* Tasks Grid */}
-      {!loading && paginatedTasks.length > 0 && (
+      {/* Items Grid */}
+      {!loading && paginatedItems.length > 0 && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {paginatedTasks.map(task => (
-              <Card key={task.id} className="card-gradient hover-lift group">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-lg mb-3 line-clamp-2 group-hover:text-primary transition-colors">
-                        {task.taskTitle}
-                      </CardTitle>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge className={`border ${getStatusColor(task.status)}`}>
-                          {task.status.replace('-', ' ').toUpperCase()}
-                        </Badge>
-                        
-                        {task.priority && (
-                          <Badge className={`border ${getPriorityColor(task.priority)}`}>
-                            {task.priority} Priority
-                          </Badge>
-                        )}
-                        
-                        {isOverdue(task.dueDate) && task.status !== 'completed' && (
-                          <Badge className="bg-destructive text-destructive-foreground animate-pulse border-destructive">
-                            <AlertTriangle className="h-3 w-3 mr-1" />
-                            Overdue
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-                
-                <CardContent className="space-y-4">
-                  {task.description && (
-                    <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
-                      {task.description}
-                    </p>
-                  )}
-
-                  <div className="space-y-2.5 pt-3 border-t border-border/50">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
-                        <User className="h-4 w-4 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-muted-foreground">Assigned to</p>
-                        <p className="font-medium text-foreground truncate">
-                          {task.assignedToName || task.assignedToEmpId}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent/10">
-                        <Clock className="h-4 w-4 text-accent" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-muted-foreground">Shift</p>
-                        <p className="font-medium text-foreground">{task.shift}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${
-                        isOverdue(task.dueDate) && task.status !== 'completed'
-                          ? 'bg-destructive/10'
-                          : 'bg-success/10'
-                      }`}>
-                        <Calendar className={`h-4 w-4 ${
-                          isOverdue(task.dueDate) && task.status !== 'completed'
-                            ? 'text-destructive'
-                            : 'text-success'
-                        }`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-muted-foreground">Due Date</p>
-                        <p className={`font-medium ${
-                          isOverdue(task.dueDate) && task.status !== 'completed'
-                            ? 'text-destructive'
-                            : 'text-foreground'
-                        }`}>
-                          {new Date(task.dueDate).toLocaleDateString('en-IN', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric'
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {paginatedItems.map(item => 
+              selectedTab === 'daily-duties' || item.dutyDate
+                ? renderDailyDutyCard(item)
+                : renderTaskCard(item)
+            )}
           </div>
 
-          {/* Enhanced Pagination with Page Size Selector */}
-          {filteredTasks.length > 10 && (
+          {/* Pagination */}
+          {filteredItems.length > 10 && (
             <Card className="card-gradient">
               <CardContent className="p-4">
                 <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
-                  {/* Page Size Selector */}
                   <div className="flex items-center gap-2">
                     <Label className="text-sm text-muted-foreground whitespace-nowrap">Show:</Label>
                     <select
@@ -521,16 +684,14 @@ export default function AllEmployeeTasks() {
                     </select>
                   </div>
 
-                  {/* Results Counter */}
                   <div className="text-sm text-muted-foreground">
                     Showing <span className="font-semibold text-foreground">{page * pageSize + 1}</span> to{' '}
                     <span className="font-semibold text-foreground">
-                      {Math.min((page + 1) * pageSize, filteredTasks.length)}
+                      {Math.min((page + 1) * pageSize, filteredItems.length)}
                     </span>{' '}
-                    of <span className="font-semibold text-foreground">{filteredTasks.length}</span> tasks
+                    of <span className="font-semibold text-foreground">{filteredItems.length}</span>
                   </div>
 
-                  {/* Pagination Controls */}
                   {totalPages > 1 && (
                     <div className="flex items-center gap-2">
                       <Button

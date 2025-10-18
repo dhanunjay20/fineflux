@@ -256,6 +256,10 @@ export default function Expenses() {
     );
   };
 
+  function closeModal(event: React.MouseEvent<HTMLDivElement, MouseEvent>): void {
+    throw new Error("Function not implemented.");
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -377,7 +381,14 @@ export default function Expenses() {
 
       {/* CATEGORY MODAL */}
       {showCategoryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={closeCategoryModal}>
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (showCategoryModal ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
+        >
           <div className="bg-background rounded-2xl shadow-2xl p-8 min-w-[400px] max-w-lg relative" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
@@ -412,7 +423,14 @@ export default function Expenses() {
 
       {/* EXPENSE MODAL */}
       {showExpenseModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={closeExpenseModal}>
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (showExpenseModal ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
+        >
           <div className="bg-background rounded-2xl shadow-2xl p-8 min-w-[400px] max-w-lg relative" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
@@ -478,7 +496,14 @@ export default function Expenses() {
 
       {/* DELETE CATEGORY CONFIRMATION */}
       {deleteCategoryConfirmId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (deleteCategoryConfirmId ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
+        >
           <div className="bg-background rounded-xl p-6 min-w-[320px] max-w-md shadow-xl">
             <h3 className="text-lg font-bold mb-3">Confirm Delete</h3>
             <p className="text-muted-foreground mb-4">
@@ -500,7 +525,14 @@ export default function Expenses() {
 
       {/* DELETE EXPENSE CONFIRMATION */}
       {deleteExpenseConfirmId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (deleteExpenseConfirmId ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
+        >
           <div className="bg-background rounded-xl p-6 min-w-[320px] max-w-md shadow-xl">
             <h3 className="text-lg font-bold mb-3">Confirm Delete</h3>
             <p className="text-muted-foreground mb-4">
@@ -522,3 +554,4 @@ export default function Expenses() {
     </div>
   );
 }
+
