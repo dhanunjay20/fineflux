@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  DollarSign, Plus, TrendingDown, Clock, CheckCircle, XCircle, Calendar, Receipt, Filter, Edit, Trash2
+  DollarSign, Plus, TrendingDown, Clock, CheckCircle, XCircle, Calendar, Receipt, Filter, Edit, Trash2, X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -43,18 +43,12 @@ type ExpenseCategory = {
 export default function Expenses() {
   const { toast } = useToast();
 
-  // Resolve org/emp from localStorage; prefer "organizationId", fallback to "orgId"
-  const orgId =
-    getLocal("organizationId") ||
-    getLocal("orgId") ||
-    "FOS-8127";
+  const orgId = getLocal("organizationId") || getLocal("orgId") || "FOS-8127";
   const empId = getLocal("empId") || "EMP001";
 
-  // DATA state
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
 
-  // CRUD modal/fields for categories
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ExpenseCategory | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -62,7 +56,6 @@ export default function Expenses() {
   const [categoryError, setCategoryError] = useState('');
   const [deleteCategoryConfirmId, setDeleteCategoryConfirmId] = useState<string | null>(null);
 
-  // CREATE expense modal/fields
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [expenseDesc, setExpenseDesc] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
@@ -73,10 +66,8 @@ export default function Expenses() {
   const [deleteExpenseConfirmId, setDeleteExpenseConfirmId] = useState<string | null>(null);
   const [deleteExpenseLoading, setDeleteExpenseLoading] = useState(false);
 
-  // For list refreshing after mutations
   const [refreshToken, setRefreshToken] = useState(0);
 
-  // Fetch expenses & categories on mount/operation (scoped by orgId)
   useEffect(() => {
     axios.get(`${API_BASE}/api/organizations/${orgId}/expenses`)
       .then(res => setExpenses(res.data))
@@ -88,9 +79,8 @@ export default function Expenses() {
         if (res.data.length && !expenseCat) setExpenseCat(res.data[0].categoryName);
       })
       .catch(() => setCategories([]));
-  }, [orgId, refreshToken]); // org-scoped fetching
+  }, [orgId, refreshToken]);
 
-  // Stats
   const categoryStats = categories.map(cat => {
     const catExpenses = expenses.filter(exp => exp.categoryName === cat.categoryName);
     return {
@@ -127,7 +117,6 @@ export default function Expenses() {
     }
   ];
 
-  // --- CRUD: CATEGORY ---
   const openCreateCategoryModal = () => {
     setEditingCategory(null); setNewCategoryName(''); setCategoryError(''); setShowCategoryModal(true);
   };
@@ -149,23 +138,15 @@ export default function Expenses() {
     try {
       let message = '';
       if (editingCategory) {
-        // UPDATE includes organizationId in body
         const res = await axios.put(
           `${API_BASE}/api/organizations/${orgId}/expense-categories/${editingCategory.id}`,
-          {
-            categoryName: newCategoryName.trim(),
-            organizationId: orgId,
-          }
+          { categoryName: newCategoryName.trim(), organizationId: orgId }
         );
         message = `Category "${res.data.categoryName}" updated.`;
       } else {
-        // CREATE includes organizationId in body
         const res = await axios.post(
           `${API_BASE}/api/organizations/${orgId}/expense-categories`,
-          {
-            categoryName: newCategoryName.trim(),
-            organizationId: orgId,
-          }
+          { categoryName: newCategoryName.trim(), organizationId: orgId }
         );
         message = `Category "${res.data.categoryName}" created.`;
       }
@@ -173,10 +154,7 @@ export default function Expenses() {
       setRefreshToken(v => v + 1);
       toast({ title: "Success", description: message, variant: "default" });
     } catch (err: any) {
-      setCategoryError(
-        err?.response?.data?.message ||
-        (editingCategory ? "Failed to update category." : "Failed to create category.")
-      );
+      setCategoryError(err?.response?.data?.message || (editingCategory ? "Failed to update category." : "Failed to create category."));
       toast({ title: "Error", description: (editingCategory ? "Failed to update category." : "Failed to create category."), variant: "destructive" });
     } finally {
       setCategoryLoading(false);
@@ -198,7 +176,6 @@ export default function Expenses() {
     }
   };
 
-  // --- CRUD: EXPENSE (CREATE and DELETE) ---
   const openCreateExpenseModal = () => {
     setShowExpenseModal(true);
     setExpenseDesc('');
@@ -264,7 +241,6 @@ export default function Expenses() {
     }
   };
 
-  // --- UI helpers ---
   const formatDate = (date: string) => new Date(date).toLocaleDateString("en-IN");
 
   const getStatusBadge = (status?: string) => {
@@ -280,10 +256,8 @@ export default function Expenses() {
     );
   };
 
-  // --- UI ---
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Expense Management</h1>
@@ -296,12 +270,11 @@ export default function Expenses() {
           </Button>
           <Button variant="outline" onClick={openCreateCategoryModal}>
             <Plus className="mr-1 h-4 w-4" />
-            New Expense Category
+            New Category
           </Button>
         </div>
       </div>
 
-      {/* Stats cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
@@ -309,9 +282,9 @@ export default function Expenses() {
             <Card key={stat.title} className="stat-card hover-lift">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
-                  <div className="space-y-2">
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                    <div className="space-y-1">
+                    <div>
                       <p className="text-2xl font-bold text-foreground">{stat.value}</p>
                       <p className="text-xs text-muted-foreground">{stat.change}</p>
                     </div>
@@ -326,7 +299,6 @@ export default function Expenses() {
         })}
       </div>
 
-      {/* Category Breakdown + CRUD */}
       <Card className="card-gradient">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -347,47 +319,17 @@ export default function Expenses() {
                   <Button variant="ghost" size="sm" onClick={() => openEditCategoryModal(category)}>
                     <Edit className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDeleteCategoryConfirmId(category.id)}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => setDeleteCategoryConfirmId(category.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
-                {/* Delete confirmation */}
-                {deleteCategoryConfirmId === category.id && (
-                  <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
-                    <div className="bg-background rounded-lg p-6 min-w-[320px] shadow-xl">
-                      <h3 className="text-lg font-bold mb-3">Confirm Delete</h3>
-                      <p className="text-muted-foreground mb-4">
-                        Are you sure you want to delete this expense category? This action cannot be undone.
-                      </p>
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="destructive"
-                          onClick={() => handleDeleteCategory(deleteCategoryConfirmId!)}
-                          disabled={categoryLoading}
-                        >
-                          {categoryLoading ? "Deleting..." : "Delete"}
-                        </Button>
-                        <Button variant="outline" onClick={() => setDeleteCategoryConfirmId(null)}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             ))}
-            {!categories.length && (
-              <p className="text-muted-foreground">No categories found.</p>
-            )}
+            {!categories.length && <p className="text-muted-foreground">No categories found.</p>}
           </div>
         </CardContent>
       </Card>
 
-      {/* Recent Expenses */}
       <Card className="card-gradient">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -404,7 +346,7 @@ export default function Expenses() {
                     <TrendingDown className="h-5 w-5 text-destructive" />
                   </div>
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-semibold text-foreground">{expense.description}</h3>
                       <Badge>{expense.categoryName}</Badge>
                       {getStatusBadge(expense.status)}
@@ -415,70 +357,38 @@ export default function Expenses() {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground">ID: {expense.id}</p>
                     <p className="text-sm text-muted-foreground">
                       Requested by {expense.requestedBy || expense.empId} • {formatDate(expense.expenseDate)}
                     </p>
-                    {expense.approvedBy && (
-                      <p className="text-xs text-muted-foreground">
-                        Approved by {expense.approvedBy}
-                      </p>
-                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className="font-semibold text-destructive">-₹{expense.amount.toLocaleString()}</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDeleteExpenseConfirmId(expense.id)}
-                  >
+                  <p className="font-semibold text-destructive">-₹{expense.amount.toLocaleString()}</p>
+                  <Button variant="ghost" size="sm" onClick={() => setDeleteExpenseConfirmId(expense.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
-                {/* Expense delete confirmation */}
-                {deleteExpenseConfirmId === expense.id && (
-                  <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
-                    <div className="bg-background rounded-lg p-6 min-w-[320px] shadow-xl">
-                      <h3 className="text-lg font-bold mb-3">Confirm Delete</h3>
-                      <p className="text-muted-foreground mb-4">
-                        Are you sure you want to delete this expense? This action cannot be undone.
-                      </p>
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="destructive"
-                          onClick={() => handleDeleteExpense(deleteExpenseConfirmId!)}
-                          disabled={deleteExpenseLoading}
-                        >
-                          {deleteExpenseLoading ? "Deleting..." : "Delete"}
-                        </Button>
-                        <Button variant="outline" onClick={() => setDeleteExpenseConfirmId(null)}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             ))}
-            {!expenses.length && (
-              <p className="text-muted-foreground">No expenses found.</p>
-            )}
+            {!expenses.length && <p className="text-muted-foreground">No expenses found.</p>}
           </div>
         </CardContent>
       </Card>
 
       {/* CATEGORY MODAL */}
       {showCategoryModal && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/30">
-          <div className="bg-background rounded-lg p-6 min-w-[320px] shadow-xl relative">
-            <h3 className="text-lg font-bold mb-3">
-              {editingCategory ? "Edit" : "New"} Expense Category
-            </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={closeCategoryModal}>
+          <div className="bg-background rounded-2xl shadow-2xl p-8 min-w-[400px] max-w-lg relative" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={closeCategoryModal}
+              className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-1 transition"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <h3 className="text-2xl font-bold mb-6">{editingCategory ? "Edit" : "New"} Expense Category</h3>
             <form className="space-y-4" onSubmit={handleCategorySubmit}>
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="expense-cat-name">Category Name</Label>
                 <Input
                   id="expense-cat-name"
@@ -488,13 +398,13 @@ export default function Expenses() {
                   autoFocus
                 />
               </div>
-              <div className="flex justify-end gap-2">
-                <Button type="submit" disabled={categoryLoading}>
+              {categoryError && <div className="text-sm text-red-600">{categoryError}</div>}
+              <div className="flex justify-end gap-3 pt-2">
+                <Button type="button" variant="outline" onClick={closeCategoryModal}>Cancel</Button>
+                <Button type="submit" disabled={categoryLoading} className="btn-gradient-primary">
                   {categoryLoading ? "Saving..." : editingCategory ? "Save" : "Create"}
                 </Button>
-                <Button type="button" variant="ghost" onClick={closeCategoryModal}>Cancel</Button>
               </div>
-              {categoryError && <div className="text-sm text-red-600">{categoryError}</div>}
             </form>
           </div>
         </div>
@@ -502,11 +412,18 @@ export default function Expenses() {
 
       {/* EXPENSE MODAL */}
       {showExpenseModal && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/30">
-          <div className="bg-background rounded-lg p-6 min-w-[320px] shadow-xl relative">
-            <h3 className="text-lg font-bold mb-3">Add Expense</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={closeExpenseModal}>
+          <div className="bg-background rounded-2xl shadow-2xl p-8 min-w-[400px] max-w-lg relative" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={closeExpenseModal}
+              className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-1 transition"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <h3 className="text-2xl font-bold mb-6">Add Expense</h3>
             <form className="space-y-4" onSubmit={handleCreateExpense}>
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="desc">Description</Label>
                 <Input
                   id="desc" value={expenseDesc}
@@ -514,28 +431,31 @@ export default function Expenses() {
                   required autoFocus
                 />
               </div>
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="amount">Amount</Label>
                 <Input
-                  id="amount" type="number" min={1} inputMode="numeric"
+                  id="amount" type="number" min={1} step="0.01"
                   value={expenseAmount}
                   onChange={e => setExpenseAmount(e.target.value)}
                   required
                 />
               </div>
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="cat">Category</Label>
-                <select
-                  id="cat" value={expenseCat}
-                  onChange={e => setExpenseCat(e.target.value)} required
-                  className="w-full border rounded p-2"
-                >
-                  {categories.map((c) =>
-                    <option key={c.id} value={c.categoryName}>{c.categoryName}</option>)
-                  }
-                </select>
+                <Select value={expenseCat} onValueChange={(value) => setExpenseCat(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.categoryName}>
+                        {c.categoryName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="date">Expense Date</Label>
                 <Input
                   id="date" type="date"
@@ -544,14 +464,58 @@ export default function Expenses() {
                   required
                 />
               </div>
-              <div className="flex justify-end gap-2">
-                <Button type="submit" disabled={expenseLoading}>
+              {expenseError && <div className="text-sm text-red-600">{expenseError}</div>}
+              <div className="flex justify-end gap-3 pt-2">
+                <Button type="button" variant="outline" onClick={closeExpenseModal}>Cancel</Button>
+                <Button type="submit" disabled={expenseLoading} className="btn-gradient-primary">
                   {expenseLoading ? "Saving..." : "Create"}
                 </Button>
-                <Button type="button" variant="ghost" onClick={closeExpenseModal}>Cancel</Button>
               </div>
-              {expenseError && <div className="text-sm text-red-600">{expenseError}</div>}
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CATEGORY CONFIRMATION */}
+      {deleteCategoryConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-background rounded-xl p-6 min-w-[320px] max-w-md shadow-xl">
+            <h3 className="text-lg font-bold mb-3">Confirm Delete</h3>
+            <p className="text-muted-foreground mb-4">
+              Are you sure you want to delete this category? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDeleteCategoryConfirmId(null)}>Cancel</Button>
+              <Button
+                variant="destructive"
+                onClick={() => handleDeleteCategory(deleteCategoryConfirmId!)}
+                disabled={categoryLoading}
+              >
+                {categoryLoading ? "Deleting..." : "Delete"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE EXPENSE CONFIRMATION */}
+      {deleteExpenseConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-background rounded-xl p-6 min-w-[320px] max-w-md shadow-xl">
+            <h3 className="text-lg font-bold mb-3">Confirm Delete</h3>
+            <p className="text-muted-foreground mb-4">
+              Are you sure you want to delete this expense? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDeleteExpenseConfirmId(null)}>Cancel</Button>
+              <Button
+                variant="destructive"
+                onClick={() => handleDeleteExpense(deleteExpenseConfirmId!)}
+                disabled={deleteExpenseLoading}
+              >
+                {deleteExpenseLoading ? "Deleting..." : "Delete"}
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -4,9 +4,14 @@ import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import WaveBackground from '@/components/lightswind/wave-background';
-import { ConfettiButton } from '@/components/lightswind/confetti-button';
+import { 
+  Building2, Users, UserPlus, Edit, Search, Loader2, 
+  CheckCircle2, ArrowRight, MapPin, Phone, 
+  Mail, Shield, Clock, Home, AlertCircle, 
+  FileText, Crown, ArrowLeft, Sparkles, Briefcase
+} from 'lucide-react';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'https://finflux-64307221061.asia-south1.run.app';
 
@@ -64,7 +69,7 @@ type OrganizationUpdateRequest = {
 type EmployeeCreateRequest = {
   empId: string;
   organizationId: string;
-  status?: string; // ACTIVE | INACTIVE
+  status?: string;
   role: string;
   department: string;
   firstName: string;
@@ -73,7 +78,6 @@ type EmployeeCreateRequest = {
   emailId: string;
   username: string;
   password: string;
-  // shiftTiming removed from owner creation UI by request
   address?: {
     line1?: string;
     line2?: string;
@@ -160,19 +164,13 @@ const makeOrgId = (name: string) => {
 
 const orgLetters = (orgId: string) => (orgId.match(/[A-Za-z]+/g)?.join('') || '').toUpperCase();
 
-type View =
-  | 'menu'
-  | 'createOrg'
-  | 'updateOrg'
-  | 'createOwner'
-  | 'updateOwner';
+type View = 'menu' | 'createOrg' | 'updateOrg' | 'createOwner' | 'updateOwner';
 
 export default function OnboardOrganization() {
   const { toast } = useToast();
-
   const [view, setView] = useState<View>('menu');
 
-  // Common: organization search list state
+  // Organization list state
   const [orgs, setOrgs] = useState<OrganizationResponse[]>([]);
   const [orgPage, setOrgPage] = useState(0);
   const [orgHasMore, setOrgHasMore] = useState(true);
@@ -211,7 +209,7 @@ export default function OnboardOrganization() {
       setOrgHasMore(!page.last);
     } catch (err: any) {
       toast({
-        title: 'Load organizations failed',
+        title: 'Error',
         description: err?.response?.data?.message || 'Unable to load organizations.',
         variant: 'destructive',
       });
@@ -222,14 +220,13 @@ export default function OnboardOrganization() {
 
   useEffect(() => {
     if (view === 'updateOrg' || view === 'createOwner' || view === 'updateOwner') {
-      // pre-load organizations list on these flows
       resetOrgList();
       loadMoreOrgs();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
 
-  // View: Create Organization
+  // Create Organization State
   const [orgForm, setOrgForm] = useState<OrganizationCreateRequest>({
     organizationId: '',
     organizationName: '',
@@ -246,12 +243,15 @@ export default function OnboardOrganization() {
     ownerFirstName: '',
     ownerLastName: '',
   });
+
   const derivedOrgId = useMemo(() => {
     if (!orgForm.organizationName.trim()) return '';
     return makeOrgId(orgForm.organizationName);
   }, [orgForm.organizationName]);
+
   const updateOrgCreate = <K extends keyof OrganizationCreateRequest>(k: K) => (v: OrganizationCreateRequest[K]) =>
     setOrgForm(p => ({ ...p, [k]: v }));
+
   const createOrgRequiredOk = useMemo(() => {
     const required: Array<string> = [
       derivedOrgId || orgForm.organizationId,
@@ -268,11 +268,12 @@ export default function OnboardOrganization() {
   }, [derivedOrgId, orgForm]);
 
   const [submittingOrg, setSubmittingOrg] = useState(false);
+  const [selectedOrg, setSelectedOrg] = useState<OrganizationResponse | null>(null);
 
   const submitCreateOrganization = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!createOrgRequiredOk) {
-      toast({ title: 'Validation', description: 'Please fill all required fields.', variant: 'destructive' });
+      toast({ title: 'Validation Error', description: 'Please fill all required fields.', variant: 'destructive' });
       return;
     }
     try {
@@ -282,13 +283,12 @@ export default function OnboardOrganization() {
         organizationId: derivedOrgId || orgForm.organizationId,
       };
       const res = await axios.post<OrganizationResponse>(`${API_BASE}/api/organizations`, payload, { timeout: 15000 });
-      toast({ title: 'Organization created', description: 'Onboarding completed successfully.' });
-      // Offer to onboard owner next with selected org
+      toast({ title: '✅ Success!', description: 'Organization created successfully.' });
       setSelectedOrg(res.data);
     } catch (err: any) {
       toast({
-        title: 'Create failed',
-        description: err?.response?.data?.message || 'Unable to create organization.',
+        title: 'Error',
+        description: err?.response?.data?.message || 'Failed to create organization.',
         variant: 'destructive',
       });
     } finally {
@@ -296,26 +296,11 @@ export default function OnboardOrganization() {
     }
   };
 
-  // View: Update Organization
-  const [selectedOrg, setSelectedOrg] = useState<OrganizationResponse | null>(null);
-  const [orgUpdateForm, setOrgUpdateForm] = useState<OrganizationUpdateRequest>({
-    organizationName: '',
-    gstNumber: '',
-    address1: '',
-    address2: '',
-    city: '',
-    state: '',
-    country: 'India',
-    postalCode: '',
-    phoneNumber: '',
-    email: '',
-    licenseNumber: '',
-    ownerFirstName: '',
-    ownerLastName: '',
-  });
+  // Update Organization State
+  const [orgUpdateForm, setOrgUpdateForm] = useState<OrganizationUpdateRequest>({});
+
   useEffect(() => {
     if (selectedOrg && (view === 'updateOrg' || view === 'createOwner')) {
-      // Prefill updateOrgForm when selected
       setOrgUpdateForm({
         organizationName: selectedOrg.organizationName || '',
         gstNumber: selectedOrg.gstNumber || '',
@@ -340,25 +325,17 @@ export default function OnboardOrganization() {
   const updateOrgRequiredOk = useMemo(() => {
     if (!selectedOrg) return false;
     const r = orgUpdateForm;
-    const required = [
-      r.organizationName,
-      r.address1,
-      r.city,
-      r.state,
-      r.country,
-      r.postalCode,
-      r.ownerFirstName,
-      r.ownerLastName,
-    ];
+    const required = [r.organizationName, r.address1, r.city, r.state, r.country, r.postalCode, r.ownerFirstName, r.ownerLastName];
     return required.every(v => String(v || '').trim().length > 0);
   }, [selectedOrg, orgUpdateForm]);
 
   const [submittingOrgUpdate, setSubmittingOrgUpdate] = useState(false);
+
   const submitUpdateOrganization = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOrg) return;
     if (!updateOrgRequiredOk) {
-      toast({ title: 'Validation', description: 'Please fill all required fields.', variant: 'destructive' });
+      toast({ title: 'Validation Error', description: 'Please fill all required fields.', variant: 'destructive' });
       return;
     }
     try {
@@ -368,11 +345,11 @@ export default function OnboardOrganization() {
         orgUpdateForm,
         { timeout: 15000 }
       );
-      toast({ title: 'Organization updated', description: `${selectedOrg.organizationName} updated successfully.` });
+      toast({ title: '✅ Updated!', description: `${selectedOrg.organizationName} updated successfully.` });
     } catch (err: any) {
       toast({
-        title: 'Update failed',
-        description: err?.response?.data?.message || 'Unable to update organization.',
+        title: 'Error',
+        description: err?.response?.data?.message || 'Failed to update organization.',
         variant: 'destructive',
       });
     } finally {
@@ -380,7 +357,7 @@ export default function OnboardOrganization() {
     }
   };
 
-  // View: Create Owner (select org then create owner without shift timing)
+  // Create Owner State
   const [ownerCreateForm, setOwnerCreateForm] = useState<EmployeeCreateRequest>({
     empId: '',
     organizationId: '',
@@ -441,11 +418,12 @@ export default function OnboardOrganization() {
   }, [selectedOrg, ownerCreateForm, computedCreateOwnerEmpId]);
 
   const [submittingOwnerCreate, setSubmittingOwnerCreate] = useState(false);
+
   const submitCreateOwner = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOrg) return;
     if (!createOwnerRequiredOk) {
-      toast({ title: 'Validation', description: 'Please fill all required fields.', variant: 'destructive' });
+      toast({ title: 'Validation Error', description: 'Please fill all required fields.', variant: 'destructive' });
       return;
     }
     try {
@@ -455,7 +433,6 @@ export default function OnboardOrganization() {
         organizationId: selectedOrg.organizationId,
         empId: computedCreateOwnerEmpId || ownerCreateForm.empId,
         status: (ownerCreateForm.status || 'ACTIVE').toUpperCase(),
-        // No shiftTiming in owner creation UI
         address: { ...(ownerCreateForm.address || {}), country: ownerCreateForm.address?.country || 'India' },
       };
       await axios.post(
@@ -463,8 +440,7 @@ export default function OnboardOrganization() {
         payload,
         { timeout: 15000 }
       );
-      toast({ title: 'Owner created', description: `Owner ${payload.firstName} ${payload.lastName} onboarded.` });
-      // Reset form for next potential create
+      toast({ title: '🎉 Success!', description: `Owner ${payload.firstName} ${payload.lastName} onboarded successfully.` });
       setOwnerCreateForm(p => ({
         ...p,
         firstName: '',
@@ -476,8 +452,8 @@ export default function OnboardOrganization() {
       }));
     } catch (err: any) {
       toast({
-        title: 'Create failed',
-        description: err?.response?.data?.message || 'Unable to create owner.',
+        title: 'Error',
+        description: err?.response?.data?.message || 'Failed to create owner.',
         variant: 'destructive',
       });
     } finally {
@@ -485,7 +461,7 @@ export default function OnboardOrganization() {
     }
   };
 
-  // View: Update Owner (select org -> select owner -> update owner, shift timing allowed here)
+  // Update Owner State - FILTER ONLY OWNERS
   const [employees, setEmployees] = useState<EmployeeResponse[]>([]);
   const [empPage, setEmpPage] = useState(0);
   const [empHasMore, setEmpHasMore] = useState(true);
@@ -495,18 +471,17 @@ export default function OnboardOrganization() {
 
   const filteredEmps = useMemo(() => {
     const q = empQuery.trim().toLowerCase();
-    const base = employees;
+    const ownersOnly = employees.filter(e => e.role?.toLowerCase() === 'owner');
+    
     if (!q) {
-      // Default: show Owners first by sorting
-      return [...base].sort((a, b) => (a.role === 'Owner' ? -1 : 1) - (b.role === 'Owner' ? -1 : 1));
+      return ownersOnly;
     }
-    return base.filter(e =>
+    return ownersOnly.filter(e =>
       (e.firstName || '').toLowerCase().includes(q) ||
       (e.lastName || '').toLowerCase().includes(q) ||
       (e.username || '').toLowerCase().includes(q) ||
       (e.emailId || '').toLowerCase().includes(q) ||
-      (e.empId || '').toLowerCase().includes(q) ||
-      (e.role || '').toLowerCase().includes(q)
+      (e.empId || '').toLowerCase().includes(q)
     );
   }, [employees, empQuery]);
 
@@ -530,7 +505,7 @@ export default function OnboardOrganization() {
       setEmpHasMore(!page.last);
     } catch (err: any) {
       toast({
-        title: 'Load employees failed',
+        title: 'Error',
         description: err?.response?.data?.message || 'Unable to load employees.',
         variant: 'destructive',
       });
@@ -547,20 +522,7 @@ export default function OnboardOrganization() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, selectedOrg?.organizationId]);
 
-  const [ownerUpdateForm, setOwnerUpdateForm] = useState<EmployeeUpdateRequest>({
-    status: 'ACTIVE',
-    role: 'Owner',
-    department: 'Management',
-    firstName: '',
-    lastName: '',
-    phoneNumber: '',
-    emailId: '',
-    username: '',
-    newPassword: '',
-    shiftTiming: { start: '', end: '' },
-    address: { line1: '', line2: '', city: '', state: '', postalCode: '', country: 'India' },
-    emergencyContact: { name: '', phone: '', relationship: '' },
-  });
+  const [ownerUpdateForm, setOwnerUpdateForm] = useState<EmployeeUpdateRequest>({});
 
   useEffect(() => {
     if (selectedEmp && view === 'updateOwner') {
@@ -603,18 +565,18 @@ export default function OnboardOrganization() {
 
   const updateOwnerRequiredOk = useMemo(() => {
     if (!selectedOrg || !selectedEmp) return false;
-    // Ensure core fields present
     const p = ownerUpdateForm;
     const required = [p.role, p.department, p.firstName, p.lastName, p.emailId, p.username];
     return required.every(v => String(v || '').trim().length > 0);
   }, [selectedOrg, selectedEmp, ownerUpdateForm]);
 
   const [submittingOwnerUpdate, setSubmittingOwnerUpdate] = useState(false);
+
   const submitUpdateOwner = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOrg || !selectedEmp) return;
     if (!updateOwnerRequiredOk) {
-      toast({ title: 'Validation', description: 'Please fill all required fields.', variant: 'destructive' });
+      toast({ title: 'Validation Error', description: 'Please fill all required fields.', variant: 'destructive' });
       return;
     }
     try {
@@ -624,127 +586,17 @@ export default function OnboardOrganization() {
         ownerUpdateForm,
         { timeout: 15000 }
       );
-      toast({ title: 'Owner updated', description: `Employee ${selectedEmp.firstName} ${selectedEmp.lastName} updated.` });
+      toast({ title: '✅ Updated!', description: `${selectedEmp.firstName} ${selectedEmp.lastName} updated successfully.` });
     } catch (err: any) {
       toast({
-        title: 'Update failed',
-        description: err?.response?.data?.message || 'Unable to update owner.',
+        title: 'Error',
+        description: err?.response?.data?.message || 'Failed to update owner.',
         variant: 'destructive',
       });
     } finally {
       setSubmittingOwnerUpdate(false);
     }
   };
-
-  const renderOrgPicker = (title = 'Select Organization', onPick?: (o: OrganizationResponse) => void) => (
-    <Card className="backdrop-blur-xl bg-white/10 border-white/10 shadow-2xl">
-      <CardHeader className="border-b border-white/10">
-        <CardTitle className="text-xl text-white">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="pt-6 space-y-4">
-        <Input
-          placeholder="Search by name, ID, city, state, email"
-          value={orgQuery}
-          onChange={(e) => setOrgQuery(e.target.value)}
-          className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-        />
-        <div className="max-h-80 overflow-auto divide-y divide-white/10 rounded-md border border-white/10">
-          {filteredOrgs.length === 0 ? (
-            <div className="p-4 text-sm text-white/70">No organizations found.</div>
-          ) : (
-            filteredOrgs.map((o) => (
-              <div key={o.id} className="p-3 flex items-center justify-between hover:bg-white/5">
-                <div className="text-white/90">
-                  <div className="text-sm font-medium">{o.organizationName}</div>
-                  <div className="text-xs text-white/60">{o.organizationId} • {o.city}, {o.state}</div>
-                </div>
-                <ConfettiButton
-                  variant="gradient"
-                  size="sm"
-                  animation="scale"
-                  onClick={() => {
-                    setSelectedOrg(o);
-                    onPick?.(o);
-                  }}
-                >
-                  Select
-                </ConfettiButton>
-              </div>
-            ))
-          )}
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="text-xs text-white/60">
-            Loaded {orgs.length} item(s)
-          </div>
-          <ConfettiButton
-            onClick={loadMoreOrgs}
-            disabled={!orgHasMore || orgLoading}
-            variant="outline"
-            size="sm"
-            animation="scale"
-          >
-            {orgLoading ? 'Loading...' : orgHasMore ? 'Load more' : 'No more'}
-          </ConfettiButton>
-        </div>
-      </CardContent>
-    </Card>
-  );
-
-  const renderEmpPicker = (title = 'Select Owner/Employee', onPick?: (e: EmployeeResponse) => void) => (
-    <Card className="backdrop-blur-xl bg-white/10 border-white/10 shadow-2xl">
-      <CardHeader className="border-b border-white/10">
-        <CardTitle className="text-xl text-white">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="pt-6 space-y-4">
-        <Input
-          placeholder="Search by name, username, email, empId, role"
-          value={empQuery}
-          onChange={(e) => setEmpQuery(e.target.value)}
-          className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-        />
-        <div className="max-h-80 overflow-auto divide-y divide-white/10 rounded-md border border-white/10">
-          {filteredEmps.length === 0 ? (
-            <div className="p-4 text-sm text-white/70">No employees found.</div>
-          ) : (
-            filteredEmps.map((emp) => (
-              <div key={emp.id} className="p-3 flex items-center justify-between hover:bg-white/5">
-                <div className="text-white/90">
-                  <div className="text-sm font-medium">{emp.firstName} {emp.lastName} ({emp.role})</div>
-                  <div className="text-xs text-white/60">{emp.empId} • {emp.username} • {emp.emailId}</div>
-                </div>
-                <ConfettiButton
-                  variant="gradient"
-                  size="sm"
-                  animation="scale"
-                  onClick={() => {
-                    setSelectedEmp(emp);
-                    onPick?.(emp);
-                  }}
-                >
-                  Select
-                </ConfettiButton>
-              </div>
-            ))
-          )}
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="text-xs text-white/60">
-            Loaded {employees.length} item(s)
-          </div>
-          <ConfettiButton
-            onClick={loadMoreEmployees}
-            disabled={!empHasMore || empLoading}
-            variant="outline"
-            size="sm"
-            animation="scale"
-          >
-            {empLoading ? 'Loading...' : empHasMore ? 'Load more' : 'No more'}
-          </ConfettiButton>
-        </div>
-      </CardContent>
-    </Card>
-  );
 
   const resetAll = () => {
     setView('menu');
@@ -756,724 +608,693 @@ export default function OnboardOrganization() {
     setEmpQuery('');
   };
 
+  // Modern Organization Picker
+  const renderOrgPicker = () => (
+    <div className="max-w-5xl mx-auto">
+      <Card className="border-2 shadow-xl">
+        <div className="bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 p-6 border-b-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg">
+                <Building2 className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold">Select Organization</h2>
+                <p className="text-muted-foreground">Choose an organization to continue</p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={resetAll} className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+          </div>
+        </div>
+        
+        <CardContent className="p-6 space-y-6">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input
+              placeholder="Search organizations..."
+              value={orgQuery}
+              onChange={(e) => setOrgQuery(e.target.value)}
+              className="pl-12 h-12 text-lg border-2 focus:border-primary"
+            />
+          </div>
+
+          <div className="grid gap-4 max-h-[600px] overflow-auto">
+            {filteredOrgs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                {orgLoading ? (
+                  <>
+                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                    <p className="text-muted-foreground text-lg">Loading organizations...</p>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground text-lg">No organizations found</p>
+                  </>
+                )}
+              </div>
+            ) : (
+              filteredOrgs.map((o) => (
+                <div
+                  key={o.id}
+                  onClick={() => setSelectedOrg(o)}
+                  className="group p-5 rounded-xl border-2 hover:border-primary hover:shadow-lg transition-all cursor-pointer bg-gradient-to-br from-background to-muted/20"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                          <Building2 className="h-5 w-5" />
+                        </div>
+                        <h3 className="text-xl font-bold">{o.organizationName}</h3>
+                      </div>
+                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground pl-11">
+                        <span className="flex items-center gap-1.5">
+                          <FileText className="h-4 w-4" /> {o.organizationId}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <MapPin className="h-4 w-4" /> {o.city}, {o.state}
+                        </span>
+                        {o.email && (
+                          <span className="flex items-center gap-1.5">
+                            <Mail className="h-4 w-4" /> {o.email}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <Button className="gap-2">
+                      Select <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="flex items-center justify-between pt-4 border-t-2">
+            <span className="text-muted-foreground">
+              Showing <strong>{filteredOrgs.length}</strong> of <strong>{orgs.length}</strong> organizations
+            </span>
+            <Button
+              onClick={loadMoreOrgs}
+              disabled={!orgHasMore || orgLoading}
+              variant="outline"
+            >
+              {orgLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Loading</> : orgHasMore ? 'Load More' : 'No More'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  // Modern Owner Picker (ONLY OWNERS)
+  const renderOwnerPicker = () => (
+    <div className="max-w-5xl mx-auto">
+      <Card className="border-2 shadow-xl">
+        <div className="bg-gradient-to-r from-yellow-500/10 via-orange-500/10 to-red-500/10 p-6 border-b-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-600 shadow-lg">
+                <Crown className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold">Select Owner</h2>
+                <p className="text-muted-foreground">Choose an owner to update</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setSelectedOrg(null)}>
+                Change Org
+              </Button>
+              <Button variant="outline" size="sm" onClick={resetAll} className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </Button>
+            </div>
+          </div>
+        </div>
+        
+        <CardContent className="p-6 space-y-6">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input
+              placeholder="Search owners..."
+              value={empQuery}
+              onChange={(e) => setEmpQuery(e.target.value)}
+              className="pl-12 h-12 text-lg border-2 focus:border-primary"
+            />
+          </div>
+
+          <div className="grid gap-4 max-h-[600px] overflow-auto">
+            {filteredEmps.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                {empLoading ? (
+                  <>
+                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                    <p className="text-muted-foreground text-lg">Loading owners...</p>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground text-lg">No owners found</p>
+                  </>
+                )}
+              </div>
+            ) : (
+              filteredEmps.map((emp) => (
+                <div
+                  key={emp.id}
+                  onClick={() => setSelectedEmp(emp)}
+                  className="group p-5 rounded-xl border-2 hover:border-yellow-500 hover:shadow-lg transition-all cursor-pointer bg-gradient-to-br from-background to-yellow-500/5"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-yellow-500/10 group-hover:bg-yellow-500 group-hover:text-white transition-colors">
+                          <Crown className="h-5 w-5" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xl font-bold">{emp.firstName} {emp.lastName}</h3>
+                          <span className="px-3 py-1 text-xs font-semibold bg-yellow-100 text-yellow-700 rounded-full border border-yellow-300">
+                            OWNER
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground pl-11">
+                        <span className="flex items-center gap-1.5">
+                          <Shield className="h-4 w-4" /> {emp.empId}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <Mail className="h-4 w-4" /> {emp.emailId}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <Briefcase className="h-4 w-4" /> {emp.department}
+                        </span>
+                      </div>
+                    </div>
+                    <Button className="gap-2">
+                      Select <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="flex items-center justify-between pt-4 border-t-2">
+            <span className="text-muted-foreground">
+              Showing <strong>{filteredEmps.length}</strong> owners
+            </span>
+            <Button
+              onClick={loadMoreEmployees}
+              disabled={!empHasMore || empLoading}
+              variant="outline"
+            >
+              {empLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Loading</> : empHasMore ? 'Load More' : 'No More'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      <div className="absolute inset-0 -z-30">
-        <WaveBackground backdropBlurAmount="sm" className="absolute inset-0" />
-      </div>
-      <div
-        className="pointer-events-none absolute inset-0 -z-20"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(8,11,17,0.75) 0%, rgba(8,11,17,0.65) 50%, rgba(8,11,17,0.75) 100%)",
-        }}
-      />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-6">
+      <div className="max-w-7xl mx-auto space-y-8">
 
-      <div className="relative z-10 flex min-h-screen items-center justify-center p-4">
-        <div className="w-full max-w-6xl space-y-10">
+        {/* Main Menu */}
+        {view === 'menu' && (
+          <div className="space-y-10">
+            <div className="text-center space-y-4">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-2 border-primary/20 mb-4">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold text-primary">Organization Management System</span>
+              </div>
+              <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                Welcome Back
+              </h1>
+              <p className="text-muted-foreground text-xl max-w-2xl mx-auto">
+                Manage your organizations and owners efficiently with our powerful platform
+              </p>
+            </div>
 
-          {/* Main Action Menu */}
-          {view === 'menu' && (
-            <Card className="backdrop-blur-xl bg-white/10 border-white/10 shadow-2xl transition-all duration-500 hover:shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
-              <CardHeader className="border-b border-white/10">
-                <CardTitle className="text-2xl text-white">Organization & Owner Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <ConfettiButton
-                    variant="gradient"
-                    size="default"
-                    animation="scale"
-                    onClick={() => setView('createOrg')}
-                  >
-                    Onboard New Organization
-                  </ConfettiButton>
-
-                  <ConfettiButton
-                    variant="gradient"
-                    size="default"
-                    animation="scale"
-                    onClick={() => setView('updateOrg')}
-                  >
-                    Update Organization
-                  </ConfettiButton>
-
-                  <ConfettiButton
-                    variant="gradient"
-                    size="default"
-                    animation="scale"
-                    onClick={() => setView('createOwner')}
-                  >
-                    Onboard Owner
-                  </ConfettiButton>
-
-                  <ConfettiButton
-                    variant="gradient"
-                    size="default"
-                    animation="scale"
-                    onClick={() => setView('updateOwner')}
-                  >
-                    Update Owner
-                  </ConfettiButton>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                { view: 'createOrg', icon: Building2, title: 'Create Organization', desc: 'Onboard new organization', gradient: 'from-blue-500 to-cyan-500' },
+                { view: 'updateOrg', icon: Edit, title: 'Update Organization', desc: 'Modify organization details', gradient: 'from-purple-500 to-pink-500' },
+                { view: 'createOwner', icon: UserPlus, title: 'Onboard Owner', desc: 'Add owner to organization', gradient: 'from-green-500 to-emerald-500' },
+                { view: 'updateOwner', icon: Crown, title: 'Update Owner', desc: 'Modify owner information', gradient: 'from-yellow-500 to-orange-500' },
+              ].map((item) => (
+                <div
+                  key={item.view}
+                  onClick={() => setView(item.view as View)}
+                  className="group relative cursor-pointer"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl blur-sm group-hover:blur-md transition-all" />
+                  <Card className="relative border-2 hover:border-primary hover:shadow-2xl transition-all duration-300 h-full">
+                    <CardContent className="p-8 text-center space-y-6">
+                      <div className={`inline-flex p-5 rounded-2xl bg-gradient-to-br ${item.gradient} shadow-lg group-hover:scale-110 transition-transform`}>
+                        <item.icon className="h-10 w-10 text-white" />
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="text-xl font-bold">{item.title}</h3>
+                        <p className="text-sm text-muted-foreground">{item.desc}</p>
+                      </div>
+                      <div className="flex items-center justify-center gap-2 text-primary group-hover:gap-3 transition-all">
+                        <span className="text-sm font-semibold">Get Started</span>
+                        <ArrowRight className="h-4 w-4" />
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              ))}
+            </div>
+          </div>
+        )}
 
-          {/* Create Organization */}
-          {view === 'createOrg' && (
-            <Card className="backdrop-blur-xl bg-white/10 border-white/10 shadow-2xl">
-              <CardHeader className="border-b border-white/10">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-2xl text-white">Onboard Organization</CardTitle>
-                  <ConfettiButton variant="outline" size="sm" animation="scale" onClick={resetAll}>
-                    Back
-                  </ConfettiButton>
+        {/* Create Organization */}
+        {view === 'createOrg' && (
+          <Card className="max-w-6xl mx-auto border-2 shadow-xl">
+            <div className="bg-gradient-to-r from-blue-500/10 via-cyan-500/10 to-teal-500/10 p-6 border-b-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 shadow-lg">
+                    <Building2 className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">Create New Organization</h2>
+                    <p className="text-muted-foreground">Fill in the organization details below</p>
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <form onSubmit={submitCreateOrganization} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Button variant="outline" size="sm" onClick={resetAll} className="gap-2">
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </Button>
+              </div>
+            </div>
+            <CardContent className="p-8">
+              <form onSubmit={submitCreateOrganization} className="space-y-8">
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 pb-3 border-b-2">
+                    <Building2 className="h-5 w-5 text-primary" />
+                    <h3 className="text-lg font-bold">Organization Details</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="md:col-span-2 space-y-2">
-                      <Label htmlFor="organizationName" className="text-white/90">
-                        Organization Name <span className="text-cyan-300">*</span>
-                      </Label>
+                      <Label className="text-sm font-semibold">Organization Name *</Label>
                       <Input
-                        id="organizationName"
                         value={orgForm.organizationName}
                         onChange={(e) => updateOrgCreate('organizationName')(e.target.value)}
-                        placeholder="FineFlux Fuel Station"
+                        placeholder="Enter organization name"
                         required
-                        aria-required="true"
-                        className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
+                        className="h-11 border-2"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="organizationId" className="text-white/90">
-                        Organization ID <span className="text-cyan-300">*</span>
-                      </Label>
-                      <Input
-                        id="organizationId"
-                        value={derivedOrgId || ''}
-                        readOnly
-                        disabled
-                        placeholder="Auto-generated"
-                        required
-                        aria-required="true"
-                        className="bg-black border-white/20 text-white placeholder:text-white/40"
-                      />
+                      <Label className="text-sm font-semibold">Organization ID *</Label>
+                      <Input value={derivedOrgId || ''} readOnly disabled placeholder="Auto-generated" className="h-11" />
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="gstNumber" className="text-white/90">GST Number</Label>
-                      <Input
-                        id="gstNumber"
-                        value={orgForm.gstNumber || ''}
-                        onChange={(e) => updateOrgCreate('gstNumber')(e.target.value)}
-                        placeholder="Optional"
-                        className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="licenseNumber" className="text-white/90">License Number</Label>
-                      <Input
-                        id="licenseNumber"
-                        value={orgForm.licenseNumber || ''}
-                        onChange={(e) => updateOrgCreate('licenseNumber')(e.target.value)}
-                        placeholder="Optional"
-                        className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email" className="text-white/90">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={orgForm.email || ''}
-                        onChange={(e) => updateOrgCreate('email')(e.target.value)}
-                        placeholder="info@company.com"
-                        className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                      />
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <Input placeholder="GST Number" value={orgForm.gstNumber || ''} onChange={(e) => updateOrgCreate('gstNumber')(e.target.value)} className="h-11 border-2" />
+                    <Input placeholder="License Number" value={orgForm.licenseNumber || ''} onChange={(e) => updateOrgCreate('licenseNumber')(e.target.value)} className="h-11 border-2" />
+                    <Input type="email" placeholder="Email" value={orgForm.email || ''} onChange={(e) => updateOrgCreate('email')(e.target.value)} className="h-11 border-2" />
                   </div>
+                </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-white/90">Address</Label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Input
-                        placeholder="Address Line 1"
-                        value={orgForm.address1}
-                        onChange={(e) => updateOrgCreate('address1')(e.target.value)}
-                        required
-                        aria-required="true"
-                        className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                      />
-                      <Input
-                        placeholder="Address Line 2"
-                        value={orgForm.address2 || ''}
-                        onChange={(e) => updateOrgCreate('address2')(e.target.value)}
-                        className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                      />
-                      <Input
-                        placeholder="City"
-                        value={orgForm.city}
-                        onChange={(e) => updateOrgCreate('city')(e.target.value)}
-                        required
-                        aria-required="true"
-                        className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                      />
-                      <select
-                        className="w-full rounded-md border bg-black border-white/20 p-2 text-white"
-                        value={orgForm.state}
-                        onChange={(e) => updateOrgCreate('state')(e.target.value)}
-                        required
-                        aria-required="true"
-                      >
-                        <option value="">Select State</option>
-                        {IN_STATES.map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
-                      <Input
-                        placeholder="Postal Code"
-                        value={orgForm.postalCode}
-                        onChange={(e) => updateOrgCreate('postalCode')(e.target.value)}
-                        required
-                        aria-required="true"
-                        className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                      />
-                      <Input
-                        value={orgForm.country}
-                        onChange={(e) => updateOrgCreate('country')(e.target.value)}
-                        required
-                        aria-required="true"
-                        className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                      />
-                    </div>
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 pb-3 border-b-2">
+                    <MapPin className="h-5 w-5 text-primary" />
+                    <h3 className="text-lg font-bold">Address Information</h3>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="phone" className="text-white/90">Phone</Label>
-                      <Input
-                        id="phone"
-                        type="tel"
-                        value={orgForm.phoneNumber || ''}
-                        onChange={(e) => updateOrgCreate('phoneNumber')(e.target.value)}
-                        placeholder="+91 90000 00000"
-                        className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="ownerFirstName" className="text-white/90">
-                        Owner First Name <span className="text-cyan-300">*</span>
-                      </Label>
-                      <Input
-                        id="ownerFirstName"
-                        value={orgForm.ownerFirstName}
-                        onChange={(e) => updateOrgCreate('ownerFirstName')(e.target.value)}
-                        required
-                        aria-required="true"
-                        className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="ownerLastName" className="text-white/90">
-                        Owner Last Name <span className="text-cyan-300">*</span>
-                      </Label>
-                      <Input
-                        id="ownerLastName"
-                        value={orgForm.ownerLastName}
-                        onChange={(e) => updateOrgCreate('ownerLastName')(e.target.value)}
-                        required
-                        aria-required="true"
-                        className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                      />
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Input placeholder="Address Line 1 *" value={orgForm.address1} onChange={(e) => updateOrgCreate('address1')(e.target.value)} required className="h-11 border-2" />
+                    <Input placeholder="Address Line 2" value={orgForm.address2 || ''} onChange={(e) => updateOrgCreate('address2')(e.target.value)} className="h-11 border-2" />
+                    <Input placeholder="City *" value={orgForm.city} onChange={(e) => updateOrgCreate('city')(e.target.value)} required className="h-11 border-2" />
+                    <select className="flex h-11 w-full rounded-md border-2 border-input bg-background px-3 py-2 text-sm" value={orgForm.state} onChange={(e) => updateOrgCreate('state')(e.target.value)} required>
+                      <option value="">Select State *</option>
+                      {IN_STATES.map((s) => (<option key={s} value={s}>{s}</option>))}
+                    </select>
+                    <Input placeholder="Postal Code *" value={orgForm.postalCode} onChange={(e) => updateOrgCreate('postalCode')(e.target.value)} required className="h-11 border-2" />
+                    <Input placeholder="Country *" value={orgForm.country} onChange={(e) => updateOrgCreate('country')(e.target.value)} required className="h-11 border-2" />
                   </div>
+                </div>
 
-                  <div className="flex items-center justify-end gap-2 pt-2">
-                    <ConfettiButton
-                      type="button"
-                      variant="outline"
-                      size="default"
-                      animation="scale"
-                      onClick={resetAll}
-                    >
-                      Cancel
-                    </ConfettiButton>
-                    <ConfettiButton
-                      type="submit"
-                      disabled={submittingOrg || !createOrgRequiredOk}
-                      variant="gradient"
-                      size="default"
-                      animation="scale"
-                    >
-                      {submittingOrg ? 'Submitting...' : 'Create Organization'}
-                    </ConfettiButton>
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 pb-3 border-b-2">
+                    <Crown className="h-5 w-5 text-primary" />
+                    <h3 className="text-lg font-bold">Owner & Contact</h3>
                   </div>
-                </form>
-
-                {/* Quick next step: If created and selectedOrg seeded, offer Create Owner shortcut */}
-                {selectedOrg && (
-                  <div className="mt-6 flex items-center justify-between gap-3 rounded-md border border-white/10 bg-white/5 p-4 backdrop-blur-md">
-                    <div className="text-sm text-white/80">
-                      Organization created with ID:{' '}
-                      <span className="font-medium text-cyan-300">{selectedOrg.organizationId}</span>
-                    </div>
-                    <ConfettiButton
-                      onClick={() => setView('createOwner')}
-                      variant="gradient"
-                      size="default"
-                      animation="scale"
-                    >
-                      Onboard Owner
-                    </ConfettiButton>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <Input type="tel" placeholder="Phone Number" value={orgForm.phoneNumber || ''} onChange={(e) => updateOrgCreate('phoneNumber')(e.target.value)} className="h-11 border-2" />
+                    <Input placeholder="Owner First Name *" value={orgForm.ownerFirstName} onChange={(e) => updateOrgCreate('ownerFirstName')(e.target.value)} required className="h-11 border-2" />
+                    <Input placeholder="Owner Last Name *" value={orgForm.ownerLastName} onChange={(e) => updateOrgCreate('ownerLastName')(e.target.value)} required className="h-11 border-2" />
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+                </div>
 
-          {/* Update Organization */}
-          {view === 'updateOrg' && (
-            <>
-              {!selectedOrg ? (
-                renderOrgPicker('Select Organization to Update')
-              ) : (
-                <Card className="backdrop-blur-xl bg-white/10 border-white/10 shadow-2xl">
-                  <CardHeader className="border-b border-white/10">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-2xl text-white">Update Organization</CardTitle>
-                      <div className="flex gap-2">
-                        <ConfettiButton
-                          variant="outline"
-                          size="sm"
-                          animation="scale"
-                          onClick={() => setSelectedOrg(null)}
-                        >
-                          Change Organization
-                        </ConfettiButton>
-                        <ConfettiButton
-                          variant="outline"
-                          size="sm"
-                          animation="scale"
-                          onClick={resetAll}
-                        >
-                          Back
-                        </ConfettiButton>
+                <div className="flex items-center justify-end gap-4 pt-6 border-t-2">
+                  <Button type="button" variant="outline" onClick={resetAll} size="lg">Cancel</Button>
+                  <Button type="submit" disabled={submittingOrg || !createOrgRequiredOk} size="lg" className="gap-2">
+                    {submittingOrg ? <><Loader2 className="h-4 w-4 animate-spin" />Creating...</> : <><CheckCircle2 className="h-4 w-4" />Create Organization</>}
+                  </Button>
+                </div>
+              </form>
+
+              {selectedOrg && (
+                <div className="mt-8 p-6 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 border-2 border-green-200 dark:border-green-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-green-500">
+                        <CheckCircle2 className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-lg text-green-900 dark:text-green-100">Organization Created Successfully!</p>
+                        <p className="text-sm text-green-700 dark:text-green-300">ID: {selectedOrg.organizationId}</p>
                       </div>
                     </div>
-                    <div className="text-xs text-white/70 pt-2">
-                      Selected: {selectedOrg.organizationName} • {selectedOrg.organizationId}
+                    <Button onClick={() => setView('createOwner')} size="lg" className="gap-2">
+                      Onboard Owner <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Update Organization */}
+        {view === 'updateOrg' && (
+          <>
+            {!selectedOrg ? renderOrgPicker() : (
+              <Card className="max-w-6xl mx-auto border-2 shadow-xl">
+                <div className="bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-rose-500/10 p-6 border-b-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg">
+                        <Edit className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold">Update Organization</h2>
+                        <p className="text-muted-foreground">{selectedOrg.organizationName} • {selectedOrg.organizationId}</p>
+                      </div>
                     </div>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <form onSubmit={submitUpdateOrganization} className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setSelectedOrg(null)}>Change</Button>
+                      <Button variant="outline" size="sm" onClick={resetAll} className="gap-2"><ArrowLeft className="h-4 w-4" />Back</Button>
+                    </div>
+                  </div>
+                </div>
+                <CardContent className="p-8">
+                  <form onSubmit={submitUpdateOrganization} className="space-y-8">
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 pb-3 border-b-2">
+                        <Building2 className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-bold">Organization Details</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="md:col-span-2 space-y-2">
-                          <Label className="text-white/90">Organization Name <span className="text-cyan-300">*</span></Label>
-                          <Input
-                            value={orgUpdateForm.organizationName || ''}
-                            onChange={(e) => updateOrgUpdate('organizationName')(e.target.value)}
-                            className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                          />
+                          <Label className="text-sm font-semibold">Organization Name *</Label>
+                          <Input value={orgUpdateForm.organizationName || ''} onChange={(e) => updateOrgUpdate('organizationName')(e.target.value)} className="h-11 border-2" />
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-white/90">Organization ID</Label>
-                          <Input value={selectedOrg.organizationId} readOnly disabled className="bg-black border-white/20 text-white" />
+                          <Label className="text-sm font-semibold">Organization ID</Label>
+                          <Input value={selectedOrg.organizationId} readOnly disabled className="h-11" />
                         </div>
                       </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-white/90">GST Number</Label>
-                          <Input
-                            value={orgUpdateForm.gstNumber || ''}
-                            onChange={(e) => updateOrgUpdate('gstNumber')(e.target.value)}
-                            className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">License Number</Label>
-                          <Input
-                            value={orgUpdateForm.licenseNumber || ''}
-                            onChange={(e) => updateOrgUpdate('licenseNumber')(e.target.value)}
-                            className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Email</Label>
-                          <Input
-                            type="email"
-                            value={orgUpdateForm.email || ''}
-                            onChange={(e) => updateOrgUpdate('email')(e.target.value)}
-                            className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-white/90">Address</Label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <Input
-                            placeholder="Address Line 1"
-                            value={orgUpdateForm.address1 || ''}
-                            onChange={(e) => updateOrgUpdate
-('address1')(e.target.value)}
-                            className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                          />
-                          <Input
-                            placeholder="Address Line 2"
-                            value={orgUpdateForm.address2 || ''}
-                            onChange={(e) => updateOrgUpdate('address2')(e.target.value)}
-                            className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                          />
-                          <Input
-                            placeholder="City"
-                            value={orgUpdateForm.city || ''}
-                            onChange={(e) => updateOrgUpdate('city')(e.target.value)}
-                            className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                          />
-                          <select
-                            className="w-full rounded-md border bg-black border-white/20 p-2 text-white"
-                            value={orgUpdateForm.state || ''}
-                            onChange={e => updateOrgUpdate('state')(e.target.value)}
-                          >
-                            <option value="">Select State</option>
-                            {IN_STATES.map((s) => (
-                              <option key={s} value={s}>{s}</option>
-                            ))}
-                          </select>
-                          <Input
-                            placeholder="Postal Code"
-                            value={orgUpdateForm.postalCode || ''}
-                            onChange={(e) => updateOrgUpdate('postalCode')(e.target.value)}
-                            className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                          />
-                          <Input
-                            placeholder="Country"
-                            value={orgUpdateForm.country || 'India'}
-                            onChange={(e) => updateOrgUpdate('country')(e.target.value)}
-                            className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Phone</Label>
-                          <Input
-                            type="tel"
-                            value={orgUpdateForm.phoneNumber || ''}
-                            onChange={(e) => updateOrgUpdate('phoneNumber')(e.target.value)}
-                            className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Owner First Name <span className="text-cyan-300">*</span></Label>
-                          <Input
-                            value={orgUpdateForm.ownerFirstName || ''}
-                            onChange={(e) => updateOrgUpdate('ownerFirstName')(e.target.value)}
-                            className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Owner Last Name <span className="text-cyan-300">*</span></Label>
-                          <Input
-                            value={orgUpdateForm.ownerLastName || ''}
-                            onChange={(e) => updateOrgUpdate('ownerLastName')(e.target.value)}
-                            className="bg-white/5 border-white/20 text-white placeholder:text-white/40"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-end gap-2 pt-2">
-                        <ConfettiButton
-                          type="button"
-                          variant="outline"
-                          size="default"
-                          animation="scale"
-                          onClick={resetAll}
-                        >
-                          Cancel
-                        </ConfettiButton>
-                        <ConfettiButton
-                          type="submit"
-                          disabled={submittingOrgUpdate || !updateOrgRequiredOk}
-                          variant="gradient"
-                          size="default"
-                          animation="scale"
-                        >
-                          {submittingOrgUpdate ? 'Updating...' : 'Update Organization'}
-                        </ConfettiButton>
-                      </div>
-                    </form>
-                  </CardContent>
-                </Card>
-              )}
-            </>
-          )}
-
-          {/* Create Owner (Onboard) */}
-          {view === 'createOwner' && (
-            <>
-              {!selectedOrg ? (
-                renderOrgPicker('Select Organization for Owner')
-              ) : (
-                <Card className="backdrop-blur-xl bg-white/10 border-white/10 shadow-2xl">
-                  <CardHeader className="border-b border-white/10">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-2xl text-white">Onboard Owner</CardTitle>
-                      <div className="flex gap-2">
-                        <ConfettiButton
-                          variant="outline"
-                          size="sm"
-                          animation="scale"
-                          onClick={() => setSelectedOrg(null)}
-                        >
-                          Change Organization
-                        </ConfettiButton>
-                        <ConfettiButton
-                          variant="outline"
-                          size="sm"
-                          animation="scale"
-                          onClick={resetAll}
-                        >
-                          Back
-                        </ConfettiButton>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <Input placeholder="GST Number" value={orgUpdateForm.gstNumber || ''} onChange={(e) => updateOrgUpdate('gstNumber')(e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="License Number" value={orgUpdateForm.licenseNumber || ''} onChange={(e) => updateOrgUpdate('licenseNumber')(e.target.value)} className="h-11 border-2" />
+                        <Input type="email" placeholder="Email" value={orgUpdateForm.email || ''} onChange={(e) => updateOrgUpdate('email')(e.target.value)} className="h-11 border-2" />
                       </div>
                     </div>
-                    <div className="text-xs text-white/70 pt-2">
-                      Selected: {selectedOrg.organizationName} • {selectedOrg.organizationId}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <form onSubmit={submitCreateOwner} className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Organization ID <span className="text-cyan-300">*</span></Label>
-                          <Input value={selectedOrg.organizationId} readOnly disabled className="bg-white/5 border-white/20 text-white" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Employee ID <span className="text-cyan-300">*</span></Label>
-                          <Input value={computedCreateOwnerEmpId} readOnly disabled className="bg-white/5 border-white/20 text-white" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Status</Label>
-                          <Input value={ownerCreateForm.status || 'ACTIVE'} readOnly disabled className="bg-white/5 border-white/20 text-white" />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Role <span className="text-cyan-300">*</span></Label>
-                          <Input value={ownerCreateForm.role} onChange={e => updateOwnerCreate('role')(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Department <span className="text-cyan-300">*</span></Label>
-                          <Input value={ownerCreateForm.department} onChange={e => updateOwnerCreate('department')(e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-white/90">First Name <span className="text-cyan-300">*</span></Label>
-                          <Input value={ownerCreateForm.firstName} onChange={e => updateOwnerCreate('firstName')(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Last Name <span className="text-cyan-300">*</span></Label>
-                          <Input value={ownerCreateForm.lastName} onChange={e => updateOwnerCreate('lastName')(e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Phone</Label>
-                          <Input value={ownerCreateForm.phoneNumber || ''} onChange={e => updateOwnerCreate('phoneNumber')(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Email <span className="text-cyan-300">*</span></Label>
-                          <Input type="email" value={ownerCreateForm.emailId} onChange={e => updateOwnerCreate('emailId')(e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Username <span className="text-cyan-300">*</span></Label>
-                          <Input value={ownerCreateForm.username} onChange={e => updateOwnerCreate('username')(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Password <span className="text-cyan-300">*</span></Label>
-                          <Input type="password" value={ownerCreateForm.password} onChange={e => updateOwnerCreate('password')(e.target.value)} />
-                        </div>
-                      </div>
-                      {/* No shift-timing fields here */}
-                      <div className="space-y-2">
-                        <Label className="text-white/90">Address</Label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <Input placeholder="Address Line 1" value={ownerCreateForm.address?.line1 || ''} onChange={e => updateOwnerCreateAddress('line1', e.target.value)} />
-                          <Input placeholder="Address Line 2" value={ownerCreateForm.address?.line2 || ''} onChange={e => updateOwnerCreateAddress('line2', e.target.value)} />
-                          <Input placeholder="City" value={ownerCreateForm.address?.city || ''} onChange={e => updateOwnerCreateAddress('city', e.target.value)} />
-                          <select className="w-full rounded-md border bg-black border-white/20 p-2 text-white"
-                            value={ownerCreateForm.address?.state || ''} onChange={e => updateOwnerCreateAddress('state', e.target.value)}>
-                            <option value="">Select State</option>
-                            {IN_STATES.map((s) => (
-                              <option key={s} value={s}>{s}</option>
-                            ))}
-                          </select>
-                          <Input placeholder="Postal Code" value={ownerCreateForm.address?.postalCode || ''} onChange={e => updateOwnerCreateAddress('postalCode', e.target.value)} />
-                          <Input value={ownerCreateForm.address?.country || 'India'} readOnly disabled />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-white/90">Emergency Contact</Label>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <Input placeholder="Name" value={ownerCreateForm.emergencyContact?.name || ''} onChange={e => updateOwnerCreateEmergency('name', e.target.value)} />
-                          <Input placeholder="Phone" value={ownerCreateForm.emergencyContact?.phone || ''} onChange={e => updateOwnerCreateEmergency('phone', e.target.value)} />
-                          <Input placeholder="Relationship" value={ownerCreateForm.emergencyContact?.relationship || ''} onChange={e => updateOwnerCreateEmergency('relationship', e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-end gap-2 pt-2">
-                        <ConfettiButton type="button" variant="outline" size="default" animation="scale" onClick={resetAll}>
-                          Cancel
-                        </ConfettiButton>
-                        <ConfettiButton type="submit" disabled={submittingOwnerCreate || !createOwnerRequiredOk} variant="gradient" size="default" animation="scale">
-                          {submittingOwnerCreate ? 'Submitting...' : 'Create Owner'}
-                        </ConfettiButton>
-                      </div>
-                    </form>
-                  </CardContent>
-                </Card>
-              )}
-            </>
-          )}
 
-          {/* Update Owner */}
-          {view === 'updateOwner' && (
-            <>
-              {!selectedOrg ? (
-                renderOrgPicker('Select Organization for Owner')
-              ) : !selectedEmp ? (
-                renderEmpPicker('Select Owner/Employee to Update')
-              ) : (
-                <Card className="backdrop-blur-xl bg-white/10 border-white/10 shadow-2xl">
-                  <CardHeader className="border-b border-white/10">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-2xl text-white">Update Owner</CardTitle>
-                      <div className="flex gap-2">
-                        <ConfettiButton variant="outline" size="sm" animation="scale" onClick={() => setSelectedEmp(null)}>
-                          Change Employee
-                        </ConfettiButton>
-                        <ConfettiButton variant="outline" size="sm" animation="scale" onClick={() => setSelectedOrg(null)}>
-                          Change Organization
-                        </ConfettiButton>
-                        <ConfettiButton variant="outline" size="sm" animation="scale" onClick={resetAll}>
-                          Back
-                        </ConfettiButton>
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 pb-3 border-b-2">
+                        <MapPin className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-bold">Address Information</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Input placeholder="Address Line 1" value={orgUpdateForm.address1 || ''} onChange={(e) => updateOrgUpdate('address1')(e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="Address Line 2" value={orgUpdateForm.address2 || ''} onChange={(e) => updateOrgUpdate('address2')(e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="City" value={orgUpdateForm.city || ''} onChange={(e) => updateOrgUpdate('city')(e.target.value)} className="h-11 border-2" />
+                        <select className="flex h-11 w-full rounded-md border-2 border-input bg-background px-3 py-2 text-sm" value={orgUpdateForm.state || ''} onChange={e => updateOrgUpdate('state')(e.target.value)}>
+                          <option value="">Select State</option>
+                          {IN_STATES.map((s) => (<option key={s} value={s}>{s}</option>))}
+                        </select>
+                        <Input placeholder="Postal Code" value={orgUpdateForm.postalCode || ''} onChange={(e) => updateOrgUpdate('postalCode')(e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="Country" value={orgUpdateForm.country || 'India'} onChange={(e) => updateOrgUpdate('country')(e.target.value)} className="h-11 border-2" />
                       </div>
                     </div>
-                    <div className="text-xs text-white/70 pt-2">
-                      Selected: {selectedOrg.organizationName} • {selectedEmp.firstName} {selectedEmp.lastName} ({selectedEmp.role})
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <form onSubmit={submitUpdateOwner} className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Employee ID</Label>
-                          <Input value={selectedEmp.empId} readOnly disabled className="bg-white/5 border-white/20 text-white" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Status</Label>
-                          <Input value={ownerUpdateForm.status || 'ACTIVE'} onChange={e => updateOwnerUpdate('status')(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Role</Label>
-                          <Input value={ownerUpdateForm.role || ''} onChange={e => updateOwnerUpdate('role')(e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Department</Label>
-                          <Input value={ownerUpdateForm.department || ''} onChange={e => updateOwnerUpdate('department')(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">First Name</Label>
-                          <Input value={ownerUpdateForm.firstName || ''} onChange={e => updateOwnerUpdate('firstName')(e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Last Name</Label>
-                          <Input value={ownerUpdateForm.lastName || ''} onChange={e => updateOwnerUpdate('lastName')(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Phone</Label>
-                          <Input value={ownerUpdateForm.phoneNumber || ''} onChange={e => updateOwnerUpdate('phoneNumber')(e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Email</Label>
-                          <Input type="email" value={ownerUpdateForm.emailId || ''} onChange={e => updateOwnerUpdate('emailId')(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Username</Label>
-                          <Input value={ownerUpdateForm.username || ''} onChange={e => updateOwnerUpdate('username')(e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-white/90">New Password</Label>
-                          <Input type="password" value={ownerUpdateForm.newPassword || ''} onChange={e => updateOwnerUpdate('newPassword')(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Shift Start</Label>
-                          <Input type="time" value={ownerUpdateForm.shiftTiming?.start || ''} onChange={e => updateOwnerUpdateShift('start', e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-white/90">Shift End</Label>
-                          <Input type="time" value={ownerUpdateForm.shiftTiming?.end || ''} onChange={e => updateOwnerUpdateShift('end', e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-white/90">Address</Label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <Input placeholder="Address Line 1" value={ownerUpdateForm.address?.line1 || ''} onChange={e => updateOwnerUpdateAddress('line1', e.target.value)} />
-                          <Input placeholder="Address Line 2" value={ownerUpdateForm.address?.line2 || ''} onChange={e => updateOwnerUpdateAddress('line2', e.target.value)} />
-                          <Input placeholder="City" value={ownerUpdateForm.address?.city || ''} onChange={e => updateOwnerUpdateAddress('city', e.target.value)} />
-                          <select className="w-full rounded-md border bg-black border-white/20 p-2 text-white"
-                            value={ownerUpdateForm.address?.state || ''} onChange={e => updateOwnerUpdateAddress('state', e.target.value)}>
-                            <option value="">Select State</option>
-                            {IN_STATES.map((s) => (
-                              <option key={s} value={s}>{s}</option>
-                            ))}
-                          </select>
-                          <Input placeholder="Postal Code" value={ownerUpdateForm.address?.postalCode || ''} onChange={e => updateOwnerUpdateAddress('postalCode', e.target.value)} />
-                          <Input value={ownerUpdateForm.address?.country || 'India'} readOnly disabled />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-white/90">Emergency Contact</Label>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <Input placeholder="Name" value={ownerUpdateForm.emergencyContact?.name || ''} onChange={e => updateOwnerUpdateEmergency('name', e.target.value)} />
-                          <Input placeholder="Phone" value={ownerUpdateForm.emergencyContact?.phone || ''} onChange={e => updateOwnerUpdateEmergency('phone', e.target.value)} />
-                          <Input placeholder="Relationship" value={ownerUpdateForm.emergencyContact?.relationship || ''} onChange={e => updateOwnerUpdateEmergency('relationship', e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-end gap-2 pt-2">
-                        <ConfettiButton type="button" variant="outline" size="default" animation="scale" onClick={resetAll}>
-                          Cancel
-                        </ConfettiButton>
-                        <ConfettiButton type="submit" disabled={submittingOwnerUpdate || !updateOwnerRequiredOk} variant="gradient" size="default" animation="scale">
-                          {submittingOwnerUpdate ? 'Submitting...' : 'Update Owner'}
-                        </ConfettiButton>
-                      </div>
-                    </form>
-                  </CardContent>
-                </Card>
-              )}
-            </>
-          )}
 
-        </div>
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 pb-3 border-b-2">
+                        <Crown className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-bold">Owner & Contact</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <Input type="tel" placeholder="Phone" value={orgUpdateForm.phoneNumber || ''} onChange={(e) => updateOrgUpdate('phoneNumber')(e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="Owner First Name" value={orgUpdateForm.ownerFirstName || ''} onChange={(e) => updateOrgUpdate('ownerFirstName')(e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="Owner Last Name" value={orgUpdateForm.ownerLastName || ''} onChange={(e) => updateOrgUpdate('ownerLastName')(e.target.value)} className="h-11 border-2" />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-4 pt-6 border-t-2">
+                      <Button type="button" variant="outline" onClick={resetAll} size="lg">Cancel</Button>
+                      <Button type="submit" disabled={submittingOrgUpdate || !updateOrgRequiredOk} size="lg" className="gap-2">
+                        {submittingOrgUpdate ? <><Loader2 className="h-4 w-4 animate-spin" />Updating...</> : <><CheckCircle2 className="h-4 w-4" />Update Organization</>}
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
+
+        {/* Create Owner */}
+        {view === 'createOwner' && (
+          <>
+            {!selectedOrg ? renderOrgPicker() : (
+              <Card className="max-w-6xl mx-auto border-2 shadow-xl">
+                <div className="bg-gradient-to-r from-green-500/10 via-emerald-500/10 to-teal-500/10 p-6 border-b-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg">
+                        <UserPlus className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold">Onboard Owner</h2>
+                        <p className="text-muted-foreground">{selectedOrg.organizationName} • {selectedOrg.organizationId}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setSelectedOrg(null)}>Change</Button>
+                      <Button variant="outline" size="sm" onClick={resetAll} className="gap-2"><ArrowLeft className="h-4 w-4" />Back</Button>
+                    </div>
+                  </div>
+                </div>
+                <CardContent className="p-8">
+                  <form onSubmit={submitCreateOwner} className="space-y-8">
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 pb-3 border-b-2">
+                        <Shield className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-bold">Employee Details</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="space-y-2"><Label className="text-sm font-semibold">Organization ID</Label><Input value={selectedOrg.organizationId} readOnly disabled className="h-11" /></div>
+                        <div className="space-y-2"><Label className="text-sm font-semibold">Employee ID</Label><Input value={computedCreateOwnerEmpId} readOnly disabled className="h-11" /></div>
+                        <div className="space-y-2"><Label className="text-sm font-semibold">Status</Label><Input value={ownerCreateForm.status || 'ACTIVE'} readOnly disabled className="h-11" /></div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Input placeholder="Role *" value={ownerCreateForm.role} onChange={e => updateOwnerCreate('role')(e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="Department *" value={ownerCreateForm.department} onChange={e => updateOwnerCreate('department')(e.target.value)} className="h-11 border-2" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 pb-3 border-b-2">
+                        <Users className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-bold">Personal Information</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Input placeholder="First Name *" value={ownerCreateForm.firstName} onChange={e => updateOwnerCreate('firstName')(e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="Last Name *" value={ownerCreateForm.lastName} onChange={e => updateOwnerCreate('lastName')(e.target.value)} className="h-11 border-2" />
+                        <Input type="tel" placeholder="Phone Number" value={ownerCreateForm.phoneNumber || ''} onChange={e => updateOwnerCreate('phoneNumber')(e.target.value)} className="h-11 border-2" />
+                        <Input type="email" placeholder="Email *" value={ownerCreateForm.emailId} onChange={e => updateOwnerCreate('emailId')(e.target.value)} className="h-11 border-2" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 pb-3 border-b-2">
+                        <Shield className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-bold">Login Credentials</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Input placeholder="Username *" value={ownerCreateForm.username} onChange={e => updateOwnerCreate('username')(e.target.value)} className="h-11 border-2" />
+                        <Input type="password" placeholder="Password *" value={ownerCreateForm.password} onChange={e => updateOwnerCreate('password')(e.target.value)} className="h-11 border-2" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 pb-3 border-b-2">
+                        <Home className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-bold">Address</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Input placeholder="Address Line 1" value={ownerCreateForm.address?.line1 || ''} onChange={e => updateOwnerCreateAddress('line1', e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="Address Line 2" value={ownerCreateForm.address?.line2 || ''} onChange={e => updateOwnerCreateAddress('line2', e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="City" value={ownerCreateForm.address?.city || ''} onChange={e => updateOwnerCreateAddress('city', e.target.value)} className="h-11 border-2" />
+                        <select className="flex h-11 w-full rounded-md border-2 border-input bg-background px-3 py-2 text-sm" value={ownerCreateForm.address?.state || ''} onChange={e => updateOwnerCreateAddress('state', e.target.value)}>
+                          <option value="">Select State</option>
+                          {IN_STATES.map((s) => (<option key={s} value={s}>{s}</option>))}
+                        </select>
+                        <Input placeholder="Postal Code" value={ownerCreateForm.address?.postalCode || ''} onChange={e => updateOwnerCreateAddress('postalCode', e.target.value)} className="h-11 border-2" />
+                        <Input value={ownerCreateForm.address?.country || 'India'} readOnly disabled className="h-11" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 pb-3 border-b-2">
+                        <Phone className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-bold">Emergency Contact</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <Input placeholder="Name" value={ownerCreateForm.emergencyContact?.name || ''} onChange={e => updateOwnerCreateEmergency('name', e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="Phone" value={ownerCreateForm.emergencyContact?.phone || ''} onChange={e => updateOwnerCreateEmergency('phone', e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="Relationship" value={ownerCreateForm.emergencyContact?.relationship || ''} onChange={e => updateOwnerCreateEmergency('relationship', e.target.value)} className="h-11 border-2" />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-4 pt-6 border-t-2">
+                      <Button type="button" variant="outline" onClick={resetAll} size="lg">Cancel</Button>
+                      <Button type="submit" disabled={submittingOwnerCreate || !createOwnerRequiredOk} size="lg" className="gap-2">
+                        {submittingOwnerCreate ? <><Loader2 className="h-4 w-4 animate-spin" />Creating...</> : <><CheckCircle2 className="h-4 w-4" />Create Owner</>}
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
+
+        {/* Update Owner - ONLY OWNERS */}
+        {view === 'updateOwner' && (
+          <>
+            {!selectedOrg ? (
+              renderOrgPicker()
+            ) : !selectedEmp ? (
+              renderOwnerPicker()
+            ) : (
+              <Card className="max-w-6xl mx-auto border-2 shadow-xl">
+                <div className="bg-gradient-to-r from-yellow-500/10 via-orange-500/10 to-red-500/10 p-6 border-b-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-600 shadow-lg">
+                        <Crown className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold">Update Owner</h2>
+                        <p className="text-muted-foreground">{selectedOrg.organizationName} • {selectedEmp.firstName} {selectedEmp.lastName}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setSelectedEmp(null)}>Change Employee</Button>
+                      <Button variant="outline" size="sm" onClick={() => setSelectedOrg(null)}>Change Org</Button>
+                      <Button variant="outline" size="sm" onClick={resetAll} className="gap-2"><ArrowLeft className="h-4 w-4" />Back</Button>
+                    </div>
+                  </div>
+                </div>
+                <CardContent className="p-8">
+                  <form onSubmit={submitUpdateOwner} className="space-y-8">
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 pb-3 border-b-2">
+                        <Shield className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-bold">Employee Details</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="space-y-2"><Label className="text-sm font-semibold">Employee ID</Label><Input value={selectedEmp.empId} readOnly disabled className="h-11" /></div>
+                        <Input placeholder="Status" value={ownerUpdateForm.status || 'ACTIVE'} onChange={e => updateOwnerUpdate('status')(e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="Role" value={ownerUpdateForm.role || ''} onChange={e => updateOwnerUpdate('role')(e.target.value)} className="h-11 border-2" />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Input placeholder="Department" value={ownerUpdateForm.department || ''} onChange={e => updateOwnerUpdate('department')(e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="First Name" value={ownerUpdateForm.firstName || ''} onChange={e => updateOwnerUpdate('firstName')(e.target.value)} className="h-11 border-2" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 pb-3 border-b-2">
+                        <Users className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-bold">Personal & Contact</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Input placeholder="Last Name" value={ownerUpdateForm.lastName || ''} onChange={e => updateOwnerUpdate('lastName')(e.target.value)} className="h-11 border-2" />
+                        <Input type="tel" placeholder="Phone" value={ownerUpdateForm.phoneNumber || ''} onChange={e => updateOwnerUpdate('phoneNumber')(e.target.value)} className="h-11 border-2" />
+                        <Input type="email" placeholder="Email" value={ownerUpdateForm.emailId || ''} onChange={e => updateOwnerUpdate('emailId')(e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="Username" value={ownerUpdateForm.username || ''} onChange={e => updateOwnerUpdate('username')(e.target.value)} className="h-11 border-2" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 pb-3 border-b-2">
+                        <Clock className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-bold">Password & Shift</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <Input type="password" placeholder="New Password" value={ownerUpdateForm.newPassword || ''} onChange={e => updateOwnerUpdate('newPassword')(e.target.value)} className="h-11 border-2" />
+                        <Input type="time" placeholder="Shift Start" value={ownerUpdateForm.shiftTiming?.start || ''} onChange={e => updateOwnerUpdateShift('start', e.target.value)} className="h-11 border-2" />
+                        <Input type="time" placeholder="Shift End" value={ownerUpdateForm.shiftTiming?.end || ''} onChange={e => updateOwnerUpdateShift('end', e.target.value)} className="h-11 border-2" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 pb-3 border-b-2">
+                        <Home className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-bold">Address</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Input placeholder="Address Line 1" value={ownerUpdateForm.address?.line1 || ''} onChange={e => updateOwnerUpdateAddress('line1', e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="Address Line 2" value={ownerUpdateForm.address?.line2 || ''} onChange={e => updateOwnerUpdateAddress('line2', e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="City" value={ownerUpdateForm.address?.city || ''} onChange={e => updateOwnerUpdateAddress('city', e.target.value)} className="h-11 border-2" />
+                        <select className="flex h-11 w-full rounded-md border-2 border-input bg-background px-3 py-2 text-sm" value={ownerUpdateForm.address?.state || ''} onChange={e => updateOwnerUpdateAddress('state', e.target.value)}>
+                          <option value="">Select State</option>
+                          {IN_STATES.map((s) => (<option key={s} value={s}>{s}</option>))}
+                        </select>
+                        <Input placeholder="Postal Code" value={ownerUpdateForm.address?.postalCode || ''} onChange={e => updateOwnerUpdateAddress('postalCode', e.target.value)} className="h-11 border-2" />
+                        <Input value={ownerUpdateForm.address?.country || 'India'} readOnly disabled className="h-11" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3 pb-3 border-b-2">
+                        <Phone className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-bold">Emergency Contact</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <Input placeholder="Name" value={ownerUpdateForm.emergencyContact?.name || ''} onChange={e => updateOwnerUpdateEmergency('name', e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="Phone" value={ownerUpdateForm.emergencyContact?.phone || ''} onChange={e => updateOwnerUpdateEmergency('phone', e.target.value)} className="h-11 border-2" />
+                        <Input placeholder="Relationship" value={ownerUpdateForm.emergencyContact?.relationship || ''} onChange={e => updateOwnerUpdateEmergency('relationship', e.target.value)} className="h-11 border-2" />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-4 pt-6 border-t-2">
+                      <Button type="button" variant="outline" onClick={resetAll} size="lg">Cancel</Button>
+                      <Button type="submit" disabled={submittingOwnerUpdate || !updateOwnerRequiredOk} size="lg" className="gap-2">
+                        {submittingOwnerUpdate ? <><Loader2 className="h-4 w-4 animate-spin" />Updating...</> : <><CheckCircle2 className="h-4 w-4" />Update Owner</>}
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
+
       </div>
     </div>
   );

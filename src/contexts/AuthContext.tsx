@@ -4,6 +4,8 @@ import axios from 'axios';
 export type UserRole = 'owner' | 'manager' | 'employee';
 
 export interface User {
+  profileImageUrl: string;
+  username: string;
   id: string;
   name: string;
   role: UserRole;
@@ -103,8 +105,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: data.email,
         employeeId: data.id ? String(data.id) : undefined,
         organizationId: data.organizationId ?? undefined, // save org
-        empId: data.empId ?? undefined,                   // save emp id
+        empId: data.empId ?? undefined, // save emp id
         token: data.token,
+        profileImageUrl: '',
+        username: ''
       };
 
       const storage = remember ? localStorage : sessionStorage;

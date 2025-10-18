@@ -1,221 +1,908 @@
 import { useEffect, useState, useMemo } from "react";
 import axios from "axios";
-import dayjs from "dayjs";
+import dayjs, { Dayjs } from "dayjs";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Calendar as CalendarIcon, Clock, List, RotateCw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Calendar as CalendarIcon,
+  Clock,
+  Droplet,
+  User,
+  CreditCard,
+  Smartphone,
+  Wallet,
+  AlertCircle,
+  ChevronRight,
+  RefreshCw,
+  Loader2,
+  Fuel,
+  ArrowLeft,
+  FileText,
+  Sheet,
+  ChevronLeft,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
+// ============ Types ============
+interface SaleRecord {
+  id: string;
+  dateTime: string;
+  productName: string;
+  guns: string;
+  salesInLiters: number;
+  testingTotal: number;
+  empId: string;
+  salesInRupees: number;
+  cashReceived: number;
+  phonePay: number;
+  creditCard: number;
+  shortCollections: number;
+  receivedTotal: number;
+}
+
+interface SalesSummary {
+  totalSales: number;
+  cash: number;
+  upi: number;
+  card: number;
+  short: number;
+  received: number;
+}
+
+type DatePreset = "today" | "week" | "month" | "custom";
+
+// ============ Constants ============
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
-const RUPEE = '\u20B9';
+const RUPEE = "\u20B9";
+const RECORDS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
-const rangeForPreset = (preset: string) => {
+// ============ Utility Functions ============
+const rangeForPreset = (preset: DatePreset): [Dayjs, Dayjs] => {
   const today = dayjs();
   switch (preset) {
     case "today":
-      return [today.startOf('day'), today.endOf('day')];
+      return [today.startOf("day"), today.endOf("day")];
     case "week":
-      return [today.startOf('week'), today.endOf('week')];
+      return [today.startOf("week"), today.endOf("week")];
     case "month":
-      return [today.startOf('month'), today.endOf('month')];
+      return [today.startOf("month"), today.endOf("month")];
     default:
-      return [today.startOf('day'), today.endOf('day')];
+      return [today.startOf("day"), today.endOf("day")];
   }
 };
 
+const formatCurrency = (value: number): string => {
+  return `${RUPEE}${value.toLocaleString("en-IN")}`;
+};
+
+// ============ Export Functions ============
+const exportToCSV = (records: SaleRecord[], from: Dayjs, to: Dayjs) => {
+  const headers = [
+    "Date/Time",
+    "Product",
+    "Gun",
+    "Liters",
+    "Testing",
+    "Employee",
+    "Total Sales",
+    "Cash",
+    "UPI",
+    "Card",
+    "Short",
+    "Received Total",
+  ];
+
+  const rows = records.map((record) => [
+    dayjs(record.dateTime).format("DD-MM-YYYY HH:mm"),
+    record.productName,
+    record.guns,
+    record.salesInLiters,
+    record.testingTotal,
+    record.empId,
+    record.salesInRupees,
+    record.cashReceived,
+    record.phonePay,
+    record.creditCard,
+    record.shortCollections,
+    record.receivedTotal,
+  ]);
+
+  const csvContent = [
+    headers.join(","),
+    ...rows.map((row) => row.join(",")),
+  ].join("\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+  link.setAttribute(
+    "download",
+    `sales-history-${from.format("DD-MM-YYYY")}-to-${to.format("DD-MM-YYYY")}.csv`
+  );
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+const exportToPDF = (records: SaleRecord[], from: Dayjs, to: Dayjs, summary: SalesSummary) => {
+  const doc = new jsPDF();
+
+  // Modern header with gradient effect (simulated with colors)
+  doc.setFillColor(59, 130, 246);
+  doc.rect(0, 0, 210, 40, "F");
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(24);
+  doc.setFont("helvetica", "bold");
+  doc.text("Sales History Report", 105, 15, { align: "center" });
+
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "normal");
+  doc.text(
+    `Period: ${from.format("DD MMM YYYY")} to ${to.format("DD MMM YYYY")}`,
+    105,
+    25,
+    { align: "center" }
+  );
+
+  doc.setFontSize(10);
+  doc.text(`Generated: ${dayjs().format("DD MMM YYYY, hh:mm A")}`, 105, 32, {
+    align: "center",
+  });
+
+  // Summary section with modern cards
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text("Summary", 14, 50);
+
+  const summaryData = [
+    ["Total Sales", formatCurrency(summary.totalSales)],
+    ["Cash Received", formatCurrency(summary.cash)],
+    ["UPI Payments", formatCurrency(summary.upi)],
+    ["Card Payments", formatCurrency(summary.card)],
+    ["Short Collections", formatCurrency(summary.short)],
+    ["Total Received", formatCurrency(summary.received)],
+  ];
+
+  autoTable(doc, {
+    startY: 55,
+    head: [["Metric", "Amount"]],
+    body: summaryData,
+    theme: "grid",
+    headStyles: {
+      fillColor: [59, 130, 246],
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+      fontSize: 11,
+    },
+    styles: {
+      fontSize: 10,
+      cellPadding: 5,
+    },
+    alternateRowStyles: {
+      fillColor: [249, 250, 251],
+    },
+  });
+
+  // Detailed records table
+  const finalY = (doc as any).lastAutoTable.finalY || 55;
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text("Detailed Records", 14, finalY + 15);
+
+  const tableData = records.map((record) => [
+    dayjs(record.dateTime).format("DD-MM HH:mm"),
+    record.productName,
+    record.guns,
+    record.salesInLiters,
+    record.empId,
+    formatCurrency(record.salesInRupees),
+    formatCurrency(record.cashReceived),
+    formatCurrency(record.phonePay),
+    formatCurrency(record.creditCard),
+  ]);
+
+  autoTable(doc, {
+    startY: finalY + 20,
+    head: [
+      [
+        "Date/Time",
+        "Product",
+        "Gun",
+        "Liters",
+        "Employee",
+        "Total",
+        "Cash",
+        "UPI",
+        "Card",
+      ],
+    ],
+    body: tableData,
+    theme: "striped",
+    headStyles: {
+      fillColor: [59, 130, 246],
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+      fontSize: 9,
+    },
+    styles: {
+      fontSize: 8,
+      cellPadding: 3,
+    },
+    alternateRowStyles: {
+      fillColor: [249, 250, 251],
+    },
+    margin: { top: 10 },
+  });
+
+  // Footer
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(128, 128, 128);
+    doc.text(
+      `Page ${i} of ${pageCount}`,
+      doc.internal.pageSize.getWidth() / 2,
+      doc.internal.pageSize.getHeight() - 10,
+      { align: "center" }
+    );
+  }
+
+  doc.save(
+    `sales-history-${from.format("DD-MM-YYYY")}-to-${to.format("DD-MM-YYYY")}.pdf`
+  );
+};
+
+// ============ Sub-Components ============
+const PaymentMethodBadge = ({
+  icon: Icon,
+  label,
+  amount,
+  color,
+}: {
+  icon: any;
+  label: string;
+  amount: number;
+  color: string;
+}) => {
+  if (amount <= 0) return null;
+
+  return (
+    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${color} transition-all hover:scale-105`}>
+      <Icon className="h-4 w-4" />
+      <div className="flex flex-col">
+        <span className="text-xs font-medium opacity-80">{label}</span>
+        <span className="text-sm font-bold">{formatCurrency(amount)}</span>
+      </div>
+    </div>
+  );
+};
+
+const SaleRecordCard = ({ record, index }: { record: SaleRecord; index: number }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.05 }}
+      className="relative"
+    >
+      {/* Timeline Connector */}
+      <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary/50 to-primary/10 ml-6" />
+
+      {/* Timeline Dot */}
+      <div className="absolute left-4 top-8 w-5 h-5 bg-primary rounded-full border-4 border-background shadow-lg z-10" />
+
+      <div className="ml-16 mb-6">
+        <Card className="hover:shadow-2xl transition-all duration-300 border-l-4 border-l-primary overflow-hidden group">
+          <CardContent className="p-0">
+            <div className="p-6 space-y-4">
+              {/* Header */}
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl">
+                    <Fuel className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-foreground">{record.productName}</h3>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-sm text-muted-foreground flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" />
+                        {dayjs(record.dateTime).format("hh:mm A")}
+                      </span>
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        {record.empId}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total Amount - Prominent */}
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground font-medium">Total Sale</p>
+                  <p className="text-3xl font-bold bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
+                    {formatCurrency(record.salesInRupees)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Sale Details */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 py-4 border-y border-border">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                    <Droplet className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Quantity</p>
+                    <p className="font-bold text-foreground">{record.salesInLiters}L</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-purple-50 dark:bg-purple-950 rounded-lg">
+                    <Fuel className="h-4 w-4 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Gun</p>
+                    <p className="font-bold text-foreground">{record.guns}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-amber-50 dark:bg-amber-950 rounded-lg">
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Testing</p>
+                    <p className="font-bold text-foreground">{record.testingTotal}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Methods */}
+              <div>
+                <p className="text-sm font-semibold text-muted-foreground mb-3">Payment Breakdown</p>
+                <div className="flex flex-wrap gap-3">
+                  <PaymentMethodBadge
+                    icon={Wallet}
+                    label="Cash"
+                    amount={record.cashReceived}
+                    color="bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400"
+                  />
+                  <PaymentMethodBadge
+                    icon={Smartphone}
+                    label="UPI"
+                    amount={record.phonePay}
+                    color="bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400"
+                  />
+                  <PaymentMethodBadge
+                    icon={CreditCard}
+                    label="Card"
+                    amount={record.creditCard}
+                    color="bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400"
+                  />
+                  {record.shortCollections > 0 && (
+                    <PaymentMethodBadge
+                      icon={AlertCircle}
+                      label="Short"
+                      amount={record.shortCollections}
+                      color="bg-yellow-50 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400"
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Expand Button */}
+              {record.shortCollections > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setExpanded(!expanded)}
+                  className="w-full mt-2"
+                >
+                  {expanded ? "Show Less" : "View Details"}
+                  <ChevronRight
+                    className={`ml-2 h-4 w-4 transition-transform ${expanded ? "rotate-90" : ""}`}
+                  />
+                </Button>
+              )}
+
+              {/* Expanded Details */}
+              <AnimatePresence>
+                {expanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-4 border-t border-border space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Received Total:</span>
+                        <span className="font-bold text-pink-600">
+                          {formatCurrency(record.receivedTotal)}
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </motion.div>
+  );
+};
+
+const DateRangeSelector = ({
+  preset,
+  setPreset,
+  from,
+  to,
+  onCustomChange,
+  onApply,
+}: {
+  preset: DatePreset;
+  setPreset: (preset: DatePreset) => void;
+  from: Dayjs;
+  to: Dayjs;
+  onCustomChange: (which: "from" | "to", value: string) => void;
+  onApply: () => void;
+}) => {
+  const presetButtons = [
+    { id: "today", label: "Today", icon: Clock },
+    { id: "week", label: "This Week", icon: CalendarIcon },
+    { id: "month", label: "This Month", icon: CalendarIcon },
+  ] as const;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {presetButtons.map(({ id, label, icon: Icon }) => (
+          <Button
+            key={id}
+            variant={preset === id ? "default" : "outline"}
+            onClick={() => setPreset(id as DatePreset)}
+            className="transition-all duration-200"
+          >
+            <Icon className="mr-2 h-4 w-4" />
+            {label}
+          </Button>
+        ))}
+        <Button
+          variant={preset === "custom" ? "default" : "outline"}
+          onClick={() => setPreset("custom")}
+          className="transition-all duration-200"
+        >
+          <CalendarIcon className="mr-2 h-4 w-4" />
+          Custom Range
+        </Button>
+      </div>
+
+      <AnimatePresence>
+        {preset === "custom" && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <Card className="p-4 bg-muted/30">
+              <div className="flex flex-wrap gap-4 items-end">
+                <div className="flex-1 min-w-[200px]">
+                  <Label className="text-sm font-medium mb-2 block">From Date</Label>
+                  <Input
+                    type="date"
+                    value={from.format("YYYY-MM-DD")}
+                    onChange={(e) => onCustomChange("from", e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <Label className="text-sm font-medium mb-2 block">To Date</Label>
+                  <Input
+                    type="date"
+                    value={to.format("YYYY-MM-DD")}
+                    onChange={(e) => onCustomChange("to", e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <Button onClick={onApply} className="whitespace-nowrap">
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Apply Filter
+                </Button>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+const PaginationControls = ({
+  currentPage,
+  totalPages,
+  onPageChange,
+  recordsPerPage,
+  onRecordsPerPageChange,
+  totalRecords,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  recordsPerPage: number;
+  onRecordsPerPageChange: (value: number) => void;
+  totalRecords: number;
+}) => {
+  const startRecord = (currentPage - 1) * recordsPerPage + 1;
+  const endRecord = Math.min(currentPage * recordsPerPage, totalRecords);
+
+  return (
+    <Card className="p-4">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        {/* Records per page selector */}
+        <div className="flex items-center gap-3">
+          <Label className="text-sm font-medium">Records per page:</Label>
+          <Select
+            value={recordsPerPage.toString()}
+            onValueChange={(value) => onRecordsPerPageChange(Number(value))}
+          >
+            <SelectTrigger className="w-[100px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {RECORDS_PER_PAGE_OPTIONS.map((option) => (
+                <SelectItem key={option} value={option.toString()}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="text-sm text-muted-foreground">
+            Showing {startRecord}-{endRecord} of {totalRecords}
+          </span>
+        </div>
+
+        {/* Pagination buttons */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onPageChange(1)}
+            disabled={currentPage === 1}
+            className="hidden sm:flex"
+          >
+            <ChevronsLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Previous
+          </Button>
+
+          {/* Page numbers */}
+          <div className="flex items-center gap-1">
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+
+              return (
+                <Button
+                  key={pageNum}
+                  variant={currentPage === pageNum ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => onPageChange(pageNum)}
+                  className="w-10"
+                >
+                  {pageNum}
+                </Button>
+              );
+            })}
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          >
+            Next
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onPageChange(totalPages)}
+            disabled={currentPage === totalPages}
+            className="hidden sm:flex"
+          >
+            <ChevronsRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+};
+
+// ============ Main Component ============
 export default function SalesHistory() {
   const orgId = localStorage.getItem("organizationId") || "ORG-DEV-001";
-  const [preset, setPreset] = useState<"today" | "week" | "month" | "custom">("today");
-  const [[from, to], setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => rangeForPreset("today") as [dayjs.Dayjs, dayjs.Dayjs]);
+  const [preset, setPreset] = useState<DatePreset>("today");
+  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>(() => rangeForPreset("today"));
+  const [currentPage, setCurrentPage] = useState(1);
+  const [recordsPerPage, setRecordsPerPage] = useState(10);
   const navigate = useNavigate();
+
+  const [from, to] = dateRange;
 
   useEffect(() => {
     if (preset !== "custom") {
-      setDateRange(() => rangeForPreset(preset) as [dayjs.Dayjs, dayjs.Dayjs]);
+      setDateRange(rangeForPreset(preset));
     }
   }, [preset]);
 
-  // Format for Spring: ISO_LOCAL_DATE_TIME, e.g. 2025-10-16T00:00:00 (not UTC "Z")
-  const fromIso = from.startOf('day').format("YYYY-MM-DDTHH:mm:ss");
-  const toIso = to.endOf('day').format("YYYY-MM-DDTHH:mm:ss");
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [recordsPerPage, from, to]);
+
+  const fromIso = from.startOf("day").format("YYYY-MM-DDTHH:mm:ss");
+  const toIso = to.endOf("day").format("YYYY-MM-DDTHH:mm:ss");
 
   const { data: records = [], isFetching, refetch } = useQuery({
     queryKey: ["sale-history", orgId, fromIso, toIso],
     queryFn: async () => {
       const params = `from=${fromIso}&to=${toIso}`;
       const url = `${API_BASE}/api/organizations/${orgId}/sale-history/by-date?${params}`;
-      const res = await axios.get(url);
+      const res = await axios.get<SaleRecord[]>(url);
       return Array.isArray(res.data) ? res.data : [];
     },
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: false,
   });
 
-  const summary = useMemo(() => {
-    let totalSales = 0, cash = 0, upi = 0, card = 0, short = 0, received = 0;
-    records.forEach((r: any) => {
-      totalSales += r.salesInRupees || 0;
-      cash += r.cashReceived || 0;
-      upi += r.phonePay || 0;
-      card += r.creditCard || 0;
-      short += r.shortCollections || 0;
-      received += r.receivedTotal || 0;
-    });
-    return { totalSales, cash, upi, card, short, received };
+  const summary: SalesSummary = useMemo(() => {
+    return records.reduce(
+      (acc, record) => ({
+        totalSales: acc.totalSales + (record.salesInRupees || 0),
+        cash: acc.cash + (record.cashReceived || 0),
+        upi: acc.upi + (record.phonePay || 0),
+        card: acc.card + (record.creditCard || 0),
+        short: acc.short + (record.shortCollections || 0),
+        received: acc.received + (record.receivedTotal || 0),
+      }),
+      { totalSales: 0, cash: 0, upi: 0, card: 0, short: 0, received: 0 }
+    );
   }, [records]);
+
+  // Pagination logic
+  const totalPages = Math.ceil(records.length / recordsPerPage);
+  const paginatedRecords = useMemo(() => {
+    const startIndex = (currentPage - 1) * recordsPerPage;
+    const endIndex = startIndex + recordsPerPage;
+    return records.slice(startIndex, endIndex);
+  }, [records, currentPage, recordsPerPage]);
 
   const handleCustomChange = (which: "from" | "to", value: string) => {
     setPreset("custom");
     setDateRange(([oldFrom, oldTo]) => [
       which === "from" ? dayjs(value) : oldFrom,
-      which === "to" ? dayjs(value) : oldTo
+      which === "to" ? dayjs(value) : oldTo,
     ]);
   };
 
-  const handleNavigateToSales = () => navigate("/sales");
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleRecordsPerPageChange = (value: number) => {
+    setRecordsPerPage(value);
+    setCurrentPage(1);
+  };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-8">
-      {/* Nav Bar */}
-      <div className="flex items-center justify-between py-4">
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={handleNavigateToSales} className="font-semibold tracking-wider">
-            <RotateCw className="mr-2 h-4 w-4" /> Go to Sales Entry
-          </Button>
-          <Button variant="secondary" className="font-semibold tracking-wider" disabled>
-            <List className="mr-2 h-4 w-4" /> View Sale History
-          </Button>
-        </div>
-        <div className="flex gap-2">
-          {["today", "week", "month"].map(p => (
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
+      <div className="max-w-7xl mx-auto p-6 space-y-8 -mt-6">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-wrap items-center justify-between gap-4"
+        >
+          <div>
+            <h1 className="text-4xl font-bold tracking-tight text-black">
+              Sales History
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Complete timeline of all transactions
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
             <Button
-              key={p}
-              variant={preset === p ? "default" : "outline"}
-              onClick={() => setPreset(p as any)}
-              className="capitalize">
-              {p === "today" && <Clock className="mr-2 h-4 w-4" />}
-              {p === "week" && <CalendarIcon className="mr-2 h-4 w-4" />}
-              {p === "month" && <CalendarIcon className="mr-2 h-4 w-4" />}
-              {p}
+              variant="outline"
+              onClick={() => navigate("/sales")}
+              className="shadow-sm hover:shadow-md transition-all"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Go to Sales
             </Button>
-          ))}
+            <Button
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="shadow-lg hover:shadow-xl transition-all"
+            >
+              {isFetching ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Refresh
+            </Button>
+          </div>
+        </motion.div>
+
+        {/* Date Range Selector */}
+        <DateRangeSelector
+          preset={preset}
+          setPreset={setPreset}
+          from={from}
+          to={to}
+          onCustomChange={handleCustomChange}
+          onApply={() => refetch()}
+        />
+
+        {/* Summary Stats Cards - Simple Design */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-4 text-center">
+              <p className="text-muted-foreground font-semibold">Total Sales</p>
+              <h3 className="text-2xl font-bold text-primary">{formatCurrency(summary.totalSales)}</h3>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <p className="text-muted-foreground font-semibold">Cash</p>
+              <h3 className="text-2xl font-bold text-green-700">{formatCurrency(summary.cash)}</h3>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <p className="text-muted-foreground font-semibold">UPI</p>
+              <h3 className="text-2xl font-bold text-indigo-700">{formatCurrency(summary.upi)}</h3>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <p className="text-muted-foreground font-semibold">Card</p>
+              <h3 className="text-2xl font-bold text-blue-700">{formatCurrency(summary.card)}</h3>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Short/Received Collection card */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <Card>
+            <CardContent className="p-4 text-center">
+              <p className="text-muted-foreground font-semibold">Short Collections</p>
+              <h3 className="text-2xl font-bold text-yellow-700">{formatCurrency(summary.short)}</h3>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <p className="text-muted-foreground font-semibold">Received Total</p>
+              <h3 className="text-2xl font-bold text-pink-700">{formatCurrency(summary.received)}</h3>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Export Buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="flex flex-wrap gap-3 justify-end"
+        >
           <Button
-            variant={preset === "custom" ? "default" : "outline"}
-            onClick={() => setPreset("custom")}
+            variant="outline"
+            onClick={() => exportToCSV(records, from, to)}
+            disabled={records.length === 0}
+            className="shadow-sm hover:shadow-md transition-all"
           >
-            <CalendarIcon className="mr-2 h-4 w-4" /> Custom
+            <Sheet className="mr-2 h-4 w-4" />
+            Export CSV
           </Button>
-        </div>
-      </div>
-      {preset === "custom" && (
-        <div className="flex gap-3 mb-4">
-          <div>
-            <Label>From</Label>
-            <Input type="date" value={from.format("YYYY-MM-DD")} onChange={e => handleCustomChange("from", e.target.value)} />
-          </div>
-          <div>
-            <Label>To</Label>
-            <Input type="date" value={to.format("YYYY-MM-DD")} onChange={e => handleCustomChange("to", e.target.value)} />
-          </div>
-          <Button onClick={() => refetch()} className="mt-5">Apply</Button>
-        </div>
-      )}
+          <Button
+            variant="outline"
+            onClick={() => exportToPDF(records, from, to, summary)}
+            disabled={records.length === 0}
+            className="shadow-sm hover:shadow-md transition-all"
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            Export PDF
+          </Button>
+        </motion.div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-muted-foreground font-semibold">Total Sales</p>
-            <h3 className="text-2xl font-bold text-primary">{RUPEE}{summary.totalSales.toLocaleString()}</h3>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-muted-foreground font-semibold">Cash</p>
-            <h3 className="text-2xl font-bold text-green-700">{RUPEE}{summary.cash.toLocaleString()}</h3>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-muted-foreground font-semibold">UPI</p>
-            <h3 className="text-2xl font-bold text-indigo-700">{RUPEE}{summary.upi.toLocaleString()}</h3>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-muted-foreground font-semibold">Card</p>
-            <h3 className="text-2xl font-bold text-blue-700">{RUPEE}{summary.card.toLocaleString()}</h3>
-          </CardContent>
-        </Card>
-      </div>
-      {/* Short/Received Collection card */}
-      <div className="grid md:grid-cols-2 gap-4 mt-2">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-muted-foreground font-semibold">Short Collections</p>
-            <h3 className="text-2xl font-bold text-yellow-700">{RUPEE}{summary.short.toLocaleString()}</h3>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-muted-foreground font-semibold">Received Total</p>
-            <h3 className="text-2xl font-bold text-pink-700">{RUPEE}{summary.received.toLocaleString()}</h3>
-          </CardContent>
-        </Card>
-      </div>
+        {/* Timeline Content */}
+        {isFetching ? (
+          <div className="flex flex-col items-center justify-center py-24">
+            <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
+            <p className="text-lg text-muted-foreground">Loading sales history...</p>
+          </div>
+        ) : records.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex flex-col items-center justify-center py-24"
+          >
+            <div className="h-32 w-32 rounded-full bg-muted flex items-center justify-center mb-6">
+              <CalendarIcon className="h-16 w-16 text-muted-foreground" />
+            </div>
+            <h3 className="text-2xl font-bold mb-2">No Sales Found</h3>
+            <p className="text-muted-foreground mb-6">
+              Try adjusting your date range to see more results
+            </p>
+            <Button onClick={() => setPreset("week")}>View This Week</Button>
+          </motion.div>
+        ) : (
+          <div className="space-y-6">
+            {/* Records */}
+            <div className="space-y-2">
+              {paginatedRecords.map((record, index) => (
+                <SaleRecordCard key={record.id} record={record} index={index} />
+              ))}
+            </div>
 
-      {/* Records Table/List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Sale History: {from.format('DD MMM YYYY')} to {to.format('DD MMM YYYY')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          {isFetching ? (
-            <div className="py-8 text-center text-muted-foreground">Loading...</div>
-          ) : records.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">No records found.</div>
-          ) : (
-            <table className="min-w-full text-sm border">
-              <thead>
-                <tr className="bg-muted/50">
-                  <th className="p-2 text-left">Date/Time</th>
-                  <th className="p-2 text-left">Product</th>
-                  <th className="p-2 text-left">Gun</th>
-                  <th className="p-2 text-left">Liters</th>
-                  <th className="p-2 text-left">Testing</th>
-                  <th className="p-2 text-left">Employee</th>
-                  <th className="p-2 text-left">Total (₹)</th>
-                  <th className="p-2 text-left">Cash</th>
-                  <th className="p-2 text-left">UPI</th>
-                  <th className="p-2 text-left">Card</th>
-                  <th className="p-2 text-left">Short</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((r: any) => (
-                  <tr key={r.id}>
-                    <td className="p-2">{dayjs(r.dateTime).format("DD MMM, HH:mm")}</td>
-                    <td className="p-2">{r.productName}</td>
-                    <td className="p-2">{r.guns}</td>
-                    <td className="p-2">{r.salesInLiters}</td>
-                    <td className="p-2">{r.testingTotal}</td>
-                    <td className="p-2">{r.empId}</td>
-                    <td className="p-2 font-bold text-primary">{RUPEE}{r.salesInRupees?.toLocaleString()}</td>
-                    <td className="p-2 text-green-800">{RUPEE}{r.cashReceived}</td>
-                    <td className="p-2 text-indigo-800">{RUPEE}{r.phonePay}</td>
-                    <td className="p-2 text-blue-800">{RUPEE}{r.creditCard}</td>
-                    <td className="p-2 text-yellow-700">{RUPEE}{r.shortCollections}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CardContent>
-      </Card>
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+                recordsPerPage={recordsPerPage}
+                onRecordsPerPageChange={handleRecordsPerPageChange}
+                totalRecords={records.length}
+              />
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

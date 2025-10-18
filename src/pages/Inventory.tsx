@@ -7,8 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  Fuel, Plus, TrendingUp, AlertTriangle, RefreshCw, BarChart3, Calendar, X, Download, Eye, History, PackageOpen, Trash2, Clock,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Fuel, Plus, TrendingUp, AlertTriangle, RefreshCw, BarChart3, Calendar, X, Download, Eye, History, PackageOpen, Trash2,
 } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
@@ -51,9 +59,8 @@ export default function Inventory() {
   const sentAlertRef = useRef<Set<string>>(new Set());
   const navigate = useNavigate();
 
-  // Modal/UI state
   const [stockModal, setStockModal] = useState<null | any>(null);
-  const [stockValue, setStockValue] = useState(""); // input value for addition
+  const [stockValue, setStockValue] = useState("");
   const [addModal, setAddModal] = useState(false);
   const [addProductId, setAddProductId] = useState("");
   const [addValue, setAddValue] = useState("");
@@ -67,7 +74,6 @@ export default function Inventory() {
   const [smsState, setSmsState] = useState<{ [id: string]: string }>({});
   const [deleteModal, setDeleteModal] = useState<any | null>(null);
 
-  // Products
   const { data: products = [], isLoading: isLoadingProducts, refetch: refetchProducts } = useQuery({
     queryKey: ["products", orgId],
     queryFn: async () => {
@@ -77,7 +83,6 @@ export default function Inventory() {
     }
   });
 
-  // Latest inventory
   const { inventories, isLoadingInventories, refetchInventories } = useLatestInventories(orgId, products);
 
   const tankList = (inventories || []).map((inv: any) => {
@@ -98,6 +103,7 @@ export default function Inventory() {
       Number(tank.tankCapacity) > 0 &&
       (100 * (Number(tank.currentLevel) / Number(tank.tankCapacity))) < 20
   );
+
   useEffect(() => {
     lowStockTanks.forEach(async (tank) => {
       const key = String(tank.productId || tank.productName);
@@ -123,7 +129,6 @@ export default function Inventory() {
     });
   }, [lowStockTanks.map(t => t.productId).join(",")]);
 
-  // Only PUT for add/update
   const putStockMutation = useMutation<
     { productId: string; amount: number },
     unknown,
@@ -150,6 +155,7 @@ export default function Inventory() {
       setAddProductId(""); setAddValue(""); setStockValue("");
     }
   });
+
   const deleteInventoryMutation = useMutation({
     mutationFn: async (inventoryId) => {
       const url = `${API_BASE}/api/organizations/${orgId}/inventories/${inventoryId}`;
@@ -157,29 +163,23 @@ export default function Inventory() {
     },
     onSuccess: () => { refetchAll(); setDeleteModal(null); }
   });
+
   const refetchAll = useCallback(() => {
     refetchProducts();
     refetchInventories();
   }, [refetchProducts, refetchInventories]);
 
-  // Stats
   const totalStockValue = activeTanks.reduce(
-    (sum, tank) =>
-      sum + (Number(tank.currentLevel || 0) * Number(tank.price || 0)),
+    (sum, tank) => sum + (Number(tank.currentLevel || 0) * Number(tank.price || 0)),
     0
   );
+
   const stats = [
     {
       title: "Total Capacity",
-      value:
-        activeTanks.length > 0
-          ? `${(
-            activeTanks.reduce(
-              (sum, tank) => sum + Number(tank.tankCapacity || 0),
-              0
-            ) / 1000
-          ).toFixed(1)}K`
-          : "-",
+      value: activeTanks.length > 0
+        ? `${(activeTanks.reduce((sum, tank) => sum + Number(tank.tankCapacity || 0), 0) / 1000).toFixed(1)}K`
+        : "-",
       change: "Liters",
       icon: Fuel,
       color: "text-primary",
@@ -187,15 +187,9 @@ export default function Inventory() {
     },
     {
       title: "Current Stock",
-      value:
-        activeTanks.length > 0
-          ? `${(
-            activeTanks.reduce(
-              (sum, tank) => sum + Number(tank.currentLevel || 0),
-              0
-            ) / 1000
-          ).toFixed(1)}K`
-          : "-",
+      value: activeTanks.length > 0
+        ? `${(activeTanks.reduce((sum, tank) => sum + Number(tank.currentLevel || 0), 0) / 1000).toFixed(1)}K`
+        : "-",
       change: "Liters available",
       icon: TrendingUp,
       color: "text-success",
@@ -211,47 +205,44 @@ export default function Inventory() {
     },
     {
       title: "Stock Value",
-      value:
-        activeTanks.length > 0
-          ? `₹${(totalStockValue / 100000).toFixed(2)}L`
-          : "-",
+      value: activeTanks.length > 0 ? `₹${(totalStockValue / 100000).toFixed(2)}L` : "-",
       change: "Current worth",
       icon: TrendingUp,
       color: "text-success",
       bgColor: "bg-success-soft",
     },
   ];
-  const getStockPercentage = (current, capacity) =>
-    capacity ? Math.round((current / capacity) * 100) : 0;
-  const getStockStatus = (
-    percentage: number
-  ): {
+
+  const getStockPercentage = (current, capacity) => capacity ? Math.round((current / capacity) * 100) : 0;
+
+  const getStockStatus = (percentage: number): {
     color: string;
     bg: string;
     label: string;
     variant: "destructive" | "secondary" | "outline" | "default";
   } => {
-    if (percentage < 20)
-      return { color: "text-destructive", bg: "bg-destructive-soft", label: "Critical", variant: "destructive" };
-    if (percentage < 40)
-      return { color: "text-warning", bg: "bg-warning-soft", label: "Low", variant: "secondary" };
-    if (percentage < 70)
-      return { color: "text-primary", bg: "bg-primary-soft", label: "Medium", variant: "outline" };
+    if (percentage < 20) return { color: "text-destructive", bg: "bg-destructive-soft", label: "Critical", variant: "destructive" };
+    if (percentage < 40) return { color: "text-warning", bg: "bg-warning-soft", label: "Low", variant: "secondary" };
+    if (percentage < 70) return { color: "text-primary", bg: "bg-primary-soft", label: "Medium", variant: "outline" };
     return { color: "text-success", bg: "bg-success-soft", label: "Good", variant: "outline" };
   };
+
   const openStockModal = (tank) => { setStockModal(tank); setStockValue(""); };
   const openAddModal = () => { setAddModal(true); setAddProductId(""); setAddValue(""); };
   const openRefillModal = (tank) => { setRefillModal(tank); setRefillDate(tankRefillDates[tank.productId || tank.productName] || ""); };
+
   const handleAddStock = (e) => {
     e.preventDefault();
     if (!addProductId || !addValue || isNaN(Number(addValue))) return;
     putStockMutation.mutate({ productId: addProductId, amount: Number(addValue) });
   };
+
   const handleStockUpdate = (e) => {
     e.preventDefault();
     if (!stockModal || !stockValue || isNaN(Number(stockValue))) return;
     putStockMutation.mutate({ productId: stockModal.productId, amount: Number(stockValue) });
   };
+
   const handleRefillSave = (e) => {
     e.preventDefault();
     setTankRefillDates((dates) => ({
@@ -261,26 +252,17 @@ export default function Inventory() {
     setRefillModal(null);
     setRefillDate("");
   };
+
   const handleReportView = () => {
-    const tank = activeTanks.find(
-      (p) => p.productId === reportProductId || p.productName === reportProductId
-    );
+    const tank = activeTanks.find((p) => p.productId === reportProductId || p.productName === reportProductId);
     setReportProduct(tank || null);
   };
+
   const handleReportDownload = () => {
     if (!reportProduct) return;
     const rows = [
-      [
-        "Product Name", "Tank Capacity", "Current Level", "Price/Liter", "Supplier", "Status",
-      ],
-      [
-        reportProduct.productName,
-        reportProduct.tankCapacity,
-        reportProduct.currentLevel,
-        reportProduct.price,
-        reportProduct.supplier,
-        reportProduct.status ? "Active" : "Inactive",
-      ],
+      ["Product Name", "Tank Capacity", "Current Level", "Price/Liter", "Supplier", "Status"],
+      [reportProduct.productName, reportProduct.tankCapacity, reportProduct.currentLevel, reportProduct.price, reportProduct.supplier, reportProduct.status ? "Active" : "Inactive"],
     ];
     const csv = rows.map((row) => row.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -291,10 +273,27 @@ export default function Inventory() {
     link.click();
     window.URL.revokeObjectURL(url);
   };
-
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* HEADER, Stats, Tank List */}
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes slide-up {
+          from {
+            opacity: 0;
+            transform: translateY(30px) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        
+        .animate-slide-up {
+          animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+      `}</style>
+
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Tank Inventory</h1>
@@ -312,6 +311,8 @@ export default function Inventory() {
           </Button>
         </div>
       </div>
+
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
@@ -335,6 +336,8 @@ export default function Inventory() {
           );
         })}
       </div>
+
+      {/* Loading/Empty States */}
       {(isLoadingProducts || isLoadingInventories) ? (
         <div className="text-center py-20 opacity-70 flex items-center justify-center">
           <RefreshCw className="animate-spin h-8 w-8 mr-2" />
@@ -354,7 +357,6 @@ export default function Inventory() {
             const currentStock = Number(tank.currentLevel || 0);
             const percentage = getStockPercentage(currentStock, capacity);
             const status = getStockStatus(percentage);
-            const refill = tankRefillDates[tank.productId || tank.productName];
             return (
               <Card key={tank.inventoryId || tank.productId || tank.productName || idx} className="card-gradient hover-lift">
                 <CardHeader>
@@ -409,7 +411,6 @@ export default function Inventory() {
                       <p className="text-muted-foreground">Last Refill</p>
                       <p className="font-medium text-foreground">{formatDateTime(tank.lastUpdated)}</p>
                     </div>
-
                   </div>
                   <div className="flex gap-2 pt-2">
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => openStockModal(tank)}>
@@ -425,25 +426,24 @@ export default function Inventory() {
                     <div className="text-center">
                       <p className="text-[15px] text-muted-foreground uppercase tracking-wide">Stock Value</p>
                       <p className="text-3xl sm:text-4xl font-extrabold text-primary">
-                        {
-                          Number(tank.price) && Number(tank.currentLevel)
-                            ? new Intl.NumberFormat("en-IN", {
-                              style: "currency",
-                              currency: "INR",
-                              maximumFractionDigits: 0
-                            }).format(Number(tank.currentLevel) * Number(tank.price))
-                            : "—"
-                        }
+                        {Number(tank.price) && Number(tank.currentLevel)
+                          ? new Intl.NumberFormat("en-IN", {
+                            style: "currency",
+                            currency: "INR",
+                            maximumFractionDigits: 0
+                          }).format(Number(tank.currentLevel) * Number(tank.price))
+                          : "—"}
                       </p>
                     </div>
                   </div>
-
                 </CardContent>
               </Card>
             );
           })}
         </div>
       )}
+
+      {/* Quick Actions */}
       <Card className="card-gradient">
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
         <CardContent>
@@ -465,47 +465,145 @@ export default function Inventory() {
           </div>
         </CardContent>
       </Card>
-      {/* Add Purchase Modal */}
+
+      {/* ULTRA MODERN Add Purchase Modal */}
       {addModal && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
-          <div className="bg-background p-8 rounded-lg shadow-lg relative w-full max-w-md">
-            <button type="button" className="absolute top-4 right-4" onClick={() => setAddModal(false)}>
+        <div 
+          className="fixed inset-0 z-50 flex items-start justify-center bg-gradient-to-br from-black/60 via-blue-900/40 to-purple-900/40 backdrop-blur-md overflow-y-auto py-8"
+          onClick={() => setAddModal(false)}
+        >
+          <div 
+            className="bg-gradient-to-br from-white/95 via-blue-50/90 to-indigo-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-indigo-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              type="button" 
+              className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm" 
+              onClick={() => setAddModal(false)}
+            >
               <X className="h-5 w-5" />
             </button>
-            <h3 className="text-lg font-bold mb-3">Record Purchase</h3>
-            <form className="flex flex-col gap-4" onSubmit={handleAddStock}>
-              <select className="p-2 bg-input border rounded"
-                value={addProductId}
-                onChange={e => setAddProductId(e.target.value)} required>
-                <option value="">Select Tank</option>
-                {products.map((prod) => (
-                  <option key={prod.id} value={prod.id}>{prod.productName}</option>
-                ))}
-              </select>
-              <Input type="number" placeholder="Amount to add" value={addValue}
-                onChange={e => setAddValue(e.target.value)} required min="0" />
-              <Button type="submit" className="w-full btn-gradient-primary" disabled={putStockMutation.isPending}>Add</Button>
+            
+            <div className="mb-6 flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30">
+                <Plus className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-foreground">Record Purchase</h3>
+                <p className="text-sm text-muted-foreground">Add fuel to inventory</p>
+              </div>
+            </div>
+
+            <form className="space-y-6" onSubmit={handleAddStock}>
+              <div className="space-y-3">
+                <Label className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Fuel className="h-4 w-4 text-blue-600" />
+                  Select Tank
+                </Label>
+                <Select value={addProductId} onValueChange={setAddProductId}>
+                  <SelectTrigger className="w-full h-12 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border-2 border-blue-200/50 dark:border-blue-800/50 hover:border-blue-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all rounded-xl shadow-sm">
+                    <SelectValue placeholder="Choose a tank..." />
+                  </SelectTrigger>
+                  <SelectContent className="z-[60] max-h-[300px] rounded-xl border-2">
+                    {products.map((prod) => (
+                      <SelectItem key={prod.id} value={prod.id} className="cursor-pointer rounded-lg my-1">
+                        <div className="flex items-center gap-3 py-1">
+                          <div className="p-2 rounded-lg bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30">
+                            <Fuel className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <span className="font-medium">{prod.productName}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-green-600" />
+                  Amount to Add (Liters)
+                </Label>
+                <div className="relative">
+                  <Input 
+                    type="number" 
+                    placeholder="Enter amount" 
+                    value={addValue}
+                    onChange={e => setAddValue(e.target.value)} 
+                    required 
+                    min="0"
+                    className="h-12 pl-4 pr-16 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border-2 border-green-200/50 dark:border-green-800/50 hover:border-green-400 focus:border-green-500 focus:ring-4 focus:ring-green-500/20 transition-all rounded-xl shadow-sm text-lg font-semibold"
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">
+                    Liters
+                  </div>
+                </div>
+              </div>
+
+              <Button 
+                type="submit" 
+                className="w-full h-12 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all" 
+                disabled={putStockMutation.isPending}
+              >
+                {putStockMutation.isPending ? (
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="h-5 w-5 animate-spin" />
+                    <span>Recording...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Plus className="h-5 w-5" />
+                    <span>Record Purchase</span>
+                  </div>
+                )}
+              </Button>
             </form>
           </div>
         </div>
       )}
-      {/* Update Stock Modal */}
+
+      {/* ULTRA MODERN Update Stock Modal */}
       {stockModal && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
-          <div className="bg-background p-8 rounded-lg shadow-lg relative w-full max-w-md">
-            <button type="button" className="absolute top-4 right-4" onClick={() => setStockModal(null)}>
+        <div 
+          className="fixed inset-0 z-50 flex items-start justify-center bg-gradient-to-br from-black/60 via-purple-900/40 to-pink-900/40 backdrop-blur-md overflow-y-auto py-8"
+          onClick={() => setStockModal(null)}
+        >
+          <div 
+            className="bg-gradient-to-br from-white/95 via-purple-50/90 to-pink-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-purple-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              type="button" 
+              className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm" 
+              onClick={() => setStockModal(null)}
+            >
               <X className="h-5 w-5" />
             </button>
-            <h3 className="text-lg font-bold mb-3">
-              Update Stock for {stockModal.productName}
-            </h3>
-            <form className="flex flex-col gap-4" onSubmit={handleStockUpdate}>
-              <div>
-                <p className="text-sm mb-1 text-muted-foreground">Current Stock</p>
-                <div className="text-2xl font-bold mb-1">{Number(stockModal.currentLevel || 0).toLocaleString()} L</div>
+            
+            <div className="mb-6 flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg shadow-purple-500/30">
+                <TrendingUp className="h-6 w-6 text-white" />
               </div>
-              <div>
-                <label className="text-sm mb-2 text-muted-foreground block">Amount to Add</label>
+              <div className="flex-1">
+                <h3 className="text-2xl font-bold text-foreground">Update Stock</h3>
+                <p className="text-sm text-muted-foreground">{stockModal.productName}</p>
+              </div>
+            </div>
+
+            <form className="space-y-6" onSubmit={handleStockUpdate}>
+              <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-blue-200/50 dark:border-blue-800/50">
+                <p className="text-sm font-medium text-muted-foreground mb-2">Current Stock Level</p>
+                <div className="flex items-end gap-2">
+                  <p className="text-4xl font-black text-foreground">{Number(stockModal.currentLevel || 0).toLocaleString()}</p>
+                  <p className="text-lg font-bold text-muted-foreground pb-1">Liters</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Plus className="h-4 w-4 text-green-600" />
+                  Amount to Add (Liters)
+                </Label>
                 <Input
                   type="number"
                   placeholder="0"
@@ -513,70 +611,143 @@ export default function Inventory() {
                   value={stockValue}
                   onChange={e => setStockValue(e.target.value)}
                   required
+                  className="h-14 px-4 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border-2 border-green-200/50 dark:border-green-800/50 hover:border-green-400 focus:border-green-500 focus:ring-4 focus:ring-green-500/20 transition-all rounded-xl shadow-sm text-2xl font-bold text-center"
                 />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total After Update</p>
-                <div className="font-bold text-lg">
-                  {Number(stockModal.currentLevel || 0) + (Number(stockValue) || 0)} L
+
+              <div className="p-6 rounded-2xl bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-200/50 dark:border-green-800/50">
+                <p className="text-sm font-medium text-muted-foreground mb-2">New Total After Update</p>
+                <div className="flex items-end gap-2">
+                  <p className="text-4xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                    {Number(stockModal.currentLevel || 0) + (Number(stockValue) || 0)}
+                  </p>
+                  <p className="text-lg font-bold text-muted-foreground pb-1">Liters</p>
                 </div>
               </div>
-              <Button type="submit" className="w-full btn-gradient-primary" disabled={putStockMutation.isPending || Number(stockValue) < 1}>
-                {putStockMutation.isPending ? "Updating..." : "Add to Stock"}
+
+              <Button 
+                type="submit" 
+                className="w-full h-12 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 hover:from-green-700 hover:via-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl shadow-lg shadow-green-500/30 hover:shadow-xl hover:shadow-green-500/40 transition-all" 
+                disabled={putStockMutation.isPending || Number(stockValue) < 1}
+              >
+                {putStockMutation.isPending ? "Updating..." : "Confirm Update"}
               </Button>
             </form>
           </div>
         </div>
       )}
-      {/* Schedule Refill Modal */}
+      {/* ULTRA MODERN Refill Schedule Modal */}
       {refillModal && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
-          <div className="bg-background p-8 rounded-lg shadow-lg relative w-full max-w-md">
-            <button type="button" className="absolute top-4 right-4" onClick={() => setRefillModal(null)}>
+        <div 
+          className="fixed inset-0 z-50 flex items-start justify-center bg-gradient-to-br from-black/60 via-orange-900/40 to-red-900/40 backdrop-blur-md overflow-y-auto py-8"
+          onClick={() => setRefillModal(null)}
+        >
+          <div 
+            className="bg-gradient-to-br from-white/95 via-orange-50/90 to-red-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-orange-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              type="button"
+              className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm"
+              onClick={() => setRefillModal(null)}
+            >
               <X className="h-5 w-5" />
             </button>
-            <h3 className="text-lg font-bold mb-3">Schedule Refill for {refillModal.productName}</h3>
-            <form className="flex flex-col gap-4" onSubmit={handleRefillSave}>
-              <Input type="date" value={refillDate} onChange={e => setRefillDate(e.target.value)} required />
-              <Button type="submit" className="w-full btn-gradient-primary">Save Date</Button>
+            <div className="mb-6 flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-gradient-to-br from-orange-500 to-red-600 shadow-lg shadow-orange-500/30">
+                <Calendar className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-foreground">Schedule Refill</h3>
+                <p className="text-sm text-muted-foreground">{refillModal.productName}</p>
+              </div>
+            </div>
+            <form className="space-y-6" onSubmit={handleRefillSave}>
+              <div className="space-y-3">
+                <Label className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-orange-600" />
+                  Select Refill Date
+                </Label>
+                <Input 
+                  type="date" 
+                  value={refillDate}
+                  onChange={e => setRefillDate(e.target.value)} 
+                  required 
+                  className="h-12 px-4 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border-2 border-orange-200/50 dark:border-orange-800/50 hover:border-orange-400 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/20 transition-all rounded-xl shadow-sm text-lg font-semibold" 
+                />
+              </div>
+              <Button 
+                type="submit" 
+                className="w-full h-12 bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 hover:from-orange-700 hover:via-red-700 hover:to-pink-700 text-white font-bold rounded-xl shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 transition-all"
+              >
+                <Calendar className="mr-2 h-5 w-5" />
+                Save Refill Date
+              </Button>
             </form>
           </div>
         </div>
       )}
-      {/* Stock Report Modal */}
+
+      {/* ULTRA MODERN Stock Report Modal */}
       {reportModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-          <div className="bg-background p-8 rounded-lg shadow-lg relative w-full max-w-lg">
-            <button type="button" className="absolute top-4 right-4" onClick={() => { setReportModal(false); setReportProductId(""); setReportProduct(null); }}>
+        <div 
+          className="fixed inset-0 z-50 flex items-start justify-center bg-gradient-to-br from-black/70 via-blue-900/60 to-purple-900/50 backdrop-blur-lg overflow-y-auto py-8"
+          onClick={() => { setReportModal(false); setReportProductId(""); setReportProduct(null); }}
+        >
+          <div 
+            className="bg-gradient-to-br from-white/95 via-violet-50/90 to-indigo-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-indigo-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-lg my-auto animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button type="button" className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm" onClick={() => { setReportModal(false); setReportProductId(""); setReportProduct(null); }}>
               <X className="h-5 w-5" />
             </button>
-            <h3 className="text-lg font-bold mb-3">Product Stock Report</h3>
-            <div className="flex gap-4 mb-4">
-              <select className="p-2 bg-input border rounded flex-1" value={reportProductId} onChange={e => { setReportProductId(e.target.value); setReportProduct(null); }}>
-                <option value="">Select Product</option>
-                {activeTanks.map((prod) => (
-                  <option key={prod.productId} value={prod.productId}>{prod.productName}</option>
-                ))}
-              </select>
-              <Button onClick={handleReportView} disabled={!reportProductId}>
-                <Eye className="h-4 w-4 mr-1" />View Report
+            <div className="mb-6 flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg">
+                <BarChart3 className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-foreground">Product Stock Report</h3>
+                <p className="text-sm text-muted-foreground">Download detailed stats</p>
+              </div>
+            </div>
+            <div className="flex gap-4 mb-6">
+              <div className="flex-1 space-y-2">
+                <Label className="text-sm font-semibold">Select Product</Label>
+                <Select 
+                  value={reportProductId}
+                  onValueChange={(value) => { setReportProductId(value); setReportProduct(null); }}
+                >
+                  <SelectTrigger className="w-full h-11 bg-white/80 dark:bg-slate-900/80 border-2 hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all rounded-xl shadow-sm">
+                    <SelectValue placeholder="Select Product" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[60] max-h-[300px] rounded-xl border-2">
+                    {activeTanks.map((prod) => (
+                      <SelectItem key={prod.productId} value={prod.productId} className="cursor-pointer">
+                        {prod.productName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleReportView} disabled={!reportProductId} className="mt-auto h-11">
+                <Eye className="h-4 w-4 mr-1" />View
               </Button>
             </div>
             {reportProduct && (
               <div>
-                <table className="w-full mb-3 border border-muted rounded text-sm">
+                <table className="w-full mb-4 border border-muted rounded text-sm">
                   <tbody>
-                    <tr><td className="px-2 py-1 font-medium">Product Name</td><td className="px-2 py-1">{reportProduct.productName}</td></tr>
-                    <tr><td className="px-2 py-1 font-medium">Tank Capacity</td><td className="px-2 py-1">{reportProduct.tankCapacity ?? "—"}</td></tr>
-                    <tr><td className="px-2 py-1 font-medium">Current Level</td><td className="px-2 py-1">{reportProduct.currentLevel ?? "—"}</td></tr>
-                    <tr><td className="px-2 py-1 font-medium">Price per Liter</td><td className="px-2 py-1">{reportProduct.price ?? "—"}</td></tr>
-                    <tr><td className="px-2 py-1 font-medium">Supplier</td><td className="px-2 py-1">{reportProduct.supplier ?? "—"}</td></tr>
-                    <tr><td className="px-2 py-1 font-medium">Metric</td><td className="px-2 py-1">{reportProduct.metric ?? "—"}</td></tr>
+                    <tr><td className="px-3 py-2 font-medium bg-muted/30">Product Name</td><td className="px-3 py-2">{reportProduct.productName}</td></tr>
+                    <tr><td className="px-3 py-2 font-medium bg-muted/30">Tank Capacity</td><td className="px-3 py-2">{reportProduct.tankCapacity ?? "—"}</td></tr>
+                    <tr><td className="px-3 py-2 font-medium bg-muted/30">Current Level</td><td className="px-3 py-2">{reportProduct.currentLevel ?? "—"}</td></tr>
+                    <tr><td className="px-3 py-2 font-medium bg-muted/30">Price per Liter</td><td className="px-3 py-2">{reportProduct.price ?? "—"}</td></tr>
+                    <tr><td className="px-3 py-2 font-medium bg-muted/30">Supplier</td><td className="px-3 py-2">{reportProduct.supplier ?? "—"}</td></tr>
+                    <tr><td className="px-3 py-2 font-medium bg-muted/30">Metric</td><td className="px-3 py-2">{reportProduct.metric ?? "—"}</td></tr>
                   </tbody>
                 </table>
                 <div className="flex gap-3 justify-end">
-                  <Button onClick={handleReportDownload}>
-                    <Download className="h-4 w-4 mr-1" />
+                  <Button onClick={handleReportDownload} className="btn-gradient-primary h-11">
+                    <Download className="h-4 w-4 mr-2" />
                     Download Report
                   </Button>
                 </div>
@@ -585,37 +756,49 @@ export default function Inventory() {
           </div>
         </div>
       )}
-      {/* Low Stock Alerts Modal */}
+
+      {/* ULTRA MODERN Low Stock Alerts Modal */}
       {lowStockModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-          <div className="bg-background p-8 rounded-lg shadow-lg relative w-full max-w-lg">
-            <button type="button" className="absolute top-4 right-4" onClick={() => setLowStockModal(false)}>
+        <div 
+          className="fixed inset-0 z-50 flex items-start justify-center bg-gradient-to-br from-black/80 via-yellow-900/40 to-pink-900/40 backdrop-blur-lg overflow-y-auto py-8"
+          onClick={() => setLowStockModal(false)}
+        >
+          <div 
+            className="bg-gradient-to-br from-white/95 via-yellow-50/90 to-pink-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-yellow-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-lg max-h-[80vh] overflow-y-auto my-auto animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button type="button" className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm" onClick={() => setLowStockModal(false)}>
               <X className="h-5 w-5" />
             </button>
-            <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-destructive" /> Low Stock Alerts</h3>
-            {lowStockTanks.length === 0
-              ? <div className="text-muted-foreground">No products are currently low on stock (below 20%).</div>
-              : <div>
-                <table className="w-full text-sm border mb-3">
+            <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
+              <AlertTriangle className="h-6 w-6 text-destructive" /> Low Stock Alerts
+            </h3>
+            {lowStockTanks.length === 0 ? (
+              <div className="text-muted-foreground py-8 text-center">
+                No products are currently low on stock (below 20%).
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border rounded">
                   <thead>
                     <tr className="bg-muted">
-                      <th className="py-2 px-3">Product</th>
-                      <th className="py-2 px-3">Current Level</th>
-                      <th className="py-2 px-3">Max Capacity</th>
-                      <th className="py-2 px-3">Status</th>
-                      <th className="py-2 px-3">SMS</th>
+                      <th className="py-2 px-3 text-left">Product</th>
+                      <th className="py-2 px-3 text-left">Current</th>
+                      <th className="py-2 px-3 text-left">Capacity</th>
+                      <th className="py-2 px-3 text-left">Status</th>
+                      <th className="py-2 px-3 text-left">SMS</th>
                     </tr>
                   </thead>
                   <tbody>
                     {lowStockTanks.map((tank) => (
-                      <tr key={tank.productId}>
+                      <tr key={tank.productId} className="border-t">
                         <td className="py-2 px-3">{tank.productName}</td>
-                        <td className="py-2 px-3">{tank.currentLevel}</td>
-                        <td className="py-2 px-3">{tank.tankCapacity}</td>
+                        <td className="py-2 px-3">{tank.currentLevel}L</td>
+                        <td className="py-2 px-3">{tank.tankCapacity}L</td>
                         <td className="py-2 px-3">
-                          <Badge variant="destructive">Low</Badge>
+                          <Badge variant="destructive" className="text-xs">Low</Badge>
                         </td>
-                        <td className="py-2 px-3">
+                        <td className="py-2 px-3 text-xs">
                           {smsState[String(tank.productId || tank.productName)] || "—"}
                         </td>
                       </tr>
@@ -623,27 +806,34 @@ export default function Inventory() {
                   </tbody>
                 </table>
               </div>
-            }
+            )}
           </div>
         </div>
       )}
-      {/* Delete Inventory Confirmation Modal */}
+
+      {/* ULTRA MODERN Delete Modal */}
       {deleteModal && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
-          <div className="bg-background p-8 rounded-lg shadow-lg relative w-full max-w-md">
-            <button type="button" className="absolute top-4 right-4" onClick={() => setDeleteModal(null)}>
+        <div 
+          className="fixed inset-0 z-50 flex items-start justify-center bg-gradient-to-br from-black/80 via-slate-900/60 to-red-900/40 backdrop-blur-lg overflow-y-auto py-8"
+          onClick={() => setDeleteModal(null)}
+        >
+          <div 
+            className="bg-gradient-to-br from-white/95 via-slate-50/90 to-red-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-red-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button type="button" className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm" onClick={() => setDeleteModal(null)}>
               <X className="h-5 w-5" />
             </button>
-            <div className="mb-3 flex items-center gap-3">
+            <div className="mb-4 flex items-center gap-3">
               <Trash2 className="w-8 h-8 text-destructive" />
-              <h2 className="font-bold text-xl">Delete Inventory</h2>
+              <h2 className="font-bold text-2xl">Delete Inventory</h2>
             </div>
-            <p className="mb-4 text-muted-foreground">
+            <p className="mb-6 text-muted-foreground">
               Are you sure you want to delete inventory for <b>{deleteModal.productName}</b>? This will remove <b>all data</b> for this tank from the system but will not delete the product definition.
             </p>
-            <div className="flex justify-end gap-3 mt-6">
-              <Button variant="outline" onClick={() => setDeleteModal(null)}>Cancel</Button>
-              <Button variant="destructive" onClick={() => deleteInventoryMutation.mutate(deleteModal.inventoryId)} disabled={deleteInventoryMutation.isPending}>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setDeleteModal(null)} className="h-11">Cancel</Button>
+              <Button variant="destructive" onClick={() => deleteInventoryMutation.mutate(deleteModal.inventoryId)} disabled={deleteInventoryMutation.isPending} className="h-11">
                 {deleteInventoryMutation.isPending ? "Deleting..." : "Delete"}
               </Button>
             </div>
@@ -653,3 +843,4 @@ export default function Inventory() {
     </div>
   );
 }
+  

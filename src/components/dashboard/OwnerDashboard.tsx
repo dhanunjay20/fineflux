@@ -6,23 +6,31 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Users, Fuel, CreditCard, TrendingUp, DollarSign, AlertTriangle, BarChart3, Eye, RotateCcw,
+  Activity, Droplets, Package
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
 
 const safeArray = (v: any) =>
   Array.isArray(v) ? v :
-  Array.isArray(v?.content) ? v.content : [];
+    Array.isArray(v?.content) ? v.content : [];
 
 export function OwnerDashboard() {
   const navigate = useNavigate();
   const orgId = localStorage.getItem("organizationId") || "";
+  const [mounted, setMounted] = useState(false);
 
   const [employees, setEmployees] = useState<any[]>([]);
   const [tanks, setTanks] = useState<any[]>([]);
   const [borrowers, setBorrowers] = useState<any[]>([]);
   const [loading, setLoading] = useState({ employees: true, tanks: true, borrowers: true });
-  const [error, setError] = useState<{ employees: string | null; tanks: string | null; borrowers: string | null }>({ employees: null, tanks: null, borrowers: null });
+  const [error, setError] = useState<{ employees: string | null; tanks: string | null; borrowers: string | null }>({ 
+    employees: null, tanks: null, borrowers: null 
+  });
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const fetchAll = useCallback(() => {
     if (!orgId) {
@@ -88,7 +96,7 @@ export function OwnerDashboard() {
     },
     {
       title: 'Monthly Revenue',
-      value: '₹0', // Add calculation if backend provides it!
+      value: '₹0',
       icon: TrendingUp,
       color: 'text-accent',
       bgColor: 'bg-accent-soft',
@@ -101,7 +109,7 @@ export function OwnerDashboard() {
     capacity: Number(tank.tankCapacity) || 0,
     current: Number(tank.currentLevel) || 0,
     lastRefill: tank.lastUpdated ? new Date(tank.lastUpdated).toLocaleDateString() : '',
-    sales: 0 // Replace with real sales per tank if available
+    sales: 0
   })), [tanks]);
 
   const recentBorrowers = useMemo(() => safeArray(borrowers).slice(0, 4).map((borrower: any) => ({
@@ -112,8 +120,6 @@ export function OwnerDashboard() {
     status: borrower.status === 'overdue' ? 'overdue' : 'current',
   })), [borrowers]);
 
-  // ---- Total Stock Value Fix Here ----
-  // Replace "ratePerLitre" with your actual price property if different, e.g. "productRate" or "price"
   const financialSummary = useMemo(() => ({
     totalStockValue: safeArray(tanks)
       .reduce(
@@ -133,28 +139,62 @@ export function OwnerDashboard() {
     totalLiabilities: safeArray(borrowers)
       .filter((b: any) => b.status === 'overdue')
       .reduce((sum: number, b: any) => sum + (Number(b.amountBorrowed) || 0), 0),
-    netPosition: 0 // Provide real calculation if available.
+    netPosition: 0
   }), [tanks, borrowers]);
 
   const getStockPercentage = (current: number, capacity: number) =>
     capacity ? Math.round((current / capacity) * 100) : 0;
 
   const getStockStatus = (percentage: number) => {
-    if (percentage < 20) return { color: 'text-destructive', bg: 'bg-destructive-soft', label: 'Low' };
-    if (percentage < 50) return { color: 'text-warning', bg: 'bg-warning-soft', label: 'Medium' };
-    return { color: 'text-success', bg: 'bg-success-soft', label: 'Good' };
+    if (percentage < 20) return { color: 'text-red-600 dark:text-red-400', bg: 'bg-red-500', label: 'Critical' };
+    if (percentage < 50) return { color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-500', label: 'Medium' };
+    return { color: 'text-green-600 dark:text-green-400', bg: 'bg-green-500', label: 'Good' };
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header - mobile-safe stacked layout */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className={`space-y-8 -mt-8 transition-all duration-700 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        @keyframes slide-up {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes progress-fill {
+          from { width: 0; }
+        }
+        .animate-shimmer {
+          animation: shimmer 3s linear infinite;
+        }
+        .animate-slide-up {
+          animation: slide-up 0.5s ease-out forwards;
+        }
+        .animate-progress {
+          animation: progress-fill 1s ease-out forwards;
+        }
+        .stagger-1 { animation-delay: 0.1s; }
+        .stagger-2 { animation-delay: 0.2s; }
+        .stagger-3 { animation-delay: 0.3s; }
+        .stagger-4 { animation-delay: 0.4s; }
+      `}</style>
+
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 opacity-0 animate-slide-up">
         <div className="min-w-0">
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground truncate">
+          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
             Owner Dashboard
           </h1>
-          <p className="text-sm md:text-base text-muted-foreground">
-            Complete overview of your petrol bunk operations
+          <p className="text-sm md:text-base text-muted-foreground flex items-center gap-2 mt-1">
+            <Activity className="h-4 w-4" />
+            Real-time overview of your petrol bunk operations
           </p>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-start sm:justify-end">
@@ -162,19 +202,22 @@ export function OwnerDashboard() {
             onClick={fetchAll}
             variant="outline"
             title="Refresh Data"
-            className="w-full sm:w-auto"
+            className="w-full sm:w-auto border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300"
           >
             <RotateCcw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
-          <Button className="btn-gradient-primary w-full sm:w-auto">
+          <Button
+            className="w-full sm:w-auto bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl transition-all duration-300"
+            onClick={() => navigate('/analytics')}
+          >
             <BarChart3 className="mr-2 h-4 w-4" />
             View Analytics
           </Button>
         </div>
       </div>
 
-      {/* Stats Grid */}
+      {/* ORIGINAL STATS GRID - UNCHANGED STRUCTURE */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
@@ -186,7 +229,7 @@ export function OwnerDashboard() {
                     <p className="text-sm font-medium text-muted-foreground truncate">{stat.title}</p>
                     <div>
                       <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                      <p className="text-xs text-muted-foreground">{stat.change}</p>
+                      {stat.change && <p className="text-xs text-muted-foreground">{stat.change}</p>}
                     </div>
                   </div>
                   <div className={`${stat.bgColor} p-3 rounded-lg`}>
@@ -201,111 +244,167 @@ export function OwnerDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Tank Inventory */}
-        <Card className="card-gradient">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Fuel className="h-5 w-5" />
+        <Card className="border-border/50 shadow-sm hover:shadow-lg transition-all duration-300 opacity-0 animate-slide-up stagger-1">
+          <CardHeader className="border-b border-border/50 bg-muted/30">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Droplets className="h-5 w-5 text-primary" />
+              </div>
               Tank Inventory Status
+              {!loading.tanks && <Badge variant="secondary" className="ml-auto">{tankData.length}</Badge>}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {loading.tanks
-              ? <p>Loading tanks...</p>
-              : error.tanks
-                ? <p className="text-destructive">{error.tanks}</p>
-                : tankData.length === 0
-                  ? <p>No tanks found.</p>
-                  : tankData.map((tank) => {
-                      const percentage = getStockPercentage(tank.current, tank.capacity);
-                      const status = getStockStatus(percentage);
-                      return (
-                        <div key={tank.id} className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="min-w-0">
-                              <p className="font-medium text-foreground truncate">{tank.name}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {tank.current.toLocaleString()}L / {tank.capacity.toLocaleString()}L
-                              </p>
-                            </div>
-                            <Badge variant="outline" className={`${status.color} ${status.bg}`}>
-                              {percentage}% • {status.label}
-                            </Badge>
-                          </div>
-                          <div className="w-full bg-muted rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full transition-all duration-300 ${
-                                percentage < 20 ? 'bg-destructive' :
-                                percentage < 50 ? 'bg-warning' : 'bg-success'
-                              }`}
-                              style={{ width: `${percentage}%` }}
-                            />
-                          </div>
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Last refill: {tank.lastRefill}</span>
-                            <span>Sales: {tank.sales}L today</span>
-                          </div>
-                        </div>
-                      );
-                    })}
+          <CardContent className="p-6 space-y-5">
+            {loading.tanks ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+              </div>
+            ) : error.tanks ? (
+              <p className="text-destructive text-center py-8">{error.tanks}</p>
+            ) : tankData.length === 0 ? (
+              <div className="text-center py-8 space-y-2">
+                <Package className="h-12 w-12 text-muted-foreground mx-auto opacity-50" />
+                <p className="text-muted-foreground">No tanks found</p>
+              </div>
+            ) : (
+              tankData.map((tank, idx) => {
+                const percentage = getStockPercentage(tank.current, tank.capacity);
+                const status = getStockStatus(percentage);
+                
+                return (
+                  <div 
+                    key={tank.id} 
+                    className="space-y-3 p-4 rounded-xl border border-border/50 hover:border-primary/30 hover:bg-muted/20 transition-all duration-300 group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                          {tank.name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {tank.current.toLocaleString()}L / {tank.capacity.toLocaleString()}L
+                        </p>
+                      </div>
+                      <Badge 
+                        variant="outline" 
+                        className={`${status.color} whitespace-nowrap`}
+                      >
+                        {percentage}% • {status.label}
+                      </Badge>
+                    </div>
+                    
+                    <div className="relative w-full bg-muted rounded-full h-3 overflow-hidden">
+                      <div
+                        className={`absolute inset-y-0 left-0 ${status.bg} rounded-full transition-all duration-1000 ease-out shadow-lg animate-progress`}
+                        style={{ width: `${percentage}%` }}
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 animate-shimmer" style={{ backgroundSize: '200% 100%' }} />
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between text-xs text-muted-foreground pt-1">
+                      <span className="flex items-center gap-1">
+                        <Activity className="h-3 w-3" />
+                        Last refill: {tank.lastRefill}
+                      </span>
+                      <span>Sales: {tank.sales}L today</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </CardContent>
         </Card>
+
         {/* Borrowers Overview */}
-        <Card className="card-gradient">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
+        <Card className="border-border/50 shadow-sm hover:shadow-lg transition-all duration-300 opacity-0 animate-slide-up stagger-2">
+          <CardHeader className="border-b border-border/50 bg-muted/30">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <div className="p-2 rounded-lg bg-orange-500/10">
+                <CreditCard className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+              </div>
               Borrowers Overview
+              {!loading.borrowers && <Badge variant="secondary" className="ml-auto">{recentBorrowers.length}</Badge>}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {loading.borrowers
-                ? <p>Loading borrowers...</p>
-                : error.borrowers
-                  ? <p className="text-destructive">{error.borrowers}</p>
-                  : recentBorrowers.length === 0
-                    ? <p>No borrowers found.</p>
-                    : recentBorrowers.map((borrower) => (
-                        <div key={borrower.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                          <div className="min-w-0">
-                            <p className="font-medium text-foreground truncate">{borrower.name}</p>
-                            <p className="text-sm text-muted-foreground">Last payment: {borrower.lastPayment}</p>
-                          </div>
-                          <div className="text-right space-y-1">
-                            <p className="font-semibold text-foreground">₹{borrower.amount.toLocaleString()}</p>
-                            <Badge variant={borrower.status === 'overdue' ? 'destructive' : 'outline'} className="text-xs">
-                              {borrower.status === 'overdue'
-                                ? (<><AlertTriangle className="mr-1 h-3 w-3" /> Overdue</>)
-                                : 'Current'}
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-              {borrowers.length > 0 && (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => navigate('/borrowers')}
-                >
-                  <Eye className="mr-2 h-4 w-4" />
-                  View All Borrowers
-                </Button>
-              )}
-            </div>
+          <CardContent className="p-6 space-y-4">
+            {loading.borrowers ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+              </div>
+            ) : error.borrowers ? (
+              <p className="text-destructive text-center py-8">{error.borrowers}</p>
+            ) : recentBorrowers.length === 0 ? (
+              <div className="text-center py-8 space-y-2">
+                <CreditCard className="h-12 w-12 text-muted-foreground mx-auto opacity-50" />
+                <p className="text-muted-foreground">No borrowers found</p>
+              </div>
+            ) : (
+              <>
+                {recentBorrowers.map((borrower) => (
+                  <div 
+                    key={borrower.id} 
+                    className="flex items-center justify-between p-4 rounded-xl bg-muted/30 hover:bg-muted/50 border border-border/30 hover:border-primary/30 transition-all duration-300 group"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                        {borrower.name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Last payment: {borrower.lastPayment}
+                      </p>
+                    </div>
+                    <div className="text-right space-y-1.5">
+                      <p className="text-lg font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                        ₹{borrower.amount.toLocaleString()}
+                      </p>
+                      <Badge 
+                        variant={borrower.status === 'overdue' ? 'destructive' : 'outline'} 
+                        className="text-xs"
+                      >
+                        {borrower.status === 'overdue' ? (
+                          <>
+                            <AlertTriangle className="mr-1 h-3 w-3" />
+                            Overdue
+                          </>
+                        ) : (
+                          'Current'
+                        )}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+                {borrowers.length > 4 && (
+                  <Button
+                    variant="outline"
+                    className="w-full border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300"
+                    onClick={() => navigate('/borrowers')}
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    View All {borrowers.length} Borrowers
+                  </Button>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
 
       {/* Financial Summary */}
-      <Card className="card-gradient">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
+      <Card className="border-border/50 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden opacity-0 animate-slide-up stagger-3">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-accent to-primary animate-shimmer" style={{ backgroundSize: '200% 100%' }} />
+        
+        <CardHeader className="border-b border-border/50 bg-muted/30">
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <div className="p-2 rounded-lg bg-green-500/10">
+              <DollarSign className="h-5 w-5 text-green-600 dark:text-green-400" />
+            </div>
             Money Management Summary
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        
+        <CardContent className="p-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="text-center space-y-2">
               <p className="text-sm text-muted-foreground">Total Stock Value</p>
               <p className="text-2xl font-bold text-primary">

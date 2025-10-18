@@ -23,23 +23,22 @@ import {
   CreditCard,
   ArrowUpDown,
   Trash2,
+  X,
+  Loader2
 } from 'lucide-react';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogOverlay,
-} from '@/components/ui/dialog';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
 
-// API base (safe dev fallback)
-const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'https://finflux-64307221061.asia-south1.run.app';
+// API base URL
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
 
-// Types
+// Type definitions
 type Customer = {
   id?: string;
   custId?: string;
@@ -89,7 +88,7 @@ type CustomerCreateRequest = {
 type HistoryTransaction = {
   id?: string;
   custId: string;
-  transactionAmount: number; // +payment, -borrow
+  transactionAmount: number;
   transactionDate: string;
   cumulativeAmount?: number;
   notes?: string;
@@ -107,33 +106,63 @@ type HistoryPage = {
 
 type TransactionRequest = {
   custId: string;
-  transactionAmount: number; // +payment, -borrow
+  transactionAmount: number;
   notes?: string;
 };
 
 // Indian States/UTs
 const IN_STATES = [
-  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh',
-  'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha',
-  'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
-  'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Jammu and Kashmir',
-  'Ladakh', 'Lakshadweep', 'Puducherry'
+  'Andhra Pradesh',
+  'Arunachal Pradesh',
+  'Assam',
+  'Bihar',
+  'Chhattisgarh',
+  'Goa',
+  'Gujarat',
+  'Haryana',
+  'Himachal Pradesh',
+  'Jharkhand',
+  'Karnataka',
+  'Kerala',
+  'Madhya Pradesh',
+  'Maharashtra',
+  'Manipur',
+  'Meghalaya',
+  'Mizoram',
+  'Nagaland',
+  'Odisha',
+  'Punjab',
+  'Rajasthan',
+  'Sikkim',
+  'Tamil Nadu',
+  'Telangana',
+  'Tripura',
+  'Uttar Pradesh',
+  'Uttarakhand',
+  'West Bengal',
+  'Andaman and Nicobar Islands',
+  'Chandigarh',
+  'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi',
+  'Jammu and Kashmir',
+  'Ladakh',
+  'Lakshadweep',
+  'Puducherry'
 ];
 
 export default function Borrowers() {
   const { toast } = useToast();
 
-  // Org and employee identifiers from storage
-  const [orgId, setOrgId] = useState<string>('');
-  const [empId, setEmpId] = useState<string>('');
+  // Organization and employee identifiers
+  const [orgId, setOrgId] = useState('');
+  const [empId, setEmpId] = useState('');
+
   useEffect(() => {
-    const storedOrg = localStorage.getItem('organizationId') || '';
-    const storedEmp = localStorage.getItem('empId') || '';
-    setOrgId(storedOrg);
-    setEmpId(storedEmp);
+    setOrgId(localStorage.getItem('organizationId') || '');
+    setEmpId(localStorage.getItem('empId') || '');
   }, []);
 
-  // Search/filter
+  // Search/filter state
   const [search, setSearch] = useState('');
 
   // Add borrower modal state
@@ -151,7 +180,14 @@ export default function Borrowers() {
     phoneNumber: '',
     email: '',
     notes: '',
-    address: { line1: '', line2: '', city: '', state: '', postalCode: '', country: 'India' },
+    address: {
+      line1: '',
+      line2: '',
+      city: '',
+      state: '',
+      postalCode: '',
+      country: 'India'
+    }
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -167,7 +203,7 @@ export default function Borrowers() {
   const [transactionForm, setTransactionForm] = useState<TransactionRequest>({
     custId: '',
     transactionAmount: 0,
-    notes: '',
+    notes: ''
   });
   const [transactionSubmitting, setTransactionSubmitting] = useState(false);
 
@@ -176,30 +212,55 @@ export default function Borrowers() {
   const [deletingBorrower, setDeletingBorrower] = useState<Customer | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // Fetch all borrowers for the org (resilient unwrapping)
+  // Lock body scroll when modals are open
+  useEffect(() => {
+    if (open || historyOpen || transactionOpen || deleteOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open, historyOpen, transactionOpen, deleteOpen]);
+
+  // Fetch all borrowers for the organization
   const fetchCustomers = async (): Promise<Customer[]> => {
+    if (!orgId) return [];
     const url = `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers`;
     const res = await axios.get(url, { timeout: 20000 });
     const data = res.data;
-    if (Array.isArray(data)) return data as Customer[];
+
+    // Handle various response formats
+    if (Array.isArray(data)) return data;
+
     const candidates = ['data', 'items', 'content', 'result', 'results', 'records', 'rows'];
     for (const key of candidates) {
-      if (Array.isArray((data as any)?.[key])) return (data as any)[key] as Customer[];
+      if (Array.isArray((data as any)?.[key])) {
+        return (data as any)[key];
+      }
     }
+
     const firstArray = Object.values(data || {}).find((v) => Array.isArray(v)) as Customer[] | undefined;
-    if (Array.isArray(firstArray)) return firstArray;
-    return [];
+    return Array.isArray(firstArray) ? firstArray : [];
   };
 
-  const { data: customers = [], isLoading, isError, error, refetch, isFetching } = useQuery({
+  const {
+    data: customers = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetching
+  } = useQuery({
     queryKey: ['customers', orgId],
     queryFn: fetchCustomers,
     enabled: !!orgId,
     refetchOnWindowFocus: false,
-    staleTime: 60_000,
+    staleTime: 60_000
   });
 
-  // Filtered and grouped views
+  // Filtered customers based on search
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return customers;
@@ -211,7 +272,7 @@ export default function Borrowers() {
         c.email,
         c.status,
         c.empId,
-        c.custId,
+        c.custId
       ]
         .filter(Boolean)
         .join(' ')
@@ -220,6 +281,7 @@ export default function Borrowers() {
     });
   }, [customers, search]);
 
+  // Group customers by status
   const groupByStatus = useMemo(() => {
     const norm = (s?: string) => (s || '').toUpperCase();
     const groups = {
@@ -227,8 +289,9 @@ export default function Borrowers() {
       PENDING: [] as Customer[],
       PARTIAL: [] as Customer[],
       PAID: [] as Customer[],
-      OTHER: [] as Customer[],
+      OTHER: [] as Customer[]
     };
+
     for (const c of filtered) {
       const s = norm(c.status);
       if (s === 'OVERDUE') groups.OVERDUE.push(c);
@@ -240,7 +303,7 @@ export default function Borrowers() {
     return groups;
   }, [filtered]);
 
-  // Stats
+  // Calculate statistics
   const stats = useMemo(() => {
     const total = customers.length;
     const totalBorrowed = customers.reduce((sum, c) => sum + (Number(c.amountBorrowed) || 0), 0);
@@ -248,67 +311,103 @@ export default function Borrowers() {
     const pendingCount = customers.filter((c) => (c.status || '').toUpperCase() === 'PENDING').length;
     const partialCount = customers.filter((c) => (c.status || '').toUpperCase() === 'PARTIAL').length;
     const paidCount = customers.filter((c) => (c.status || '').toUpperCase() === 'PAID').length;
+
     return [
-      { title: 'Total Borrowers', value: total.toString(), change: 'Active records', icon: Users, color: 'text-primary', bgColor: 'bg-primary-soft' },
-      { title: 'Total Borrowed', value: `₹${totalBorrowed.toLocaleString()}`, change: 'Sum of principal', icon: IndianRupee, color: 'text-accent', bgColor: 'bg-accent-soft' },
-      { title: 'Overdue', value: overdueCount.toString(), change: 'Need attention', icon: AlertTriangle, color: 'text-destructive', bgColor: 'bg-destructive/10' },
-      { title: 'Pending/Partial/Paid', value: `${pendingCount}/${partialCount}/${paidCount}`, change: 'By status', icon: TrendingUp, color: 'text-success', bgColor: 'bg-success/10' },
+      {
+        title: 'Total Borrowers',
+        value: total.toString(),
+        change: 'Active records',
+        icon: Users,
+        color: 'text-primary',
+        bgColor: 'bg-primary-soft'
+      },
+      {
+        title: 'Total Borrowed',
+        value: `₹${totalBorrowed.toLocaleString()}`,
+        change: 'Sum of principal',
+        icon: IndianRupee,
+        color: 'text-accent',
+        bgColor: 'bg-accent-soft'
+      },
+      {
+        title: 'Overdue',
+        value: overdueCount.toString(),
+        change: 'Need attention',
+        icon: AlertTriangle,
+        color: 'text-destructive',
+        bgColor: 'bg-destructive/10'
+      },
+      {
+        title: 'P/P/P',
+        value: `${pendingCount}/${partialCount}/${paidCount}`,
+        change: 'Pending/Partial/Paid',
+        icon: TrendingUp,
+        color: 'text-success',
+        bgColor: 'bg-success-soft'
+      }
     ];
   }, [customers]);
 
   // Recent borrow events
   const recentEvents = useMemo(() => {
-    const events = customers
+    return customers
       .map((c) => ({
         type: 'loan' as const,
         borrower: c.customerName,
         amount: Number(c.amountBorrowed) || 0,
-        date: c.borrowDate || '',
+        date: c.borrowDate || ''
       }))
       .filter((e) => e.date)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 5);
-    return events;
   }, [customers]);
 
-  // Form helpers
-  const updateField =
-    <K extends keyof CustomerCreateRequest>(key: K) =>
-    (value: CustomerCreateRequest[K]) => {
-      setForm((prev) => ({ ...prev, [key]: value }));
-    };
-
-  const updateAddress = (k: keyof NonNullable<CustomerCreateRequest['address']>, v: string) => {
-    setForm((prev) => ({ ...prev, address: { ...(prev.address || {}), [k]: v } }));
+  // Form helper functions
+  const updateField = <K extends keyof CustomerCreateRequest>(key: K) => (value: CustomerCreateRequest[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  // Generate custId based on orgId + first 2 letters of name + 4-digit sequence
+  const updateAddress = (k: keyof NonNullable<CustomerCreateRequest['address']>, v: string) => {
+    setForm((prev) => ({
+      ...prev,
+      address: { ...(prev.address || {}), [k]: v }
+    }));
+  };
+
+  // Generate customer ID
   const generateCustId = (customerName: string, existingCustomers: Customer[]) => {
     const namePrefix = customerName.trim().toUpperCase().slice(0, 2).padEnd(2, 'X');
     const basePrefix = `${orgId}${namePrefix}`;
     const existingWithPrefix = existingCustomers.filter((c) => c.custId?.startsWith(basePrefix));
+
     let maxSequence = 0;
     existingWithPrefix.forEach((c) => {
       const custId = c.custId || '';
       const sequencePart = custId.slice(basePrefix.length);
       const sequenceNum = parseInt(sequencePart, 10);
-      if (!isNaN(sequenceNum) && sequenceNum > maxSequence) maxSequence = sequenceNum;
+      if (!isNaN(sequenceNum) && sequenceNum > maxSequence) {
+        maxSequence = sequenceNum;
+      }
     });
+
     const nextSequence = (maxSequence + 1).toString().padStart(4, '0');
     return `${basePrefix}${nextSequence}`;
   };
 
-  // Submit Add Borrower
+  // Submit add borrower form
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     const generatedCustId = generateCustId(form.customerName, customers);
     const payload: CustomerCreateRequest = {
       ...form,
       custId: generatedCustId,
       organizationId: orgId || form.organizationId || '',
       empId: form.empId || empId || '',
-      address: { ...(form.address || {}), country: 'India' },
+      address: { ...(form.address || {}), country: 'India' }
     };
+
+    // Validation
     if (
       !payload.customerName.trim() ||
       !payload.customerVehicleNum.trim() ||
@@ -320,27 +419,37 @@ export default function Borrowers() {
       toast({
         title: 'Validation error',
         description: 'All required fields must be filled.',
-        variant: 'destructive',
+        variant: 'destructive'
       });
       return;
     }
+
     setSubmitting(true);
     try {
+      // Create customer
       await axios.post(
         `${API_BASE}/api/organizations/${encodeURIComponent(payload.organizationId)}/customers`,
         payload,
         { timeout: 20000 }
       );
+
+      // Create opening balance transaction
       await axios.post(
         `${API_BASE}/api/organizations/${encodeURIComponent(payload.organizationId)}/customers/history`,
         {
           custId: generatedCustId,
           transactionAmount: -Math.abs(payload.amountBorrowed),
-          notes: 'Opening balance on customer creation',
+          notes: 'Opening balance on customer creation'
         },
         { timeout: 20000 }
       );
-      toast({ title: 'Saved', description: `Borrower created successfully with ID: ${generatedCustId}` });
+
+      toast({
+        title: 'Success',
+        description: `Borrower created with ID: ${generatedCustId}`
+      });
+
+      // Reset form
       setForm((prev) => ({
         ...prev,
         customerName: '',
@@ -353,70 +462,89 @@ export default function Borrowers() {
         phoneNumber: '',
         email: '',
         notes: '',
-        address: { line1: '', line2: '', city: '', state: '', postalCode: '', country: 'India' },
+        address: {
+          line1: '',
+          line2: '',
+          city: '',
+          state: '',
+          postalCode: '',
+          country: 'India'
+        }
       }));
+
       await refetch();
       setOpen(false);
     } catch (err: any) {
       toast({
-        title: 'Submission failed',
-        description: err?.response?.data?.message || `Could not create borrower.`,
-        variant: 'destructive',
+        title: 'Error',
+        description: err?.response?.data?.message || 'Failed to create borrower.',
+        variant: 'destructive'
       });
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Delete Borrower
+  // Delete handlers
   const handlePromptDelete = (customer: Customer) => {
     setDeletingBorrower(customer);
     setDeleteOpen(true);
   };
 
+  // Delete handler - Updated to use /by-cust/{custId} endpoint
   const handleDeleteBorrower = async () => {
     if (!deletingBorrower?.custId) return;
+
     setDeleteLoading(true);
     try {
+      // Use the new /by-cust/{custId} endpoint from your backend
       await axios.delete(
-        `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/${encodeURIComponent(deletingBorrower.custId)}`
+        `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/by-cust/${encodeURIComponent(deletingBorrower.custId)}`
       );
-      toast({ title: 'Deleted', description: `Borrower ${deletingBorrower.customerName} deleted.` });
+
+      toast({
+        title: 'Success',
+        description: `Borrower ${deletingBorrower.customerName} deleted.`
+      });
+
       await refetch();
       setDeleteOpen(false);
       setDeletingBorrower(null);
     } catch (err: any) {
       toast({
-        title: 'Delete failed',
-        description: err?.response?.data?.message || 'Could not delete borrower.',
-        variant: 'destructive',
+        title: 'Error',
+        description: err?.response?.data?.message || 'Failed to delete.',
+        variant: 'destructive'
       });
     } finally {
       setDeleteLoading(false);
     }
   };
 
-  // Transaction Modal handlers
+
+  // Transaction handlers
   const handleOpenTransaction = (customer: Customer) => {
     setSelectedCustomer(customer);
     setTransactionForm({
       custId: customer.custId || '',
       transactionAmount: 0,
-      notes: '',
+      notes: ''
     });
     setTransactionOpen(true);
   };
 
   const onTransactionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!transactionForm.custId || transactionForm.transactionAmount === 0) {
       toast({
         title: 'Validation error',
         description: 'Customer ID and non-zero amount required.',
-        variant: 'destructive',
+        variant: 'destructive'
       });
       return;
     }
+
     setTransactionSubmitting(true);
     try {
       await axios.post(
@@ -424,37 +552,42 @@ export default function Borrowers() {
         transactionForm,
         { timeout: 20000 }
       );
-      toast({ title: 'Success', description: 'Transaction recorded successfully.' });
+
+      toast({
+        title: 'Success',
+        description: 'Transaction recorded successfully.'
+      });
+
       await refetch();
       setTransactionOpen(false);
+
+      // Refresh history if it's open for this customer
       if (historyOpen && selectedCustomer?.custId === transactionForm.custId) {
         fetchHistory(transactionForm.custId, historyPage);
       }
     } catch (err: any) {
       toast({
-        title: 'Transaction failed',
-        description: err?.response?.data?.message || `Could not record transaction.`,
-        variant: 'destructive',
+        title: 'Error',
+        description: err?.response?.data?.message || 'Failed to record transaction.',
+        variant: 'destructive'
       });
     } finally {
       setTransactionSubmitting(false);
     }
   };
 
-  // History Modal handlers
+  // History handlers
   const fetchHistory = async (custId: string, page: number = 0) => {
     setHistoryLoading(true);
     try {
-      const url = `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/history?custId=${encodeURIComponent(
-        custId
-      )}&page=${page}&size=50`;
+      const url = `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/history?custId=${encodeURIComponent(custId)}&page=${page}&size=50`;
       const res = await axios.get(url, { timeout: 20000 });
       setHistoryData(res.data);
     } catch (err: any) {
       toast({
-        title: 'History fetch failed',
-        description: err?.response?.data?.message || 'Could not load transaction history.',
-        variant: 'destructive',
+        title: 'Error',
+        description: err?.response?.data?.message || 'Failed to load history.',
+        variant: 'destructive'
       });
     } finally {
       setHistoryLoading(false);
@@ -465,119 +598,122 @@ export default function Borrowers() {
     setSelectedCustomer(customer);
     setHistoryPage(0);
     setHistoryOpen(true);
-    if (customer.custId) fetchHistory(customer.custId, 0);
+    if (customer.custId) {
+      fetchHistory(customer.custId, 0);
+    }
   };
 
   // Render
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Delete Modal */}
-      <Dialog open={deleteOpen} onOpenChange={(v) => { setDeleteOpen(v); if (!v) setDeletingBorrower(null); }}>
-        <DialogOverlay className="fixed inset-0 z-[9998] bg-background/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out" />
-        <DialogContent
-          className="
-            fixed left-1/2 top-1/2 z-[9999] -translate-x-1/2 -translate-y-1/2
-            w-[96vw] sm:w-[90vw] md:w-[70vw] lg:w-[50vw] xl:w-[40vw]
-            max-w-3xl p-0 sm:rounded-lg shadow-xl
-            data-[state=open]:animate-in data-[state=closed]:animate-out
-          "
-        >
-          <div className="max-h-[85vh] overflow-y-auto">
-            <div className="p-4 sm:p-6">
-              <DialogHeader>
-                <DialogTitle>Delete Borrower?</DialogTitle>
-              </DialogHeader>
-              <div className="pt-2">
-                Are you sure you want to permanently delete borrower <b>{deletingBorrower?.customerName}</b> ({deletingBorrower?.custId})? This cannot be undone. 
+      {/* Delete Confirmation Modal */}
+      {deleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="relative bg-background shadow-2xl rounded-2xl w-full max-w-md p-8">
+            <button
+              onClick={() => setDeleteOpen(false)}
+              className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-1 transition"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 rounded-full bg-destructive/10">
+                <Trash2 className="h-6 w-6 text-destructive" />
               </div>
+              <h3 className="text-2xl font-bold">Delete Borrower?</h3>
             </div>
-            <DialogFooter className="sticky bottom-0 z-[2] border-t border-border bg-background/95 backdrop-blur px-4 py-3 sm:px-6">
-              <div className="flex w-full items-center justify-end gap-2">
-                <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteLoading}>
-                  Cancel
-                </Button>
-                <Button variant="destructive" onClick={handleDeleteBorrower} disabled={deleteLoading}>
-                  {deleteLoading ? 'Deleting...' : 'Delete'}
-                </Button>
-              </div>
-            </DialogFooter>
+            <p className="mb-6 text-muted-foreground">
+              Are you sure you want to delete{' '}
+              <span className="font-semibold text-foreground">{deletingBorrower?.customerName}</span> (
+              {deletingBorrower?.custId})? This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteLoading}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteBorrower} disabled={deleteLoading}>
+                {deleteLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
+              </Button>
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
-      {/* Add New Borrower Modal */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogOverlay className="fixed inset-0 z-[9998] bg-background/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out" />
-        <DialogContent
-          className="
-            fixed left-1/2 top-1/2 z-[9999] -translate-x-1/2 -translate-y-1/2
-            w-[96vw] sm:w-[92vw] md:w-[86vw] lg:w-[70vw] xl:w-[60vw]
-            max-w-5xl p-0 sm:rounded-lg shadow-xl
-            data-[state=open]:animate-in data-[state=closed]:animate-out
-          "
-        >
-          <div className="max-h-[85vh] overflow-y-auto">
-            <div className="p-4 sm:p-6 md:p-8">
-              <DialogHeader>
-                <DialogTitle>Add New Borrower</DialogTitle>
-                <DialogDescription>Fill in the required details to create a borrower record.</DialogDescription>
-              </DialogHeader>
+      {/* Add Borrower Modal */}
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="relative bg-background shadow-2xl rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+              <div>
+                <h2 className="text-2xl font-bold">Add New Borrower</h2>
+                <p className="text-sm text-muted-foreground">Fill in the required details</p>
+              </div>
+              <button
+                onClick={() => setOpen(false)}
+                className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-              <form onSubmit={onSubmit} className="space-y-4">
-                {/* Organization ID (read-only) */}
+            <form onSubmit={onSubmit} className="flex-1 overflow-y-auto">
+              <div className="p-6 space-y-4">
+                {/* Organization ID */}
                 <div className="space-y-2">
-                  <Label htmlFor="organizationId">Organization ID <span className="text-destructive">*</span></Label>
-                  <Input id="organizationId" value={orgId} readOnly disabled className="bg-muted/50" required />
+                  <Label>Organization ID *</Label>
+                  <Input value={orgId} readOnly disabled className="bg-muted/50" required />
                 </div>
 
-                {/* Name / Vehicle / Employee (empId read-only) */}
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                {/* Name / Vehicle / Employee */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="customerName">Customer Name <span className="text-destructive">*</span></Label>
+                    <Label>Customer Name *</Label>
                     <Input
-                      id="customerName"
                       value={form.customerName}
                       onChange={(e) => updateField('customerName')(e.target.value)}
-                      placeholder="Enter customer name"
+                      placeholder="Enter name"
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="customerVehicleNum">Vehicle Number <span className="text-destructive">*</span></Label>
+                    <Label>Vehicle Number *</Label>
                     <Input
-                      id="customerVehicleNum"
                       value={form.customerVehicleNum}
                       onChange={(e) => updateField('customerVehicleNum')((e.target.value || '').toUpperCase())}
-                      placeholder="e.g., KA01AB1234"
+                      placeholder="KA01AB1234"
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="empId">Employee ID <span className="text-destructive">*</span></Label>
-                    <Input id="empId" value={form.empId || empId} readOnly disabled placeholder="Employee ID" required />
+                    <Label>Employee ID *</Label>
+                    <Input value={form.empId || empId} readOnly disabled required />
                   </div>
                 </div>
 
-                {/* Amount / Borrow Date / Due Date */}
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                {/* Amount / Dates */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="amountBorrowed">Amount Borrowed <span className="text-destructive">*</span></Label>
+                    <Label>Amount Borrowed *</Label>
                     <Input
-                      id="amountBorrowed"
                       type="number"
                       min="0"
                       step="0.01"
                       value={form.amountBorrowed}
                       onChange={(e) => updateField('amountBorrowed')(Number(e.target.value))}
-                      onWheel={(e) => e.currentTarget.blur()}
                       placeholder="0.00"
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="borrowDate">Borrow Date <span className="text-destructive">*</span></Label>
+                    <Label>Borrow Date *</Label>
                     <Input
-                      id="borrowDate"
                       type="date"
                       value={form.borrowDate}
                       onChange={(e) => updateField('borrowDate')(e.target.value)}
@@ -586,9 +722,8 @@ export default function Borrowers() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="dueDate">Due Date <span className="text-destructive">*</span></Label>
+                    <Label>Due Date *</Label>
                     <Input
-                      id="dueDate"
                       type="date"
                       value={form.dueDate}
                       onChange={(e) => updateField('dueDate')(e.target.value)}
@@ -599,25 +734,44 @@ export default function Borrowers() {
                 </div>
 
                 {/* Status / Phone / Email */}
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="status">Status <span className="text-destructive">*</span></Label>
-                    <select
-                      id="status"
-                      className="w-full rounded-md border border-border bg-background p-2"
+                    <Label className="text-sm font-medium text-foreground">
+                      Status <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
                       value={form.status}
-                      onChange={(e) => updateField('status')(e.target.value as CustomerCreateRequest['status'])}
+                      onValueChange={(value) => updateField('status')(value as any)}
                       required
                     >
-                      <option value="PENDING">PENDING</option>
-                      <option value="PARTIAL">PARTIAL</option>
-                      <option value="OVERDUE">OVERDUE</option>
-                    </select>
+                      <SelectTrigger className="w-full h-10 bg-white dark:bg-slate-900 border-border hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all">
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[60]">
+                        <SelectItem value="PENDING" className="cursor-pointer">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-yellow-500" />
+                            <span>PENDING</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="PARTIAL" className="cursor-pointer">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-blue-500" />
+                            <span>PARTIAL</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="OVERDUE" className="cursor-pointer">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-red-500" />
+                            <span>OVERDUE</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phoneNumber">Phone Number</Label>
+                    <Label>Phone Number</Label>
                     <Input
-                      id="phoneNumber"
                       type="tel"
                       value={form.phoneNumber || ''}
                       onChange={(e) => updateField('phoneNumber')(e.target.value)}
@@ -625,9 +779,8 @@ export default function Borrowers() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label>Email</Label>
                     <Input
-                      id="email"
                       type="email"
                       value={form.email || ''}
                       onChange={(e) => updateField('email')(e.target.value)}
@@ -636,10 +789,10 @@ export default function Borrowers() {
                   </div>
                 </div>
 
-                {/* Address with State selector and Country read-only */}
+                {/* Address */}
                 <div className="space-y-2">
-                  <Label>Address <span className="text-destructive">*</span></Label>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Label>Address *</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input
                       placeholder="Address Line 1"
                       value={form.address?.line1 || ''}
@@ -657,92 +810,232 @@ export default function Borrowers() {
                       onChange={(e) => updateAddress('city', e.target.value)}
                       required
                     />
-                    {/* State dropdown */}
-                    <select
-                      className="w-full rounded-md border border-border bg-background p-2"
-                      value={form.address?.state || ''}
-                      onChange={(e) => updateAddress('state', e.target.value)}
-                      required
-                    >
-                      <option value="">Select State</option>
-                      {IN_STATES.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">
+                        State <span className="text-red-500">*</span>
+                      </Label>
+                      <Select
+                        value={form.address?.state || ''}
+                        onValueChange={(value) => updateAddress('state', value)}
+                        required
+                      >
+                        <SelectTrigger className="w-full h-10 bg-white dark:bg-slate-900 border-border hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all">
+                          <SelectValue placeholder="Select State" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[60] max-h-[300px]">
+                          {IN_STATES.map((state) => (
+                            <SelectItem key={state} value={state} className="cursor-pointer">
+                              {state}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <Input
                       placeholder="Postal Code"
                       value={form.address?.postalCode || ''}
                       onChange={(e) => updateAddress('postalCode', e.target.value)}
                       required
                     />
-                    {/* Country read-only */}
                     <Input value={form.address?.country || 'India'} readOnly disabled />
                   </div>
                 </div>
-              </form>
-            </div>
 
-            {/* Sticky footer */}
-            <DialogFooter className="sticky bottom-0 z-[2] border-t border-border bg-background/95 backdrop-blur px-4 py-3 sm:px-6 md:px-8">
-              <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" disabled={submitting} onClick={() => setOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="btn-gradient-primary"
-                    disabled={submitting}
-                    onClick={(e) => {
-                      const formEl = (e.currentTarget.closest('[role="dialog"]') as HTMLElement)?.querySelector('form') as HTMLFormElement | null;
-                      formEl?.requestSubmit();
-                    }}
-                  >
-                    {submitting ? 'Saving...' : 'Save Borrower'}
-                  </Button>
+                {/* Notes */}
+                <div className="space-y-2">
+                  <Label>Notes</Label>
+                  <textarea
+                    className="min-h-[80px] w-full rounded-md border border-border bg-background p-2"
+                    value={form.notes || ''}
+                    onChange={(e) => updateField('notes')(e.target.value)}
+                    placeholder="Optional notes"
+                  />
                 </div>
               </div>
-            </DialogFooter>
+
+              <div className="flex justify-end gap-3 p-6 border-t border-border bg-muted/20 shrink-0">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="btn-gradient-primary" disabled={submitting}>
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Borrower'
+                  )}
+                </Button>
+              </div>
+            </form>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
+
+      {/* Transaction Modal */}
+      {transactionOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="relative bg-background shadow-2xl rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+              <div>
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <CreditCard className="h-6 w-6" />
+                  Record Transaction
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {selectedCustomer?.customerName} ({selectedCustomer?.custId})
+                </p>
+              </div>
+              <button
+                onClick={() => setTransactionOpen(false)}
+                className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={onTransactionSubmit} className="flex-1 overflow-y-auto">
+              <div className="p-6 space-y-4">
+                <div className="space-y-2">
+                  <Label>Customer ID *</Label>
+                  <Input value={transactionForm.custId} readOnly disabled className="bg-muted/50" required />
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Transaction Type</Label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Button
+                        type="button"
+                        variant={transactionForm.transactionAmount >= 0 ? 'default' : 'outline'}
+                        className="h-20 flex-col gap-2"
+                        onClick={() =>
+                          setTransactionForm((prev) => ({
+                            ...prev,
+                            transactionAmount: Math.abs(prev.transactionAmount)
+                          }))
+                        }
+                      >
+                        <TrendingUp className="h-6 w-6" />
+                        Payment Received
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={transactionForm.transactionAmount < 0 ? 'default' : 'outline'}
+                        className="h-20 flex-col gap-2"
+                        onClick={() =>
+                          setTransactionForm((prev) => ({
+                            ...prev,
+                            transactionAmount: -Math.abs(prev.transactionAmount)
+                          }))
+                        }
+                      >
+                        <TrendingDown className="h-6 w-6" />
+                        Extra Borrowed
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Amount *</Label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={Math.abs(transactionForm.transactionAmount)}
+                        onChange={(e) => {
+                          const absValue = Math.abs(Number(e.target.value));
+                          setTransactionForm((prev) => ({
+                            ...prev,
+                            transactionAmount: prev.transactionAmount < 0 ? -absValue : absValue
+                          }));
+                        }}
+                        placeholder="0.00"
+                        required
+                        className="pl-8"
+                      />
+                      <IndianRupee className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {transactionForm.transactionAmount < 0 ? (
+                        <span className="text-warning">
+                          Additional borrowing (+₹{Math.abs(transactionForm.transactionAmount).toLocaleString()})
+                        </span>
+                      ) : (
+                        <span className="text-success">
+                          Payment (−₹{Math.abs(transactionForm.transactionAmount).toLocaleString()})
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Notes</Label>
+                  <textarea
+                    value={transactionForm.notes || ''}
+                    onChange={(e) => setTransactionForm((prev) => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Optional notes"
+                    className="min-h-[80px] w-full rounded-md border border-border bg-background p-2"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 p-6 border-t border-border bg-muted/20 shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setTransactionOpen(false)}
+                  disabled={transactionSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" className="btn-gradient-primary" disabled={transactionSubmitting}>
+                  {transactionSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    'Record Transaction'
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* History Modal */}
-      <Dialog
-        open={historyOpen}
-        onOpenChange={(v) => {
-          setHistoryOpen(v);
-          if (!v) {
-            setSelectedCustomer(null);
-            setHistoryData(null);
-          }
-        }}
-      >
-        <DialogOverlay className="fixed inset-0 z-[9998] bg-background/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out" />
-        <DialogContent
-          className="
-            fixed left-1/2 top-1/2 z-[9999] -translate-x-1/2 -translate-y-1/2
-            w-[96vw] sm:w-[92vw] md:w-[86vw] lg:w-[80vw] xl:w-[70vw]
-            max-w-6xl p-0 sm:rounded-lg shadow-xl
-            data-[state=open]:animate-in data-[state=closed]:animate-out
-          "
-        >
-          <div className="max-h-[85vh] overflow-y-auto">
-            <div className="p-4 sm:p-6 md:p-8">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <HistoryIcon className="h-5 w-5" />
+      {historyOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="relative bg-background shadow-2xl rounded-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+              <div>
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <HistoryIcon className="h-6 w-6" />
                   Transaction History
-                </DialogTitle>
-                <DialogDescription>
-                  {selectedCustomer
-                    ? <>Transaction history for {selectedCustomer.customerName} ({selectedCustomer.custId})</>
-                    : 'Loading customer information...'}
-                </DialogDescription>
-              </DialogHeader>
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {selectedCustomer?.customerName} ({selectedCustomer?.custId})
+                </p>
+              </div>
+              <button
+                onClick={() => setHistoryOpen(false)}
+                className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
+            <div className="flex-1 overflow-y-auto p-6">
               {historyLoading && (
-                <div className="text-muted-foreground p-4">Loading transaction history...</div>
+                <div className="text-muted-foreground p-4 text-center">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+                  Loading history...
+                </div>
               )}
 
               {!historyLoading && historyData && (
@@ -759,14 +1052,19 @@ export default function Borrowers() {
                               className="flex items-center justify-between rounded-lg bg-muted/30 p-4"
                             >
                               <div className="flex items-center gap-3">
-                                <div className={`rounded-lg p-2 ${isPayment ? 'bg-success-soft text-success' : 'bg-warning-soft text-warning'}`}>
+                                <div
+                                  className={`rounded-lg p-2 ${isPayment ? 'bg-success-soft text-success' : 'bg-warning-soft text-warning'
+                                    }`}
+                                >
                                   {isPayment ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
                                 </div>
                                 <div>
                                   <p className="font-medium text-foreground">
                                     {isPayment ? 'Payment Received' : 'Additional Borrowed'}
                                   </p>
-                                  <p className="text-sm text-muted-foreground">{new Date(transaction.transactionDate).toLocaleString()}</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {new Date(transaction.transactionDate).toLocaleString()}
+                                  </p>
                                   {transaction.notes && (
                                     <p className="text-sm text-muted-foreground italic">{transaction.notes}</p>
                                   )}
@@ -787,11 +1085,11 @@ export default function Borrowers() {
                         })}
                       </div>
 
-                      {/* Pagination */}
                       {historyData.totalPages > 1 && (
                         <div className="flex items-center justify-between pt-2">
                           <div className="text-sm text-muted-foreground">
-                            Page {historyData.number + 1} of {historyData.totalPages} ({historyData.totalElements} total)
+                            Page {historyData.number + 1} of {historyData.totalPages} ({historyData.totalElements}{' '}
+                            total)
                           </div>
                           <div className="flex gap-2">
                             <Button
@@ -825,195 +1123,51 @@ export default function Borrowers() {
                       )}
                     </>
                   ) : (
-                    <div className="text-sm text-muted-foreground p-4">
-                      No transaction history available for this customer.
+                    <div className="text-sm text-muted-foreground p-4 text-center">
+                      No transaction history available.
                     </div>
                   )}
                 </div>
               )}
             </div>
 
-            <DialogFooter className="sticky bottom-0 z-[2] border-t border-border bg-background/95 backdrop-blur px-4 py-3 sm:px-6 md:px-8">
-              <div className="flex w-full items-center justify-end">
-                <Button variant="outline" onClick={() => setHistoryOpen(false)}>Close</Button>
-              </div>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Transaction Modal */}
-      <Dialog open={transactionOpen} onOpenChange={setTransactionOpen}>
-        <DialogOverlay className="fixed inset-0 z-[9998] bg-background/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out" />
-        <DialogContent
-          className="
-            fixed left-1/2 top-1/2 z-[9999] -translate-x-1/2 -translate-y-1/2
-            w-[96vw] sm:w-[90vw] md:w-[80vw] lg:w-[60vw] xl:w-[50vw]
-            max-w-3xl p-0 sm:rounded-lg shadow-xl
-            data-[state=open]:animate-in data-[state=closed]:animate-out
-          "
-        >
-          <div className="max-h-[85vh] overflow-y-auto">
-            <div className="p-4 sm:p-6 md:p-8">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />
-                  Record Transaction
-                </DialogTitle>
-                <DialogDescription>
-                  {selectedCustomer ? (
-                    <>Record a payment or additional borrow for {selectedCustomer.customerName} ({selectedCustomer.custId})</>
-                  ) : (
-                    'Loading customer information...'
-                  )}
-                </DialogDescription>
-              </DialogHeader>
-
-              <form onSubmit={onTransactionSubmit} className="space-y-4">
-                {/* Customer ID (read-only) */}
-                <div className="space-y-2">
-                  <Label htmlFor="transactionCustId">Customer ID <span className="text-destructive">*</span></Label>
-                  <Input id="transactionCustId" value={transactionForm.custId} readOnly disabled className="bg-muted/50" required />
-                </div>
-
-                {/* Transaction Type and Amount */}
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Transaction Type</Label>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Button
-                        type="button"
-                        variant={transactionForm.transactionAmount >= 0 ? 'default' : 'outline'}
-                        className="h-20 flex-col gap-2"
-                        onClick={() => {
-                          setTransactionForm((prev) => ({
-                            ...prev,
-                            transactionAmount: Math.abs(prev.transactionAmount),
-                          }));
-                        }}
-                      >
-                        <TrendingUp className="h-6 w-6" />
-                        Payment Received
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={transactionForm.transactionAmount < 0 ? 'default' : 'outline'}
-                        className="h-20 flex-col gap-2"
-                        onClick={() => {
-                          setTransactionForm((prev) => ({
-                            ...prev,
-                            transactionAmount: -Math.abs(prev.transactionAmount),
-                          }));
-                        }}
-                      >
-                        <TrendingDown className="h-6 w-6" />
-                        Extra Borrowed
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="transactionAmount">Amount <span className="text-destructive">*</span></Label>
-                    <div className="relative">
-                      <Input
-                        id="transactionAmount"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={Math.abs(transactionForm.transactionAmount)}
-                        onChange={(e) => {
-                          const absValue = Math.abs(Number(e.target.value));
-                          setTransactionForm((prev) => ({
-                            ...prev,
-                            transactionAmount: prev.transactionAmount < 0 ? -absValue : absValue,
-                          }));
-                        }}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        placeholder="0.00"
-                        required
-                        aria-required="true"
-                        className="pl-8"
-                      />
-                      <IndianRupee className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    </div>
-                    {/* UI display rule */}
-                    <p className="text-sm text-muted-foreground">
-                      {transactionForm.transactionAmount < 0 ? (
-                        <span className="text-warning">This will be recorded as additional borrowing (+₹{Math.abs(transactionForm.transactionAmount).toLocaleString()})</span>
-                      ) : (
-                        <span className="text-success">This will be recorded as a payment (−₹{Math.abs(transactionForm.transactionAmount).toLocaleString()})</span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Notes */}
-                <div className="space-y-2">
-                  <Label htmlFor="transactionNotes">Notes</Label>
-                  <textarea
-                    id="transactionNotes"
-                    value={transactionForm.notes || ''}
-                    onChange={(e) => setTransactionForm((prev) => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Optional transaction notes"
-                    className="min-h-[80px] w-full rounded-md border border-border bg-background p-2"
-                  />
-                </div>
-              </form>
+            <div className="flex justify-end p-6 border-t border-border bg-muted/20 shrink-0">
+              <Button variant="outline" onClick={() => setHistoryOpen(false)}>
+                Close
+              </Button>
             </div>
-
-            {/* Sticky footer */}
-            <DialogFooter className="sticky bottom-0 z-[2] border-t border-border bg-background/95 backdrop-blur px-4 py-3 sm:px-6 md:px-8">
-              <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-sm text-muted-foreground">
-                  This transaction will update the customer's balance immediately.
-                </div>
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" disabled={transactionSubmitting} onClick={() => setTransactionOpen(false)}>
-                    Close
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="btn-gradient-primary"
-                    disabled={transactionSubmitting}
-                    onClick={(e) => {
-                      const formEl = (e.currentTarget.closest('[role="dialog"]') as HTMLElement)?.querySelector('form') as HTMLFormElement | null;
-                      formEl?.requestSubmit();
-                    }}
-                  >
-                    {transactionSubmitting ? 'Recording...' : 'Record Transaction'}
-                  </Button>
-                </div>
-              </div>
-            </DialogFooter>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Borrower Management</h1>
           <p className="text-muted-foreground">Track loans and manage customer credit</p>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex gap-2">
           <Button variant="outline" onClick={() => refetch()} disabled={isFetching || !orgId}>
             {isFetching ? 'Refreshing...' : 'Refresh'}
           </Button>
-          <Button className="btn-gradient-primary w-full sm:w-auto" onClick={() => setOpen(true)} disabled={!orgId}>
+          <Button className="btn-gradient-primary" onClick={() => setOpen(true)} disabled={!orgId}>
             <Plus className="mr-2 h-4 w-4" />
-            Add New Borrower
+            Add Borrower
           </Button>
         </div>
       </div>
 
-      {/* Loading / Error */}
+      {/* Loading State */}
       {isLoading && (
         <Card>
-          <CardContent className="p-6">
-            <div className="text-muted-foreground">Loading borrowers...</div>
+          <CardContent className="p-12 text-center">
+            <Loader2 className="h-12 w-12 mb-3 opacity-50 animate-spin mx-auto text-primary" />
+            <p className="text-muted-foreground">Loading borrowers...</p>
           </CardContent>
         </Card>
       )}
+
+      {/* Error State */}
       {isError && (
         <Card>
           <CardContent className="p-6">
@@ -1024,18 +1178,18 @@ export default function Borrowers() {
         </Card>
       )}
 
-      {/* Stats */}
+      {/* Stats Cards */}
       {!isLoading && !isError && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {stats.map((stat) => {
             const Icon = stat.icon;
             return (
               <Card key={stat.title} className="stat-card hover-lift">
-                <CardContent className="p-5 sm:p-6">
+                <CardContent className="p-6">
                   <div className="flex items-center justify-between">
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                      <div className="space-y-1">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-muted-foreground truncate">{stat.title}</p>
+                      <div>
                         <p className="text-2xl font-bold text-foreground">{stat.value}</p>
                         <p className="text-xs text-muted-foreground">{stat.change}</p>
                       </div>
@@ -1051,30 +1205,24 @@ export default function Borrowers() {
         </div>
       )}
 
-      {/* Borrower Accounts (segregated by status) */}
+      {/* Borrower List */}
       {!isLoading && !isError && (
         <Card className="card-gradient">
           <CardHeader>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <CardTitle>Borrower Accounts</CardTitle>
               <div className="relative w-full sm:w-72">
                 <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name, vehicle, phone, email..."
-                  className="pl-10"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+                <Input placeholder="Search borrowers..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            {/* Overdue */}
             {groupByStatus.OVERDUE.length > 0 && (
               <Section title="Overdue" icon={<AlertTriangle className="h-4 w-4 text-destructive" />}>
                 {groupByStatus.OVERDUE.map((c) => (
                   <BorrowerRow
-                    key={c.id || c.custId || `${c.customerName}-${c.customerVehicleNum || ''}`}
+                    key={c.id || c.custId}
                     c={c}
                     onHistory={handleOpenHistory}
                     onTransaction={handleOpenTransaction}
@@ -1084,12 +1232,11 @@ export default function Borrowers() {
               </Section>
             )}
 
-            {/* Pending */}
             {groupByStatus.PENDING.length > 0 && (
               <Section title="Pending" icon={<Clock className="h-4 w-4 text-warning" />}>
                 {groupByStatus.PENDING.map((c) => (
                   <BorrowerRow
-                    key={c.id || c.custId || `${c.customerName}-${c.customerVehicleNum || ''}`}
+                    key={c.id || c.custId}
                     c={c}
                     onHistory={handleOpenHistory}
                     onTransaction={handleOpenTransaction}
@@ -1099,12 +1246,11 @@ export default function Borrowers() {
               </Section>
             )}
 
-            {/* Partial */}
             {groupByStatus.PARTIAL.length > 0 && (
               <Section title="Partial" icon={<TrendingUp className="h-4 w-4 text-accent" />}>
                 {groupByStatus.PARTIAL.map((c) => (
                   <BorrowerRow
-                    key={c.id || c.custId || `${c.customerName}-${c.customerVehicleNum || ''}`}
+                    key={c.id || c.custId}
                     c={c}
                     onHistory={handleOpenHistory}
                     onTransaction={handleOpenTransaction}
@@ -1114,12 +1260,11 @@ export default function Borrowers() {
               </Section>
             )}
 
-            {/* Paid */}
             {groupByStatus.PAID.length > 0 && (
               <Section title="Paid" icon={<TrendingUp className="h-4 w-4 text-success" />}>
                 {groupByStatus.PAID.map((c) => (
                   <BorrowerRow
-                    key={c.id || c.custId || `${c.customerName}-${c.customerVehicleNum || ''}`}
+                    key={c.id || c.custId}
                     c={c}
                     onHistory={handleOpenHistory}
                     onTransaction={handleOpenTransaction}
@@ -1129,12 +1274,11 @@ export default function Borrowers() {
               </Section>
             )}
 
-            {/* Other */}
             {groupByStatus.OTHER.length > 0 && (
               <Section title="Other" icon={<Users className="h-4 w-4 text-muted-foreground" />}>
                 {groupByStatus.OTHER.map((c) => (
                   <BorrowerRow
-                    key={c.id || c.custId || `${c.customerName}-${c.customerVehicleNum || ''}`}
+                    key={c.id || c.custId}
                     c={c}
                     onHistory={handleOpenHistory}
                     onTransaction={handleOpenTransaction}
@@ -1151,7 +1295,7 @@ export default function Borrowers() {
         </Card>
       )}
 
-      {/* Recent Borrow Events */}
+      {/* Recent Events */}
       {!isLoading && !isError && (
         <Card className="card-gradient">
           <CardHeader>
@@ -1164,7 +1308,10 @@ export default function Borrowers() {
             <div className="space-y-3">
               {recentEvents.length > 0 ? (
                 recentEvents.map((tx, idx) => (
-                  <div key={`${tx.borrower}-${tx.date}-${idx}`} className="flex items-center justify-between rounded-lg bg-muted/30 p-3">
+                  <div
+                    key={`${tx.borrower}-${tx.date}-${idx}`}
+                    className="flex items-center justify-between rounded-lg bg-muted/30 p-3"
+                  >
                     <div className="flex items-center gap-3">
                       <div className="rounded-lg bg-warning-soft p-2 text-warning">
                         <TrendingUp className="h-4 w-4" />
@@ -1174,9 +1321,7 @@ export default function Borrowers() {
                         <p className="text-sm text-muted-foreground">{new Date(tx.date).toLocaleDateString('en-IN')}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-warning">₹{Number(tx.amount).toLocaleString()}</p>
-                    </div>
+                    <p className="font-semibold text-warning">₹{Number(tx.amount).toLocaleString()}</p>
                   </div>
                 ))
               ) : (
@@ -1190,7 +1335,7 @@ export default function Borrowers() {
   );
 }
 
-// Reusable section wrapper
+// Section Component
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="mb-6">
@@ -1203,27 +1348,36 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
   );
 }
 
-// Borrower row
+// BorrowerRow Component
 function BorrowerRow({
   c,
   onHistory,
   onTransaction,
-  onDelete,
+  onDelete
 }: {
   c: Customer;
   onHistory: (customer: Customer) => void;
   onTransaction: (customer: Customer) => void;
   onDelete: (customer: Customer) => void;
 }) {
-  const getUserInitials = (name?: string) => (name || 'NA').split(' ').map((n) => n[0]).join('').toUpperCase();
+  const getUserInitials = (name?: string) => {
+    if (!name) return 'NA';
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase();
+  };
+
   const formatDate = (iso?: string) => {
     if (!iso) return '—';
     const d = new Date(iso);
     return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-IN');
   };
+
   return (
-    <div className="flex flex-col gap-4 rounded-lg bg-muted/30 p-4 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-start gap-3 sm:items-center">
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-lg bg-muted/30 p-4 transition-colors hover:bg-muted/50">
+      <div className="flex items-start sm:items-center gap-3">
         <Avatar className="h-10 w-10 sm:h-12 sm:w-12">
           <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
             {getUserInitials(c.customerName)}
@@ -1239,9 +1393,7 @@ function BorrowerRow({
           </div>
           <p className="text-sm text-muted-foreground">
             {c.customerVehicleNum ? `Vehicle: ${c.customerVehicleNum}` : 'Vehicle: —'}
-            {c.custId && (
-              <span className="ml-2 text-xs text-muted-foreground">ID: {c.custId}</span>
-            )}
+            {c.custId && <span className="ml-2 text-xs">ID: {c.custId}</span>}
           </p>
           <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-1">
@@ -1261,34 +1413,13 @@ function BorrowerRow({
         </div>
       </div>
       <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          title="Transaction History"
-          onClick={() => onHistory(c)}
-          className="w-full sm:w-auto"
-          disabled={!c.custId}
-        >
+        <Button variant="outline" size="sm" title="Transaction History" onClick={() => onHistory(c)} disabled={!c.custId}>
           <HistoryIcon className="h-4 w-4" />
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          title="Record Transaction"
-          onClick={() => onTransaction(c)}
-          className="w-full sm:w-auto"
-          disabled={!c.custId}
-        >
+        <Button variant="outline" size="sm" title="Record Transaction" onClick={() => onTransaction(c)} disabled={!c.custId}>
           <ArrowUpDown className="h-4 w-4" />
         </Button>
-        <Button
-          variant="destructive"
-          size="sm"
-          title="Delete Borrower"
-          onClick={() => onDelete(c)}
-          className="w-full sm:w-auto"
-          disabled={!c.custId}
-        >
+        <Button variant="destructive" size="sm" title="Delete Borrower" onClick={() => onDelete(c)} disabled={!c.custId}>
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
