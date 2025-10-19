@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   User, Mail, Phone, Calendar, Clock, Edit3, Camera, Lock, Shield,
-  Briefcase, MapPin, Users, Building, Eye, EyeOff, Loader2, Save, X, 
+  Briefcase, MapPin, Users, Building, Eye, EyeOff, Loader2, Save, X,
   AlertCircle, CheckCircle2, Home, UserCircle
 } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -101,7 +101,7 @@ export default function Profile() {
   const fullName = useMemo(() => employee ? `${employee.firstName || ''} ${employee.lastName || ''}`.trim() : '', [employee]);
   const getUserInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase();
   const formatDate = (iso?: string) => iso ? new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-  
+
   const handleChange = (field: keyof EmployeeUpdateRequest, value: any) => setForm(prev => ({ ...prev, [field]: value }));
   const handleAddress = (k: keyof AddressDTO, v: string) => setForm(prev => ({ ...prev, address: { ...prev.address, [k]: v } }));
   const handleEC = (k: 'name' | 'phone' | 'relationship', v: string) => setForm(prev => ({ ...prev, emergencyContact: { ...prev.emergencyContact, [k]: v } }));
@@ -133,8 +133,8 @@ export default function Profile() {
 
   const saveProfileImage = async (imageUrl: string) => {
     if (!employee || !internalId) return;
-    const res = await axios.put(`${API_BASE}/api/organizations/${orgId}/employees/${internalId}`, { 
-      empId: employee.empId, organizationId: employee.organizationId, profileImageUrl: imageUrl 
+    const res = await axios.put(`${API_BASE}/api/organizations/${orgId}/employees/${internalId}`, {
+      empId: employee.empId, organizationId: employee.organizationId, profileImageUrl: imageUrl
     });
     setEmployee(res.data);
   };
@@ -204,7 +204,7 @@ export default function Profile() {
   return (
     <div className="min-h-screen ">
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-      
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header Card */}
         <Card className="mb-8 overflow-hidden border-0 shadow-xl bg-white">
@@ -255,31 +255,32 @@ export default function Profile() {
               </div>
 
               {/* Actions */}
-              <div className="flex flex-col sm:flex-row gap-2 pt-4">
+              <div className="grid grid-cols-2 gap-2 pt-4 sm:flex sm:flex-row">
                 {!isEditing ? (
                   <>
-                    <Button onClick={() => setIsEditing(true)} className="bg-blue-600 hover:bg-blue-700">
+                    <Button onClick={() => setIsEditing(true)} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700">
                       <Edit3 className="h-4 w-4 mr-2" />
                       Edit Profile
                     </Button>
-                    <Button onClick={() => setPwdDialogOpen(true)} variant="outline" className="border-slate-300">
+                    <Button onClick={() => setPwdDialogOpen(true)} variant="outline" className="w-full sm:w-auto border-slate-300">
                       <Lock className="h-4 w-4 mr-2" />
                       Change Password
                     </Button>
                   </>
                 ) : (
                   <>
-                    <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+                    <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700">
                       {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                       Save Changes
                     </Button>
-                    <Button onClick={() => setIsEditing(false)} disabled={saving} variant="outline" className="border-slate-300">
+                    <Button onClick={() => setIsEditing(false)} disabled={saving} variant="outline" className="w-full sm:w-auto border-slate-300">
                       <X className="h-4 w-4 mr-2" />
                       Cancel
                     </Button>
                   </>
                 )}
               </div>
+
             </div>
           </CardContent>
         </Card>
@@ -323,16 +324,16 @@ export default function Profile() {
                             {field.value || <span className="text-slate-400">Not set</span>}
                           </div>
                         ) : field.type === 'select' ? (
-                          <select 
+                          <select
                             className="w-full h-11 px-4 border border-slate-300 rounded-lg bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-                            value={field.formValue || ''} 
+                            value={field.formValue || ''}
                             onChange={e => handleChange(field.id as any, e.target.value)}
                           >
                             {field.options?.map(opt => <option key={opt} value={opt}>{opt || 'Select...'}</option>)}
                           </select>
                         ) : (
-                          <Input 
-                            value={field.formValue || ''} 
+                          <Input
+                            value={field.formValue || ''}
                             onChange={e => handleChange(field.id as any, e.target.value)}
                             className="h-11 border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                           />
@@ -581,9 +582,9 @@ export default function Profile() {
                     minLength={field.minLength}
                     className="h-11 pr-12 border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   />
-                  <button 
-                    type="button" 
-                    onClick={() => field.setShow(!field.show)} 
+                  <button
+                    type="button"
+                    onClick={() => field.setShow(!field.show)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   >
                     {field.show ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}

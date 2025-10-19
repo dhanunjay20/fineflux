@@ -39,6 +39,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+
 // ============ Types ============
 interface SaleRecord {
   id: string;
@@ -68,7 +69,9 @@ interface SalesSummary {
 type DatePreset = "today" | "week" | "month" | "custom";
 
 // ============ Constants ============
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://finflux-64307221061.asia-south1.run.app";
 const RUPEE = "\u20B9";
 const RECORDS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
@@ -123,10 +126,9 @@ const exportToCSV = (records: SaleRecord[], from: Dayjs, to: Dayjs) => {
     record.receivedTotal,
   ]);
 
-  const csvContent = [
-    headers.join(","),
-    ...rows.map((row) => row.join(",")),
-  ].join("\n");
+  const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join(
+    "\n"
+  );
 
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const link = document.createElement("a");
@@ -142,19 +144,24 @@ const exportToCSV = (records: SaleRecord[], from: Dayjs, to: Dayjs) => {
   document.body.removeChild(link);
 };
 
-const exportToPDF = (records: SaleRecord[], from: Dayjs, to: Dayjs, summary: SalesSummary) => {
+const exportToPDF = (
+  records: SaleRecord[],
+  from: Dayjs,
+  to: Dayjs,
+  summary: SalesSummary
+) => {
   const doc = new jsPDF();
 
-  // Modern header with gradient effect (simulated with colors)
+  // Header
   doc.setFillColor(59, 130, 246);
   doc.rect(0, 0, 210, 40, "F");
 
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(24);
+  doc.setFontSize(20);
   doc.setFont("helvetica", "bold");
   doc.text("Sales History Report", 105, 15, { align: "center" });
 
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
   doc.text(
     `Period: ${from.format("DD MMM YYYY")} to ${to.format("DD MMM YYYY")}`,
@@ -163,14 +170,14 @@ const exportToPDF = (records: SaleRecord[], from: Dayjs, to: Dayjs, summary: Sal
     { align: "center" }
   );
 
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.text(`Generated: ${dayjs().format("DD MMM YYYY, hh:mm A")}`, 105, 32, {
     align: "center",
   });
 
-  // Summary section with modern cards
+  // Summary
   doc.setTextColor(0, 0, 0);
-  doc.setFontSize(14);
+  doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
   doc.text("Summary", 14, 50);
 
@@ -192,22 +199,22 @@ const exportToPDF = (records: SaleRecord[], from: Dayjs, to: Dayjs, summary: Sal
       fillColor: [59, 130, 246],
       textColor: [255, 255, 255],
       fontStyle: "bold",
-      fontSize: 11,
+      fontSize: 10,
     },
     styles: {
-      fontSize: 10,
-      cellPadding: 5,
+      fontSize: 9,
+      cellPadding: 4,
     },
     alternateRowStyles: {
       fillColor: [249, 250, 251],
     },
   });
 
-  // Detailed records table
-  const finalY = (doc as any).lastAutoTable.finalY || 55;
-  doc.setFontSize(14);
+  // Records
+  const finalY = (doc as any).lastAutoTable?.finalY || 55;
+  doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
-  doc.text("Detailed Records", 14, finalY + 15);
+  doc.text("Detailed Records", 14, finalY + 12);
 
   const tableData = records.map((record) => [
     dayjs(record.dateTime).format("DD-MM HH:mm"),
@@ -222,7 +229,7 @@ const exportToPDF = (records: SaleRecord[], from: Dayjs, to: Dayjs, summary: Sal
   ]);
 
   autoTable(doc, {
-    startY: finalY + 20,
+    startY: finalY + 16,
     head: [
       [
         "Date/Time",
@@ -269,156 +276,150 @@ const exportToPDF = (records: SaleRecord[], from: Dayjs, to: Dayjs, summary: Sal
   }
 
   doc.save(
-    `sales-history-${from.format("DD-MM-YYYY")}-to-${to.format("DD-MM-YYYY")}.pdf`
+    `sales-history-${from.format("DD-MM-YYYY")}-to-${to.format(
+      "DD-MM-YYYY"
+    )}.pdf`
   );
 };
 
-// ============ Compact Sale Record Card ============
+// ============ Compact Mobile-First Sale Record Card ============
 const SaleRecordCard = ({ record, index }: { record: SaleRecord; index: number }) => {
   const [expanded, setExpanded] = useState(false);
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.05 }}
-      className="relative"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: Math.min(index * 0.03, 0.3) }}
     >
-      {/* Timeline Connector */}
-      <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary/50 to-primary/10 ml-6" />
-
-      {/* Timeline Dot */}
-      <div className="absolute left-4 top-6 w-4 h-4 bg-primary rounded-full border-4 border-background shadow-lg z-10" />
-
-      <div className="ml-16 mb-4">
-        <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-primary overflow-hidden group">
-          <CardContent className="p-4">
-            {/* Compact Header */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shrink-0">
-                  <Fuel className="h-5 w-5 text-white" />
+      <Card className="overflow-hidden border border-border/60 shadow-sm">
+        <CardContent className="p-3 sm:p-4">
+          {/* Header: Product + Total */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-md bg-blue-600 text-white shrink-0">
+                  <Fuel className="h-4 w-4" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-bold text-foreground truncate">{record.productName}</h3>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <CalendarIcon className="h-3 w-3" />
-                      {dayjs(record.dateTime).format("DD MMM YYYY")}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {dayjs(record.dateTime).format("hh:mm A")}
-                    </span>
-                    <Badge variant="secondary" className="flex items-center gap-1 text-xs px-2 py-0">
-                      <User className="h-3 w-3" />
-                      {record.empId}
-                    </Badge>
-                  </div>
-                </div>
+                <h3 className="text-base sm:text-lg font-semibold truncate">
+                  {record.productName}
+                </h3>
               </div>
-
-              {/* Total Amount - Compact */}
-              <div className="text-right shrink-0">
-                <p className="text-xs text-muted-foreground font-medium">Total</p>
-                <p className="text-2xl font-bold bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
-                  {formatCurrency(record.salesInRupees)}
-                </p>
-              </div>
-            </div>
-
-            {/* Compact Sale Details - Single Row */}
-            <div className="flex items-center gap-3 py-2 mb-3 border-y border-border text-sm">
-              <div className="flex items-center gap-1.5">
-                <Droplet className="h-4 w-4 text-blue-600" />
-                <span className="font-bold">{record.salesInLiters}L</span>
-              </div>
-              <div className="h-4 w-px bg-border" />
-              <div className="flex items-center gap-1.5">
-                <Fuel className="h-4 w-4 text-purple-600" />
-                <span className="font-medium text-muted-foreground">Gun:</span>
-                <span className="font-bold">{record.guns}</span>
-              </div>
-              <div className="h-4 w-px bg-border" />
-              <div className="flex items-center gap-1.5">
-                <AlertCircle className="h-4 w-4 text-amber-600" />
-                <span className="font-medium text-muted-foreground">Testing:</span>
-                <span className="font-bold">{record.testingTotal}</span>
-              </div>
-            </div>
-
-            {/* Compact Payment Methods */}
-            <div className="flex flex-wrap gap-2">
-              {record.cashReceived > 0 && (
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400 text-xs">
-                  <Wallet className="h-3.5 w-3.5" />
-                  <span className="font-bold">{formatCurrency(record.cashReceived)}</span>
-                </div>
-              )}
-              {record.phonePay > 0 && (
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 text-xs">
-                  <Smartphone className="h-3.5 w-3.5" />
-                  <span className="font-bold">{formatCurrency(record.phonePay)}</span>
-                </div>
-              )}
-              {record.creditCard > 0 && (
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 text-xs">
-                  <CreditCard className="h-3.5 w-3.5" />
-                  <span className="font-bold">{formatCurrency(record.creditCard)}</span>
-                </div>
-              )}
-              {record.shortCollections > 0 && (
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-yellow-50 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400 text-xs">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  <span className="font-medium">Short:</span>
-                  <span className="font-bold">{formatCurrency(record.shortCollections)}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Compact Expand Button */}
-            {record.shortCollections > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setExpanded(!expanded)}
-                className="w-full mt-2 h-7 text-xs"
-              >
-                {expanded ? "Hide" : "Details"}
-                <ChevronRight
-                  className={`ml-1 h-3 w-3 transition-transform ${expanded ? "rotate-90" : ""}`}
-                />
-              </Button>
-            )}
-
-            {/* Expanded Details */}
-            <AnimatePresence>
-              {expanded && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden"
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <CalendarIcon className="h-3.5 w-3.5" />
+                  {dayjs(record.dateTime).format("DD MMM YYYY")}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5" />
+                  {dayjs(record.dateTime).format("hh:mm A")}
+                </span>
+                <Badge
+                  variant="secondary"
+                  className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] sm:text-xs"
                 >
-                  <div className="pt-3 border-t border-border mt-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Received Total:</span>
-                      <span className="font-bold text-pink-600">
-                        {formatCurrency(record.receivedTotal)}
-                      </span>
-                    </div>
+                  <User className="h-3 w-3" />
+                  {record.empId}
+                </Badge>
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-[11px] sm:text-xs text-muted-foreground">Total</p>
+              <p className="text-xl sm:text-2xl font-extrabold text-primary">
+                {formatCurrency(record.salesInRupees)}
+              </p>
+            </div>
+          </div>
+
+          {/* Key metrics row: stacks on mobile */}
+          <div className="mt-3 grid grid-cols-3 gap-2 sm:flex sm:items-center sm:gap-4 sm:border-y sm:py-2">
+            <div className="flex items-center gap-1.5">
+              <Droplet className="h-4 w-4 text-blue-600" />
+              <span className="text-sm font-semibold">{record.salesInLiters}L</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Fuel className="h-4 w-4 text-purple-600" />
+              <span className="text-xs text-muted-foreground">Gun</span>
+              <span className="text-sm font-semibold">{record.guns}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <span className="text-xs text-muted-foreground">Testing</span>
+              <span className="text-sm font-semibold">{record.testingTotal}</span>
+            </div>
+          </div>
+
+          {/* Payments: chips wrap cleanly */}
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {record.cashReceived > 0 && (
+              <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400 text-xs">
+                <Wallet className="h-3.5 w-3.5" />
+                <span className="font-semibold">{formatCurrency(record.cashReceived)}</span>
+              </div>
+            )}
+            {record.phonePay > 0 && (
+              <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-400 text-xs">
+                <Smartphone className="h-3.5 w-3.5" />
+                <span className="font-semibold">{formatCurrency(record.phonePay)}</span>
+              </div>
+            )}
+            {record.creditCard > 0 && (
+              <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400 text-xs">
+                <CreditCard className="h-3.5 w-3.5" />
+                <span className="font-semibold">{formatCurrency(record.creditCard)}</span>
+              </div>
+            )}
+            {record.shortCollections > 0 && (
+              <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-400 text-xs">
+                <AlertCircle className="h-3.5 w-3.5" />
+                <span className="font-medium">Short:</span>
+                <span className="font-semibold">{formatCurrency(record.shortCollections)}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Expand details (only when useful) */}
+          {record.shortCollections > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setExpanded((v) => !v)}
+              className="w-full mt-2 h-8 text-xs"
+            >
+              {expanded ? "Hide details" : "View details"}
+              <ChevronRight
+                className={`ml-1 h-3.5 w-3.5 transition-transform ${expanded ? "rotate-90" : ""
+                  }`}
+              />
+            </Button>
+          )}
+
+          <AnimatePresence>
+            {expanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="mt-2 pt-2 border-t border-border/70">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Received Total</span>
+                    <span className="font-semibold text-pink-600 dark:text-pink-400">
+                      {formatCurrency(record.receivedTotal)}
+                    </span>
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </CardContent>
-        </Card>
-      </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </CardContent>
+      </Card>
     </motion.div>
   );
 };
 
-// ============ Date Range Selector ============
+// ============ Date Range Selector (mobile-friendly) ============
 const DateRangeSelector = ({
   preset,
   setPreset,
@@ -441,14 +442,14 @@ const DateRangeSelector = ({
   ] as const;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
         {presetButtons.map(({ id, label, icon: Icon }) => (
           <Button
             key={id}
             variant={preset === id ? "default" : "outline"}
             onClick={() => setPreset(id as DatePreset)}
-            className="transition-all duration-200"
+            className="h-9"
           >
             <Icon className="mr-2 h-4 w-4" />
             {label}
@@ -457,7 +458,7 @@ const DateRangeSelector = ({
         <Button
           variant={preset === "custom" ? "default" : "outline"}
           onClick={() => setPreset("custom")}
-          className="transition-all duration-200"
+          className="h-9"
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
           Custom Range
@@ -472,30 +473,30 @@ const DateRangeSelector = ({
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <Card className="p-4 bg-muted/30">
-              <div className="flex flex-wrap gap-4 items-end">
-                <div className="flex-1 min-w-[200px]">
-                  <Label className="text-sm font-medium mb-2 block">From Date</Label>
+            <Card className="p-3 sm:p-4 bg-muted/30">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-1">
+                  <Label className="text-sm mb-1.5 block">From Date</Label>
                   <Input
                     type="date"
                     value={from.format("YYYY-MM-DD")}
                     onChange={(e) => onCustomChange("from", e.target.value)}
-                    className="w-full"
                   />
                 </div>
-                <div className="flex-1 min-w-[200px]">
-                  <Label className="text-sm font-medium mb-2 block">To Date</Label>
+                <div className="sm:col-span-1">
+                  <Label className="text-sm mb-1.5 block">To Date</Label>
                   <Input
                     type="date"
                     value={to.format("YYYY-MM-DD")}
                     onChange={(e) => onCustomChange("to", e.target.value)}
-                    className="w-full"
                   />
                 </div>
-                <Button onClick={onApply} className="whitespace-nowrap">
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Apply Filter
-                </Button>
+                <div className="sm:col-span-1 flex items-end">
+                  <Button onClick={onApply} className="w-full sm:w-auto">
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Apply Filter
+                  </Button>
+                </div>
               </div>
             </Card>
           </motion.div>
@@ -505,7 +506,7 @@ const DateRangeSelector = ({
   );
 };
 
-// ============ Pagination Controls ============
+// ============ Pagination Controls (responsive) ============
 const PaginationControls = ({
   currentPage,
   totalPages,
@@ -525,54 +526,58 @@ const PaginationControls = ({
   const endRecord = Math.min(currentPage * recordsPerPage, totalRecords);
 
   return (
-    <Card className="p-4">
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+    <Card className="p-3 sm:p-4">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Records per page selector */}
-        <div className="flex items-center gap-3">
-          <Label className="text-sm font-medium">Records per page:</Label>
-          <Select
-            value={recordsPerPage.toString()}
-            onValueChange={(value) => onRecordsPerPageChange(Number(value))}
-          >
-            <SelectTrigger className="w-[100px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {RECORDS_PER_PAGE_OPTIONS.map((option) => (
-                <SelectItem key={option} value={option.toString()}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="text-sm text-muted-foreground">
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex items-center gap-2">
+            <Label className="text-sm">Per page</Label>
+            <Select
+              value={recordsPerPage.toString()}
+              onValueChange={(value) => onRecordsPerPageChange(Number(value))}
+            >
+              <SelectTrigger className="w-[90px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RECORDS_PER_PAGE_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={option.toString()}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <span className="text-xs sm:text-sm text-muted-foreground ml-auto md:ml-0">
             Showing {startRecord}-{endRecord} of {totalRecords}
           </span>
         </div>
 
         {/* Pagination buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <Button
             variant="outline"
             size="sm"
             onClick={() => onPageChange(1)}
             disabled={currentPage === 1}
-            className="hidden sm:flex"
+            className="hidden md:flex"
           >
             <ChevronsLeft className="h-4 w-4" />
           </Button>
+
           <Button
             variant="outline"
             size="sm"
             onClick={() => onPageChange(currentPage - 1)}
             disabled={currentPage === 1}
+            className="min-w-[84px]"
           >
             <ChevronLeft className="h-4 w-4" />
             Previous
           </Button>
 
-          {/* Page numbers */}
-          <div className="flex items-center gap-1">
+          {/* Numeric pages (hide on small screens) */}
+          <div className="hidden md:flex items-center gap-1">
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
               let pageNum;
               if (totalPages <= 5) {
@@ -604,6 +609,7 @@ const PaginationControls = ({
             size="sm"
             onClick={() => onPageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
+            className="min-w-[84px]"
           >
             Next
             <ChevronRight className="h-4 w-4" />
@@ -613,7 +619,7 @@ const PaginationControls = ({
             size="sm"
             onClick={() => onPageChange(totalPages)}
             disabled={currentPage === totalPages}
-            className="hidden sm:flex"
+            className="hidden md:flex"
           >
             <ChevronsRight className="h-4 w-4" />
           </Button>
@@ -627,7 +633,9 @@ const PaginationControls = ({
 export default function SalesHistory() {
   const orgId = localStorage.getItem("organizationId") || "ORG-DEV-001";
   const [preset, setPreset] = useState<DatePreset>("today");
-  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>(() => rangeForPreset("today"));
+  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>(() =>
+    rangeForPreset("today")
+  );
   const [currentPage, setCurrentPage] = useState(1);
   const [recordsPerPage, setRecordsPerPage] = useState(10);
   const navigate = useNavigate();
@@ -648,7 +656,11 @@ export default function SalesHistory() {
   const fromIso = from.startOf("day").format("YYYY-MM-DDTHH:mm:ss");
   const toIso = to.endOf("day").format("YYYY-MM-DDTHH:mm:ss");
 
-  const { data: records = [], isFetching, refetch } = useQuery({
+  const {
+    data: records = [],
+    isFetching,
+    refetch,
+  } = useQuery({
     queryKey: ["sale-history", orgId, fromIso, toIso],
     queryFn: async () => {
       const params = `from=${fromIso}&to=${toIso}`;
@@ -669,12 +681,12 @@ export default function SalesHistory() {
         short: acc.short + (record.shortCollections || 0),
         received: acc.received + (record.receivedTotal || 0),
       }),
-      { totalSales: 0, cash: 0, upi: 0, card: 0, short: 0, received: 0 }
+      { totalSales: 0, cash: 0, upi: 0, card: 0, received: 0, short: 0 }
     );
   }, [records]);
 
   // Pagination logic
-  const totalPages = Math.ceil(records.length / recordsPerPage);
+  const totalPages = Math.ceil(records.length / recordsPerPage) || 1;
   const paginatedRecords = useMemo(() => {
     const startIndex = (currentPage - 1) * recordsPerPage;
     const endIndex = startIndex + recordsPerPage;
@@ -690,7 +702,8 @@ export default function SalesHistory() {
   };
 
   const handlePageChange = (page: number) => {
-    setCurrentPage(page);
+    const next = Math.max(1, Math.min(page, totalPages));
+    setCurrentPage(next);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -700,20 +713,20 @@ export default function SalesHistory() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
-      <div className="max-w-7xl mx-auto p-6 space-y-8 -mt-6">
+    <div className="min-h-screen bg-background">
+      <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
         {/* Header */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-wrap items-center justify-between gap-4"
+          className="flex flex-wrap items-center justify-between gap-3"
         >
           <div>
-            <h1 className="text-4xl font-bold tracking-tight text-black">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
               Sales History
             </h1>
-            <p className="text-muted-foreground mt-1">
-              Complete timeline of all transactions
+            <p className="text-sm sm:text-base text-muted-foreground mt-0.5">
+              Timeline of all transactions
             </p>
           </div>
 
@@ -721,16 +734,12 @@ export default function SalesHistory() {
             <Button
               variant="outline"
               onClick={() => navigate("/sales")}
-              className="shadow-sm hover:shadow-md transition-all"
+              className="h-9"
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
               Go to Sales
             </Button>
-            <Button
-              onClick={() => refetch()}
-              disabled={isFetching}
-              className="shadow-lg hover:shadow-xl transition-all"
-            >
+            <Button onClick={() => refetch()} disabled={isFetching} className="h-9">
               {isFetching ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
@@ -751,62 +760,79 @@ export default function SalesHistory() {
           onApply={() => refetch()}
         />
 
-        {/* Summary Stats Cards - Simple Design */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Summary Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-muted-foreground font-semibold">Total Sales</p>
-              <h3 className="text-2xl font-bold text-primary">{formatCurrency(summary.totalSales)}</h3>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <p className="text-xs sm:text-sm text-muted-foreground font-medium">
+                Total Sales
+              </p>
+              <h3 className="text-xl sm:text-2xl font-bold text-primary">
+                {formatCurrency(summary.totalSales)}
+              </h3>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-muted-foreground font-semibold">Cash</p>
-              <h3 className="text-2xl font-bold text-green-700">{formatCurrency(summary.cash)}</h3>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <p className="text-xs sm:text-sm text-muted-foreground font-medium">Cash</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-green-700 dark:text-green-400">
+                {formatCurrency(summary.cash)}
+              </h3>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-muted-foreground font-semibold">UPI</p>
-              <h3 className="text-2xl font-bold text-indigo-700">{formatCurrency(summary.upi)}</h3>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <p className="text-xs sm:text-sm text-muted-foreground font-medium">UPI</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-indigo-700 dark:text-indigo-400">
+                {formatCurrency(summary.upi)}
+              </h3>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-muted-foreground font-semibold">Card</p>
-              <h3 className="text-2xl font-bold text-blue-700">{formatCurrency(summary.card)}</h3>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <p className="text-xs sm:text-sm text-muted-foreground font-medium">Card</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-blue-700 dark:text-blue-400">
+                {formatCurrency(summary.card)}
+              </h3>
             </CardContent>
           </Card>
         </div>
 
-        {/* Short/Received Collection card */}
-        <div className="grid md:grid-cols-2 gap-4">
+        {/* Short/Received */}
+        <div className="grid md:grid-cols-2 gap-3 sm:gap-4">
           <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-muted-foreground font-semibold">Short Collections</p>
-              <h3 className="text-2xl font-bold text-yellow-700">{formatCurrency(summary.short)}</h3>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <p className="text-xs sm:text-sm text-muted-foreground font-medium">
+                Short Collections
+              </p>
+              <h3 className="text-xl sm:text-2xl font-bold text-yellow-700 dark:text-yellow-400">
+                {formatCurrency(summary.short)}
+              </h3>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-muted-foreground font-semibold">Received Total</p>
-              <h3 className="text-2xl font-bold text-pink-700">{formatCurrency(summary.received)}</h3>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <p className="text-xs sm:text-sm text-muted-foreground font-medium">
+                Received Total
+              </p>
+              <h3 className="text-xl sm:text-2xl font-bold text-pink-700 dark:text-pink-400">
+                {formatCurrency(summary.received)}
+              </h3>
             </CardContent>
           </Card>
         </div>
 
         {/* Export Buttons */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="flex flex-wrap gap-3 justify-end"
+          className="w-full flex flex-wrap items-center gap-2 justify-center sm:justify-end"
         >
           <Button
             variant="outline"
             onClick={() => exportToCSV(records, from, to)}
             disabled={records.length === 0}
-            className="shadow-sm hover:shadow-md transition-all"
+            className="h-9"
           >
             <Sheet className="mr-2 h-4 w-4" />
             Export CSV
@@ -815,36 +841,41 @@ export default function SalesHistory() {
             variant="outline"
             onClick={() => exportToPDF(records, from, to, summary)}
             disabled={records.length === 0}
-            className="shadow-sm hover:shadow-md transition-all"
+            className="h-9"
           >
             <FileText className="mr-2 h-4 w-4" />
             Export PDF
           </Button>
         </motion.div>
 
-        {/* Timeline Content */}
+
+        {/* Content */}
         {isFetching ? (
-          <div className="flex flex-col items-center justify-center py-24">
-            <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
-            <p className="text-lg text-muted-foreground">Loading sales history...</p>
+          <div className="flex flex-col items-center justify-center py-16">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mb-3" />
+            <p className="text-sm sm:text-base text-muted-foreground">
+              Loading sales history...
+            </p>
           </div>
         ) : records.length === 0 ? (
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col items-center justify-center py-24"
+            className="flex flex-col items-center justify-center py-16"
           >
-            <div className="h-32 w-32 rounded-full bg-muted flex items-center justify-center mb-6">
-              <CalendarIcon className="h-16 w-16 text-muted-foreground" />
+            <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-muted flex items-center justify-center mb-4">
+              <CalendarIcon className="h-12 w-12 text-muted-foreground" />
             </div>
-            <h3 className="text-2xl font-bold mb-2">No Sales Found</h3>
-            <p className="text-muted-foreground mb-6">
+            <h3 className="text-lg sm:text-2xl font-bold mb-1">No Sales Found</h3>
+            <p className="text-sm sm:text-base text-muted-foreground mb-4">
               Try adjusting your date range to see more results
             </p>
-            <Button onClick={() => setPreset("week")}>View This Week</Button>
+            <Button onClick={() => setPreset("week")} className="h-9">
+              View This Week
+            </Button>
           </motion.div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-3 sm:space-y-4">
             {/* Records */}
             <div className="space-y-2">
               {paginatedRecords.map((record, index) => (
@@ -869,3 +900,4 @@ export default function SalesHistory() {
     </div>
   );
 }
+

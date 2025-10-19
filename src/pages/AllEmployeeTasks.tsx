@@ -155,7 +155,7 @@ const AllEmployeeTasks: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 -mt-5 -ml-6 sm:p-6 max-w-7xl mx-auto">
+    <div className="space-y-8 sm:p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
