@@ -9,8 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { Toaster } from "@/components/ui/toaster";
 import dayjs from "dayjs";
-import { Plus, Mail, Phone, Filter, Clock, Search, Eye, Users, UserCheck, Briefcase, ClipboardList, Star, Calendar, X } from "lucide-react";
+import { Search, Eye, Users, UserCheck, Briefcase, ClipboardList, Star, Calendar, X, Mail, Phone, Clock, Filter } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -30,21 +31,21 @@ type Employee = {
 };
 
 type TaskCreate = {
-  organizationId: string;
+  orgId: string;
   taskTitle: string;
   description: string;
-  priority: string;
+  priority: "high" | "medium" | "low";
   shift: string;
   assignedToEmpId: string;
   dueDate: string;
 };
 
 type DailyDutyCreate = {
-  organizationId: string;
+  orgId: string;
   empId: string;
   dutyDate: string;
-  productId: string;
-  gunIds: string[];
+  products: string[];
+  guns: string[];
   shiftStart: string;
   shiftEnd: string;
   status?: string;
@@ -165,7 +166,7 @@ export default function EmployeeSetDuty() {
   const [specialDutyOpen, setSpecialDutyOpen] = useState(false);
   const [currentEmp, setCurrentEmp] = useState<Employee | null>(null);
   const [specialDutyForm, setSpecialDutyForm] = useState<TaskCreate>({
-    organizationId: orgId,
+    orgId,
     taskTitle: "",
     description: "",
     priority: "medium",
@@ -176,16 +177,16 @@ export default function EmployeeSetDuty() {
 
   // Daily Duty State
   const [dailyDutyOpen, setDailyDutyOpen] = useState(false);
-  const [dailyDutyForm, setDailyDutyForm] = useState<DailyDutyCreate>({
-    organizationId: orgId,
+  const [dailyDutyForm, setDailyDutyForm] = useState<Omit<DailyDutyCreate, 'orgId' | 'products' | 'guns'>>({
     empId: "",
     dutyDate: dayjs().format("YYYY-MM-DD"),
-    productId: "",
-    gunIds: [],
     shiftStart: "",
     shiftEnd: "",
     status: "SCHEDULED",
   });
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [selectedGuns, setSelectedGuns] = useState<string[]>([]);
+  const [validationErr, setValidationErr] = useState<string | null>(null);
 
   // Mutation for creating daily duty
   const createDutyMutation = useMutation({
@@ -243,20 +244,20 @@ export default function EmployeeSetDuty() {
 
   function resetDailyForm() {
     setDailyDutyForm({
-      organizationId: orgId,
       empId: "",
       dutyDate: dayjs().format("YYYY-MM-DD"),
-      productId: "",
-      gunIds: [],
       shiftStart: "",
       shiftEnd: "",
       status: "SCHEDULED",
     });
+    setSelectedProducts([]);
+    setSelectedGuns([]);
+    setValidationErr(null);
   }
 
   function resetSpecialForm() {
     setSpecialDutyForm({
-      organizationId: orgId,
+      orgId,
       taskTitle: "",
       description: "",
       priority: "medium",
@@ -269,7 +270,7 @@ export default function EmployeeSetDuty() {
   function openSpecialDutyDialog(emp: Employee) {
     setCurrentEmp(emp);
     setSpecialDutyForm({
-      organizationId: orgId,
+      orgId,
       assignedToEmpId: emp.empId,
       taskTitle: "",
       description: "",
@@ -278,21 +279,23 @@ export default function EmployeeSetDuty() {
       dueDate: dayjs().add(1, "day").format("YYYY-MM-DD"),
     });
     setSpecialDutyOpen(true);
+    setDailyDutyOpen(false);
   }
 
   function openDailyDutyDialog(emp: Employee) {
     setCurrentEmp(emp);
     setDailyDutyForm({
-      organizationId: orgId,
       empId: emp.empId,
       dutyDate: dayjs().format("YYYY-MM-DD"),
-      productId: "",
-      gunIds: [],
       shiftStart: emp.shiftTiming?.start || "06:00",
       shiftEnd: emp.shiftTiming?.end || "18:00",
       status: "SCHEDULED",
     });
+    setSelectedProducts([]);
+    setSelectedGuns([]);
     setDailyDutyOpen(true);
+    setSpecialDutyOpen(false);
+    setValidationErr(null);
   }
 
   async function assignSpecialDuty(e: React.FormEvent) {
@@ -311,49 +314,62 @@ export default function EmployeeSetDuty() {
   async function assignDailyDuty(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!dailyDutyForm.empId || !dailyDutyForm.productId || dailyDutyForm.gunIds.length === 0) {
-      toast({
-        title: "Validation Error",
-        description: "Employee, product, and at least one gun are required.",
-        variant: "destructive",
-      });
+    if (!dailyDutyForm.empId) {
+      setValidationErr("Employee is required");
       return;
     }
-
+    if (selectedProducts.length === 0) {
+      setValidationErr("At least one product is required");
+      return;
+    }
+    if (selectedGuns.length === 0) {
+      setValidationErr("At least one gun is required");
+      return;
+    }
     if (!dailyDutyForm.shiftStart || !dailyDutyForm.shiftEnd) {
-      toast({
-        title: "Validation Error",
-        description: "Shift start and end times are required.",
-        variant: "destructive",
-      });
+      setValidationErr("Shift start and end times are required");
       return;
     }
 
-    createDutyMutation.mutate(dailyDutyForm);
+    setValidationErr(null);
+    createDutyMutation.mutate({
+      orgId,
+      ...dailyDutyForm,
+      products: selectedProducts,
+      guns: selectedGuns
+    });
   }
 
-  const toggleGunSelection = (gunId: string) => {
-    setDailyDutyForm((prev) => {
-      const isSelected = prev.gunIds.includes(gunId);
-      return {
-        ...prev,
-        gunIds: isSelected
-          ? prev.gunIds.filter((id) => id !== gunId)
-          : [...prev.gunIds, gunId],
-      };
+  const toggleProductSelection = (productName: string) => {
+    setSelectedProducts(prev => {
+      if (prev.includes(productName)) {
+        const gunsToRemove = guns.filter((g: any) => g.productName === productName).map((g: any) => g.guns);
+        setSelectedGuns(prevGuns => prevGuns.filter(g => !gunsToRemove.includes(g)));
+        return prev.filter(p => p !== productName);
+      }
+      return [...prev, productName];
     });
+  };
+
+  const toggleGunSelection = (gunName: string) => {
+    setSelectedGuns(prev =>
+      prev.includes(gunName) ? prev.filter(g => g !== gunName) : [...prev, gunName]
+    );
   };
 
   const getUserInitials = (name: string) =>
     name.split(" ").map((n) => n[0]).join("").toUpperCase();
 
-  const filteredGuns = guns.filter((gun: any) => {
-    const selectedProduct = products.find((p: any) => p.id === dailyDutyForm.productId);
-    return selectedProduct && gun.productName === selectedProduct.productName;
-  });
+  const filteredGuns = guns.filter((gun: any) =>
+    selectedProducts.includes(gun.productName)
+  );
 
   function closeModal(event: React.MouseEvent<HTMLDivElement>): void {
-    throw new Error("Function not implemented.");
+    if (event.currentTarget === event.target) {
+      setSpecialDutyOpen(false);
+      setDailyDutyOpen(false);
+      setValidationErr(null);
+    }
   }
 
   return (
@@ -508,14 +524,10 @@ export default function EmployeeSetDuty() {
       {/* SPECIAL DUTY MODAL */}
       {specialDutyOpen && (
         <div
-          className={
-            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
-            (specialDutyOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
-          }
+          className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md"
           style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
           onClick={closeModal}
         >
-
           <div
             className="relative bg-background shadow-2xl rounded-2xl mx-auto w-full max-w-lg my-auto"
             onClick={(e) => e.stopPropagation()}
@@ -570,12 +582,12 @@ export default function EmployeeSetDuty() {
                   <Label>Priority *</Label>
                   <Select
                     value={specialDutyForm.priority}
-                    onValueChange={(value) => setSpecialDutyForm((f) => ({ ...f, priority: value }))}
+                    onValueChange={(value) => setSpecialDutyForm((f) => ({ ...f, priority: value as TaskCreate["priority"] }))}
                   >
                     <SelectTrigger className="h-11">
-                      <SelectValue />
+                      <SelectValue placeholder="Priority" />
                     </SelectTrigger>
-                    <SelectContent className="z-[60]">
+                    <SelectContent className="z-[100000]">
                       <SelectItem value="high">High</SelectItem>
                       <SelectItem value="medium">Medium</SelectItem>
                       <SelectItem value="low">Low</SelectItem>
@@ -629,10 +641,7 @@ export default function EmployeeSetDuty() {
       {/* DAILY DUTY MODAL */}
       {dailyDutyOpen && (
         <div
-          className={
-            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
-            (dailyDutyOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
-          }
+          className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md"
           style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
           onClick={closeModal}
         >
@@ -642,7 +651,7 @@ export default function EmployeeSetDuty() {
           >
             <button
               type="button"
-              onClick={() => setDailyDutyOpen(false)}
+              onClick={() => { setDailyDutyOpen(false); setValidationErr(null); }}
               className="absolute top-4 right-4 z-10 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-1 transition"
               aria-label="Close"
             >
@@ -676,53 +685,50 @@ export default function EmployeeSetDuty() {
               </div>
 
               <div className="space-y-2">
-                <Label>Product *</Label>
-                <Select
-                  value={dailyDutyForm.productId}
-                  onValueChange={(value) => setDailyDutyForm((f) => ({ ...f, productId: value, gunIds: [] }))}
-                >
-                  <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Select Product" />
-                  </SelectTrigger>
-                  <SelectContent className="z-[60]">
-                    {products.map((product: any) => (
-                      <SelectItem key={product.id} value={product.id}>
-                        {product.productName}
-                      </SelectItem>
+                <Label>Products * (Select one or more)</Label>
+                <div className="border rounded-lg p-3 max-h-40 overflow-y-auto space-y-2 bg-muted/20">
+                  {products.length === 0
+                    ? <p className="text-sm text-muted-foreground">No products available</p>
+                    : products.map((product: any) => (
+                      <div key={product.productName} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`prod-${product.productName}`}
+                          checked={selectedProducts.includes(product.productName)}
+                          onCheckedChange={() => toggleProductSelection(product.productName)}
+                        />
+                        <label htmlFor={`prod-${product.productName}`} className="text-sm font-medium cursor-pointer">
+                          {product.productName}
+                        </label>
+                      </div>
                     ))}
-                  </SelectContent>
-                </Select>
+                </div>
+                {selectedProducts.length > 0 && (
+                  <p className="text-xs text-muted-foreground">✓ {selectedProducts.length} product(s) selected</p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label>Guns * (Select one or more)</Label>
-                <div className="border rounded-lg p-4 max-h-48 overflow-y-auto space-y-3 bg-muted/20">
-                  {!dailyDutyForm.productId && (
-                    <p className="text-sm text-muted-foreground">Please select a product first</p>
-                  )}
-                  {dailyDutyForm.productId && filteredGuns.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No guns available for this product</p>
-                  )}
-                  {dailyDutyForm.productId && filteredGuns.map((gun: any) => (
-                    <div key={gun.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={gun.id}
-                        checked={dailyDutyForm.gunIds.includes(gun.id)}
-                        onCheckedChange={() => toggleGunSelection(gun.id)}
-                      />
-                      <label
-                        htmlFor={gun.id}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                      >
-                        {gun.guns} - {gun.serialNumber || "N/A"}
-                      </label>
-                    </div>
-                  ))}
+                <div className="border rounded-lg p-3 max-h-44 overflow-y-auto space-y-2 bg-muted/20">
+                  {selectedProducts.length === 0
+                    ? <p className="text-sm text-muted-foreground">Select products to enable guns</p>
+                    : filteredGuns.length === 0
+                      ? <p className="text-sm text-muted-foreground">No guns for selected product(s)</p>
+                      : filteredGuns.map((gun: any) => (
+                        <div key={gun.guns} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`gun-${gun.guns}`}
+                            checked={selectedGuns.includes(gun.guns)}
+                            onCheckedChange={() => toggleGunSelection(gun.guns)}
+                          />
+                          <label htmlFor={`gun-${gun.guns}`} className="text-sm font-medium cursor-pointer">
+                            {gun.guns} — {gun.productName} — {gun.serialNumber || "N/A"}
+                          </label>
+                        </div>
+                      ))}
                 </div>
-                {dailyDutyForm.gunIds.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    ✓ {dailyDutyForm.gunIds.length} gun(s) selected
-                  </p>
+                {selectedGuns.length > 0 && (
+                  <p className="text-xs text-muted-foreground">✓ {selectedGuns.length} gun(s) selected</p>
                 )}
               </div>
 
@@ -749,10 +755,14 @@ export default function EmployeeSetDuty() {
                 </div>
               </div>
 
+              {validationErr && (
+                <div className="text-sm text-destructive/90 font-semibold">{validationErr}</div>
+              )}
+
               <div className="flex gap-3 justify-end mt-2">
                 <Button
                   type="button"
-                  onClick={() => setDailyDutyOpen(false)}
+                  onClick={() => { setDailyDutyOpen(false); setValidationErr(null); }}
                   variant="outline"
                   disabled={createDutyMutation.isPending}
                   className="h-11"
@@ -771,7 +781,9 @@ export default function EmployeeSetDuty() {
           </div>
         </div>
       )}
+
+      {/* High z-index toaster so it appears above modals */}
+      <Toaster/>
     </div>
   );
 }
-

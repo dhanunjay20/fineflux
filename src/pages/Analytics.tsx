@@ -130,7 +130,7 @@ export default function Analytics() {
     },
     enabled: !!orgId,
     staleTime: 0,
-    refetchInterval: 30000,
+    refetchInterval: 86400000, // Daily
     refetchOnWindowFocus: true,
   });
 
@@ -447,7 +447,7 @@ export default function Analytics() {
             {fetchingSales && <RefreshCw className="h-3 w-3 animate-spin text-primary" />}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Last updated: {lastRefresh.toLocaleTimeString('en-IN')} • Auto-refreshes every 30 seconds
+            Last updated: {lastRefresh.toLocaleTimeString('en-IN')} • Auto-refreshes every 24 hours
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">

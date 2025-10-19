@@ -66,22 +66,24 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   // Complete navigation items based on user role
   const allNavItems = useMemo(() => {
     const items = [
-      { title: 'Dashboard', href: '/dashboard', Icon: Home, roles: ['owner', 'manager', 'employee'] },
-      { title: 'Analytics', href: '/analytics', Icon: BarChart3, roles: ['owner', 'manager'] },
-      { title: 'Employees', href: '/employees', Icon: Users, roles: ['owner', 'manager'] },
-      { title: 'Set Employee Duty', href: '/employee-set-duty', Icon: ClipboardList, roles: ['owner', 'manager'] },
-      { title: 'Tank Inventory', href: '/inventory', Icon: Fuel, roles: ['owner', 'manager'] },
-      { title: 'Sales & Collections', href: '/sales', Icon: DollarSign, roles: ['owner', 'manager', 'employee'] },
-      { title: 'Products', href: '/products', Icon: Archive, roles: ['owner', 'manager'] },
-      { title: 'Borrowers', href: '/borrowers', Icon: CreditCard, roles: ['owner', 'manager'] },
-      { title: 'Documents', href: '/documents', Icon: FileText, roles: ['owner', 'manager'] },
-      { title: 'Gun Info', href: '/guninfo', Icon: Wrench, roles: ['owner', 'manager'] },
-      { title: 'Expenses', href: '/expenses', Icon: DollarSign, roles: ['owner', 'manager'] },
-      { title: 'Reports', href: '/reports', Icon: FileText, roles: ['owner', 'manager'] },
-      { title: 'Attendance', href: '/attendance', Icon: UserCheck, roles: ['employee'] },
-      { title: 'My Duties', href: '/employee-duty-info', Icon: ClipboardList, roles: ['employee'] },
-      { title: 'My Profile', href: '/profile', Icon: UserCircle, roles: ['employee', 'manager', 'owner'] },
-      { title: 'Settings', href: '/settings', Icon: Settings, roles: ['owner', 'manager'] },
+      { title: 'Dashboard', icon: Home, href: '/dashboard', roles: ['owner', 'manager', 'employee'] },
+      { title: 'Analytics', icon: BarChart3, href: '/analytics', roles: ['owner', 'manager'], badge: 'New' },
+      { title: 'Employees', icon: Users, href: '/employees', roles: ['owner', 'manager'] },
+      { title: 'Set Duty', icon: ClipboardList, href: '/employee-set-duty', roles: ['owner', 'manager'] },
+      { title: 'Tank Inventory', icon: Fuel, href: '/inventory', roles: ['owner', 'manager'] },
+      { title: 'Sales & Collections', icon: DollarSign, href: '/sales', roles: ['owner', 'manager', 'employee'] },
+      { title: 'Products', icon: Archive, href: '/products', roles: ['owner', 'manager'] },
+      { title: 'Borrowers', icon: CreditCard, href: '/borrowers', roles: ['owner', 'manager'] },
+      { title: 'Documents', icon: FileText, href: '/documents', roles: ['owner', 'manager'] },
+      { title: 'Gun Info', icon: Wrench, href: '/guninfo', roles: ['owner', 'manager'] },
+      { title: 'Expenses', icon: DollarSign, href: '/expenses', roles: ['owner', 'manager'] },
+      { title: 'Reports', icon: FileText, href: '/reports', roles: ['owner', 'manager'] },
+      { title: 'Attendance', icon: UserCheck, href: '/attendance', roles: ['employee'] },
+      { title: 'Special Duties', icon: Sparkles, href: '/special-duties', roles: ['employee'] },
+      { title: 'Daily Duty', icon: BarChart3, href: '/daily-duties', roles: ['employee'] },
+      { title: 'Duty History', icon: ClipboardList, href: '/employee-task-history', roles: ['employee'] },
+      { title: 'My Profile', icon: Users, href: '/profile', roles: ['employee', 'manager', 'owner'] },
+      { title: 'Settings', icon: Settings, href: '/settings', roles: ['owner', 'manager'] }
     ];
 
     // Filter based on user role
@@ -93,7 +95,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     const searchTerm = query.trim().toLowerCase();
     if (!searchTerm) return [];
 
-    return allNavItems.filter(item => 
+    return allNavItems.filter(item =>
       item.title.toLowerCase().includes(searchTerm)
     ).slice(0, 8); // Limit to 8 results
   }, [query, allNavItems]);
@@ -135,7 +137,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950">
         <AppSidebar />
-        
+
         <SidebarInset className="flex-1 flex flex-col min-w-0">
           {/* STICKY HEADER */}
           <motion.header
@@ -204,7 +206,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     }}
                     className="pl-9 pr-4 w-64 h-9 bg-white/50 dark:bg-slate-800/50 border-white/20 dark:border-slate-700/50 focus:bg-white dark:focus:bg-slate-800 transition-all"
                   />
-                  
+
                   {/* Search Results Dropdown */}
                   <AnimatePresence>
                     {showSearchResults && filteredResults.length > 0 && (
@@ -224,7 +226,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                               className="flex items-center gap-3 w-full px-4 py-2.5 text-left hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors group"
                             >
                               <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900 group-hover:bg-blue-200 dark:group-hover:bg-blue-800 transition-colors">
-                                <item.Icon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                <item.icon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                               </div>
                               <span className="text-sm font-medium group-hover:text-blue-600 dark:group-hover:text-blue-400">{item.title}</span>
                             </button>

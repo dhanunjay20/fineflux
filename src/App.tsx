@@ -31,6 +31,10 @@ import { ResetPasswordPage } from "./contexts/ResetPasswordPage";
 import EmployeeDutyInfo from "./pages/EmployeeDutyInfo";
 import EmployeeTaskHistory from "./pages/EmployeeTaskHistory";
 import AllEmployeeTasks from "./pages/AllEmployeeTasks";
+import SpecialDuties from "./pages/SpecialDuties";
+import DailyDuties from "./pages/DailyDuties";
+import SpecialDutiesHistory from "./pages/SpecialDutiesHistory";
+import DailyDutiesHistory from "./pages/DailyDutiesHistory";
 
 const queryClient = new QueryClient();
 
@@ -73,6 +77,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/employees"
               element={
@@ -119,6 +124,46 @@ const App = () => (
                 <ProtectedRoute requiredRoles={['owner', 'manager', 'employee']}>
                   <DashboardLayout>
                     <EmployeeTaskHistory />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/special-duties"
+              element={
+                <ProtectedRoute requiredRoles={['employee']}>
+                  <DashboardLayout>
+                    <SpecialDuties />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/special-duties-history"
+              element={
+                <ProtectedRoute requiredRoles={['employee']}>
+                  <DashboardLayout>
+                    <SpecialDutiesHistory />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/daily-duties"
+              element={
+                <ProtectedRoute requiredRoles={['employee']}>
+                  <DashboardLayout>
+                    <DailyDuties />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+             <Route
+              path="/daily-duties-history"
+              element={
+                <ProtectedRoute requiredRoles={['employee']}>
+                  <DashboardLayout>
+                    <DailyDutiesHistory />
                   </DashboardLayout>
                 </ProtectedRoute>
               }

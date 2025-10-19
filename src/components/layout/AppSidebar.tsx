@@ -36,7 +36,8 @@ export const navigationItems: NavItem[] = [
   { title: 'Expenses', icon: DollarSign, href: '/expenses', roles: ['owner', 'manager'] },
   { title: 'Reports', icon: FileText, href: '/reports', roles: ['owner', 'manager'] },
   { title: 'Attendance', icon: UserCheck, href: '/attendance', roles: ['employee'] },
-  { title: 'My Duties', icon: ClipboardList, href: '/employee-duty-info', roles: ['employee'] },
+  { title: 'Special Duties', icon: Sparkles, href: '/special-duties', roles: ['employee'] },
+  { title: 'Pump Duty', icon: BarChart3, href: '/daily-duties', roles: ['employee'] },
   { title: 'My Profile', icon: Users, href: '/profile', roles: ['employee', 'manager', 'owner'] },
   { title: 'Settings', icon: Settings, href: '/settings', roles: ['owner', 'manager'] },
 ];

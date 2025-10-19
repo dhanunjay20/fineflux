@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
   Timer, CheckCircle, AlertCircle, FileText, ChevronLeft, ChevronRight, 
-  History, Clock, Calendar, Activity, Play, Fuel, MapPin, Target
+  History, Clock, Calendar, Activity, Play, Fuel, Target
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
@@ -23,30 +23,60 @@ export default function EmployeeDutyInfo() {
   const [pendingPage, setPendingPage] = useState(0);
   const [inProgressPage, setInProgressPage] = useState(0);
   const [completedPage, setCompletedPage] = useState(0);
-  const [dailyDutyPage, setDailyDutyPage] = useState(0);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // Separate pagination for each daily-duty status
+  const [dailyScheduledPage, setDailyScheduledPage] = useState(0);
+  const [dailyActivePage, setDailyActivePage] = useState(0);
+  const [dailyCompletedPage, setDailyCompletedPage] = useState(0);
 
-  // Fetch special tasks
+  useEffect(() => { setMounted(true); }, []);
+
+  // Helpers
+  const normalizeDate = (d: Date) => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
+
+  const isFutureDate = (dateStr?: string) => {
+    if (!dateStr) return false;
+    const today = normalizeDate(new Date());
+    const d = normalizeDate(new Date(dateStr));
+    return d.getTime() > today.getTime();
+  };
+
+  const isOverdue = (dueDate?: string) => {
+    if (!dueDate) return false;
+    const today = normalizeDate(new Date());
+    const due = normalizeDate(new Date(dueDate));
+    return due.getTime() < today.getTime();
+  };
+
+  const calculateHours = (start?: string, end?: string) => {
+    if (!start || !end) return '0.0';
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    let hours = eh - sh;
+    let minutes = em - sm;
+    if (minutes < 0) { minutes += 60; hours -= 1; }
+    if (hours < 0) hours += 24;
+    return (hours + minutes / 60).toFixed(1);
+  };
+
+  // Fetch both lists
   useEffect(() => {
     if (!orgId || !empId) return;
     setLoading(true);
-    
+
     const fetchData = async () => {
       try {
-        // Fetch special tasks
+        // Special tasks for employee
         const tasksRes = await axios.get(
           `${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=`
         );
-        setDuties(tasksRes.data || []);
+        setDuties(Array.isArray(tasksRes.data) ? tasksRes.data : []);
 
-        // Fetch daily duties by employee ID
+        // Daily duties for employee
         const dutiesRes = await axios.get(
           `${API_BASE}/api/organizations/${orgId}/employee-duties/employee/${empId}`
         );
-        setDailyDuties(dutiesRes.data || []);
+        setDailyDuties(Array.isArray(dutiesRes.data) ? dutiesRes.data : []);
       } catch (error) {
         console.error('Error fetching duties:', error);
       } finally {
@@ -57,33 +87,26 @@ export default function EmployeeDutyInfo() {
     fetchData();
   }, [orgId, empId]);
 
+  // Stats
   const stats = useMemo(() => {
     let pending = 0, inProgress = 0, completed = 0, overdue = 0;
-    
-    // Count special tasks
+
     for (const d of duties) {
       if (d.status === 'pending') pending++;
       if (d.status === 'in-progress') inProgress++;
       if (d.status === 'completed') completed++;
-      if (
-        d.status !== 'completed' &&
-        d.dueDate &&
-        new Date(d.dueDate) < new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())
-      ) {
-        overdue++;
-      }
+      if (d.status !== 'completed' && d.dueDate && isOverdue(d.dueDate)) overdue++;
     }
 
-    // Count daily duties by status
-    const scheduledDuties = dailyDuties.filter(d => d.status === 'SCHEDULED').length;
+    const scheduledDuties = dailyDuties.filter(d => d.status === 'SCHEDULED' || !d.status).length;
     const activeDuties = dailyDuties.filter(d => d.status === 'ACTIVE').length;
     const completedDuties = dailyDuties.filter(d => d.status === 'COMPLETED').length;
 
-    return { 
-      pending, 
-      inProgress, 
-      completed, 
-      overdue, 
+    return {
+      pending,
+      inProgress,
+      completed,
+      overdue,
       total: duties.length,
       dailyTotal: dailyDuties.length,
       dailyScheduled: scheduledDuties,
@@ -92,23 +115,18 @@ export default function EmployeeDutyInfo() {
     };
   }, [duties, dailyDuties]);
 
+  // Filters and pagination
   const pendingDuties = duties.filter(d => d.status === 'pending');
   const inProgressDuties = duties.filter(d => d.status === 'in-progress');
   const completedDuties = duties.filter(d => d.status === 'completed');
+
   const scheduledDailyDuties = dailyDuties.filter(d => d.status === 'SCHEDULED' || !d.status);
+  const activeDailyDuties = dailyDuties.filter(d => d.status === 'ACTIVE');
+  const completedDailyDuties = dailyDuties.filter(d => d.status === 'COMPLETED');
 
-  const paginateDuties = (list: any[], page: number) => {
-    const start = page * ITEMS_PER_PAGE;
-    return list.slice(start, start + ITEMS_PER_PAGE);
-  };
+  const paginate = (list: any[], page: number) => list.slice(page * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE + ITEMS_PER_PAGE);
 
-  const isOverdue = (dueDate: string) => {
-    if (!dueDate) return false;
-    const now = new Date();
-    const due = new Date(dueDate);
-    return due < new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  };
-
+  // Actions
   const handleTaskAction = async (taskId: string, newStatus: string) => {
     await axios.put(
       `${API_BASE}/api/organizations/${orgId}/tasks/${taskId}/status?status=${encodeURIComponent(newStatus)}`
@@ -118,6 +136,14 @@ export default function EmployeeDutyInfo() {
 
   const handleDailyDutyAction = async (dutyId: string, newStatus: string) => {
     try {
+      // Safety: prevent starting future-dated duties
+      if (newStatus === 'ACTIVE') {
+        const duty = dailyDuties.find(d => d.id === dutyId);
+        if (duty && isFutureDate(duty.dutyDate)) {
+          window.alert('Cannot start a duty scheduled for a future date.');
+          return;
+        }
+      }
       await axios.put(
         `${API_BASE}/api/organizations/${orgId}/employee-duties/${dutyId}`,
         { status: newStatus }
@@ -128,19 +154,10 @@ export default function EmployeeDutyInfo() {
     }
   };
 
-  const calculateHours = (start: string, end: string) => {
-    if (!start || !end) return '0';
-    const [startHour, startMin] = start.split(':').map(Number);
-    const [endHour, endMin] = end.split(':').map(Number);
-    let hours = endHour - startHour;
-    if (hours < 0) hours += 24;
-    const minutes = endMin - startMin;
-    return (hours + minutes / 60).toFixed(1);
-  };
-
+  // UI renderers
   const renderTaskCard = (duty: any, showActions = false) => (
-    <div 
-      key={duty.id} 
+    <div
+      key={duty.id}
       className="p-5 rounded-xl border border-border/50 hover:border-primary/30 hover:bg-muted/20 transition-all duration-300 hover:shadow-md group space-y-3"
     >
       <div className="flex items-start justify-between gap-4">
@@ -149,7 +166,7 @@ export default function EmployeeDutyInfo() {
             <h4 className="font-semibold text-lg text-foreground group-hover:text-primary transition-colors">
               {duty.taskTitle}
             </h4>
-            {duty.priority === 'High' && (
+            {String(duty.priority).toLowerCase() === 'high' && (
               <Badge className="bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20">
                 <AlertCircle className="h-3 w-3 mr-1" />
                 High Priority
@@ -173,7 +190,7 @@ export default function EmployeeDutyInfo() {
                 <Clock className="h-3.5 w-3.5 text-accent" />
               </div>
               <span className="text-muted-foreground">Shift:</span>
-              <span className="font-medium text-foreground">{duty.shift}</span>
+              <span className="font-medium text-foreground">{duty.shift || '—'}</span>
             </div>
             <div className="flex items-center gap-2">
               <div className={`p-1.5 rounded-md ${isOverdue(duty.dueDate) ? 'bg-red-500/10' : 'bg-green-500/10'}`}>
@@ -181,7 +198,7 @@ export default function EmployeeDutyInfo() {
               </div>
               <span className="text-muted-foreground">Due:</span>
               <span className={`font-medium ${isOverdue(duty.dueDate) ? 'text-destructive' : 'text-foreground'}`}>
-                {duty.dueDate}
+                {duty.dueDate || '—'}
               </span>
             </div>
           </div>
@@ -211,7 +228,7 @@ export default function EmployeeDutyInfo() {
             )}
           </div>
         )}
-        
+
         {duty.status === 'completed' && (
           <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20 shrink-0">
             <CheckCircle className="h-3 w-3 mr-1" />
@@ -222,93 +239,105 @@ export default function EmployeeDutyInfo() {
     </div>
   );
 
-  const renderDailyDutyCard = (duty: any) => (
-    <div 
-      key={duty.id} 
-      className="p-5 rounded-xl border border-border/50 hover:border-blue-500/30 hover:bg-muted/20 transition-all duration-300 hover:shadow-md group space-y-3"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 space-y-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="p-2 rounded-lg bg-blue-500/10">
-              <Fuel className="h-5 w-5 text-blue-600" />
+  const renderDailyDutyCard = (duty: any) => {
+    const startDisabled = isFutureDate(duty.dutyDate);
+    const productDisplay = duty.productId || (Array.isArray(duty.products) ? duty.products.join(', ') : '—');
+    const gunsCount = Array.isArray(duty.gunIds) ? duty.gunIds.length : Array.isArray(duty.guns) ? duty.guns.length : 0;
+
+    return (
+      <div
+        key={duty.id}
+        className="p-5 rounded-xl border border-border/50 hover:border-blue-500/30 hover:bg-muted/20 transition-all duration-300 hover:shadow-md group space-y-3"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="p-2 rounded-lg bg-blue-500/10">
+                <Fuel className="h-5 w-5 text-blue-600" />
+              </div>
+              <h4 className="font-semibold text-lg text-foreground group-hover:text-primary transition-colors">
+                Pump Duty
+              </h4>
+              <Badge
+                className={
+                  duty.status === 'COMPLETED'
+                    ? 'bg-green-500/10 text-green-700 border-green-500/20'
+                    : duty.status === 'ACTIVE'
+                    ? 'bg-blue-500/10 text-blue-700 border-blue-500/20'
+                    : 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20'
+                }
+              >
+                {duty.status || 'SCHEDULED'}
+              </Badge>
             </div>
-            <h4 className="font-semibold text-lg text-foreground group-hover:text-primary transition-colors">
-              Pump Duty
-            </h4>
-            <Badge 
-              className={
-                duty.status === 'COMPLETED' 
-                  ? 'bg-green-500/10 text-green-700 border-green-500/20'
-                  : duty.status === 'ACTIVE'
-                  ? 'bg-blue-500/10 text-blue-700 border-blue-500/20'
-                  : 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20'
-              }
-            >
-              {duty.status || 'SCHEDULED'}
-            </Badge>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm pt-2">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-blue-600" />
+                <span className="text-muted-foreground">Date:</span>
+                <span className="font-medium">{duty.dutyDate || '—'}</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-purple-600" />
+                <span className="text-muted-foreground">Product:</span>
+                <span className="font-medium">{productDisplay}</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-orange-600" />
+                <span className="text-muted-foreground">Shift:</span>
+                <span className="font-medium">{duty.shiftStart} - {duty.shiftEnd}</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Timer className="h-4 w-4 text-green-600" />
+                <span className="text-muted-foreground">Hours:</span>
+                <span className="font-medium">{duty.totalHours || calculateHours(duty.shiftStart, duty.shiftEnd)}h</span>
+              </div>
+
+              {gunsCount > 0 && (
+                <div className="flex items-center gap-2 col-span-2">
+                  <Fuel className="h-4 w-4 text-red-600" />
+                  <span className="text-muted-foreground">Guns:</span>
+                  <span className="font-medium">{gunsCount} assigned</span>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm pt-2">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-blue-600" />
-              <span className="text-muted-foreground">Date:</span>
-              <span className="font-medium">{duty.dutyDate}</span>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-purple-600" />
-              <span className="text-muted-foreground">Product:</span>
-              <span className="font-medium">{duty.productId}</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-orange-600" />
-              <span className="text-muted-foreground">Shift:</span>
-              <span className="font-medium">{duty.shiftStart} - {duty.shiftEnd}</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Timer className="h-4 w-4 text-green-600" />
-              <span className="text-muted-foreground">Hours:</span>
-              <span className="font-medium">{duty.totalHours || calculateHours(duty.shiftStart, duty.shiftEnd)}h</span>
-            </div>
-
-            {duty.gunIds && duty.gunIds.length > 0 && (
-              <div className="flex items-center gap-2 col-span-2">
-                <Fuel className="h-4 w-4 text-red-600" />
-                <span className="text-muted-foreground">Guns:</span>
-                <span className="font-medium">{duty.gunIds.length} assigned</span>
-              </div>
+          <div className="flex flex-col gap-2 shrink-0">
+            {duty.status === 'SCHEDULED' && (
+              <Button
+                size="sm"
+                disabled={startDisabled}
+                title={startDisabled ? 'Cannot start a duty scheduled for a future date' : undefined}
+                className={`shadow-md transition-all duration-300 ${
+                  startDisabled
+                    ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white hover:shadow-lg'
+                }`}
+                onClick={() => handleDailyDutyAction(duty.id, 'ACTIVE')}
+              >
+                <Play className="h-4 w-4 mr-1" />
+                Start Duty
+              </Button>
+            )}
+            {duty.status === 'ACTIVE' && (
+              <Button
+                size="sm"
+                className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-md hover:shadow-lg transition-all duration-300"
+                onClick={() => handleDailyDutyAction(duty.id, 'COMPLETED')}
+              >
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Complete
+              </Button>
             )}
           </div>
         </div>
-
-        <div className="flex flex-col gap-2 shrink-0">
-          {duty.status === 'SCHEDULED' && (
-            <Button
-              size="sm"
-              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-300"
-              onClick={() => handleDailyDutyAction(duty.id, 'ACTIVE')}
-            >
-              <Play className="h-4 w-4 mr-1" />
-              Start Duty
-            </Button>
-          )}
-          {duty.status === 'ACTIVE' && (
-            <Button
-              size="sm"
-              className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-md hover:shadow-lg transition-all duration-300"
-              onClick={() => handleDailyDutyAction(duty.id, 'COMPLETED')}
-            >
-              <CheckCircle className="h-4 w-4 mr-1" />
-              Complete
-            </Button>
-          )}
-        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderPagination = (total: number, page: number, setPage: (p: number) => void) => {
     const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
@@ -346,18 +375,10 @@ export default function EmployeeDutyInfo() {
     <div className={`space-y-6 -mt-6 transition-all duration-700 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
       <style>{`
         @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-        .animate-slide-in {
-          animation: slideIn 0.5s ease-out forwards;
-        }
+        .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
         .stagger-1 { animation-delay: 0.1s; }
         .stagger-2 { animation-delay: 0.2s; }
         .stagger-3 { animation-delay: 0.3s; }
@@ -377,17 +398,16 @@ export default function EmployeeDutyInfo() {
         </div>
         <Button
           className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl transition-all duration-300"
-          onClick={() => window.location.href = '/employee-task-history'}
+          onClick={() => (window.location.href = '/employee-task-history')}
         >
           <History className="mr-2 h-4 w-4" />
           View History
         </Button>
       </div>
 
-      {/* Stats Grid - Extended with Daily Duties */}
-           {/* Stats Grid - 4 Cards in a Row */}
+      {/* Stats Grid */}
       <div className="space-y-6">
-        {/* First Row - Special Tasks Stats (4 cards) */}
+        {/* Special Tasks stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="stat-card hover-lift">
             <CardContent className="p-6">
@@ -443,7 +463,7 @@ export default function EmployeeDutyInfo() {
           </Card>
         </div>
 
-        {/* Second Row - Daily Duties & Overdue (4 cards) */}
+        {/* Daily Duties stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="stat-card hover-lift">
             <CardContent className="p-6">
@@ -500,7 +520,7 @@ export default function EmployeeDutyInfo() {
         </div>
       </div>
 
-      {/* Loading State */}
+      {/* Loading */}
       {loading && (
         <div className="flex flex-col items-center justify-center py-16 space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
@@ -508,7 +528,7 @@ export default function EmployeeDutyInfo() {
         </div>
       )}
 
-      {/* Empty State */}
+      {/* Empty */}
       {!loading && duties.length === 0 && dailyDuties.length === 0 && (
         <Card className="card-gradient border-border/50 opacity-0 animate-slide-in stagger-1">
           <CardContent className="p-16 text-center">
@@ -521,7 +541,7 @@ export default function EmployeeDutyInfo() {
         </Card>
       )}
 
-      {/* Daily Duties Section */}
+      {/* Daily Duties - Scheduled */}
       {!loading && scheduledDailyDuties.length > 0 && (
         <Card className="border-border/50 shadow-sm hover:shadow-lg transition-all duration-300 opacity-0 animate-slide-in stagger-1">
           <CardHeader className="border-b border-border/50 bg-gradient-to-r from-blue-50/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20">
@@ -529,18 +549,56 @@ export default function EmployeeDutyInfo() {
               <div className="p-2 rounded-lg bg-blue-500/10">
                 <Fuel className="h-5 w-5 text-blue-600" />
               </div>
-              Daily Pump Duties
+              Daily Pump Duties — Scheduled
               <Badge variant="secondary" className="ml-auto">{scheduledDailyDuties.length}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-3">
-            {paginateDuties(scheduledDailyDuties, dailyDutyPage).map(duty => renderDailyDutyCard(duty))}
-            {renderPagination(scheduledDailyDuties.length, dailyDutyPage, setDailyDutyPage)}
+            {paginate(scheduledDailyDuties, dailyScheduledPage).map(duty => renderDailyDutyCard(duty))}
+            {renderPagination(scheduledDailyDuties.length, dailyScheduledPage, setDailyScheduledPage)}
           </CardContent>
         </Card>
       )}
 
-      {/* Pending Tasks */}
+      {/* Daily Duties - Active */}
+      {!loading && activeDailyDuties.length > 0 && (
+        <Card className="border-border/50 shadow-sm hover:shadow-lg transition-all duration-300 opacity-0 animate-slide-in stagger-2">
+          <CardHeader className="border-b border-border/50 bg-gradient-to-r from-purple-50/50 to-pink-50/50 dark:from-purple-950/20 dark:to-pink-950/20">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <div className="p-2 rounded-lg bg-purple-500/10">
+                <Activity className="h-5 w-5 text-purple-600" />
+              </div>
+              Daily Pump Duties — Active
+              <Badge variant="secondary" className="ml-auto">{activeDailyDuties.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 space-y-3">
+            {paginate(activeDailyDuties, dailyActivePage).map(duty => renderDailyDutyCard(duty))}
+            {renderPagination(activeDailyDuties.length, dailyActivePage, setDailyActivePage)}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Daily Duties - Completed */}
+      {!loading && completedDailyDuties.length > 0 && (
+        <Card className="border-border/50 shadow-sm hover:shadow-lg transition-all duration-300 opacity-0 animate-slide-in stagger-3">
+          <CardHeader className="border-b border-border/50 bg-gradient-to-r from-green-50/50 to-emerald-50/50 dark:from-green-950/20 dark:to-emerald-950/20">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <div className="p-2 rounded-lg bg-green-500/10">
+                <CheckCircle className="h-5 w-5 text-success" />
+              </div>
+              Daily Pump Duties — Completed
+              <Badge variant="secondary" className="ml-auto">{completedDailyDuties.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 space-y-3">
+            {paginate(completedDailyDuties, dailyCompletedPage).map(duty => renderDailyDutyCard(duty))}
+            {renderPagination(completedDailyDuties.length, dailyCompletedPage, setDailyCompletedPage)}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pending tasks */}
       {!loading && pendingDuties.length > 0 && (
         <Card className="border-border/50 shadow-sm hover:shadow-lg transition-all duration-300 opacity-0 animate-slide-in stagger-2">
           <CardHeader className="border-b border-border/50 bg-gradient-to-r from-orange-50/50 to-yellow-50/50 dark:from-orange-950/20 dark:to-yellow-950/20">
@@ -553,13 +611,13 @@ export default function EmployeeDutyInfo() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-3">
-            {paginateDuties(pendingDuties, pendingPage).map(duty => renderTaskCard(duty, true))}
+            {paginate(pendingDuties, pendingPage).map(duty => renderTaskCard(duty, true))}
             {renderPagination(pendingDuties.length, pendingPage, setPendingPage)}
           </CardContent>
         </Card>
       )}
 
-      {/* In Progress Tasks */}
+      {/* In progress tasks */}
       {!loading && inProgressDuties.length > 0 && (
         <Card className="border-border/50 shadow-sm hover:shadow-lg transition-all duration-300 opacity-0 animate-slide-in stagger-3">
           <CardHeader className="border-b border-border/50 bg-gradient-to-r from-purple-50/50 to-pink-50/50 dark:from-purple-950/20 dark:to-pink-950/20">
@@ -572,13 +630,13 @@ export default function EmployeeDutyInfo() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-3">
-            {paginateDuties(inProgressDuties, inProgressPage).map(duty => renderTaskCard(duty, true))}
+            {paginate(inProgressDuties, inProgressPage).map(duty => renderTaskCard(duty, true))}
             {renderPagination(inProgressDuties.length, inProgressPage, setInProgressPage)}
           </CardContent>
         </Card>
       )}
 
-      {/* Completed Tasks */}
+      {/* Completed tasks */}
       {!loading && completedDuties.length > 0 && (
         <Card className="border-border/50 shadow-sm hover:shadow-lg transition-all duration-300 opacity-0 animate-slide-in stagger-4">
           <CardHeader className="border-b border-border/50 bg-gradient-to-r from-green-50/50 to-emerald-50/50 dark:from-green-950/20 dark:to-emerald-950/20">
@@ -591,7 +649,7 @@ export default function EmployeeDutyInfo() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-3">
-            {paginateDuties(completedDuties, completedPage).map(duty => renderTaskCard(duty, false))}
+            {paginate(completedDuties, completedPage).map(duty => renderTaskCard(duty, false))}
             {renderPagination(completedDuties.length, completedPage, setCompletedPage)}
           </CardContent>
         </Card>
