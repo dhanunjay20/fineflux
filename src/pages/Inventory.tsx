@@ -278,7 +278,7 @@ export default function Inventory() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 -mt-6 animate-fade-in">
       {/* CSS Animations */}
       <style>{`
         @keyframes slide-up {

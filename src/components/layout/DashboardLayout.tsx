@@ -30,10 +30,32 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useMemo, useState, useRef, useEffect } from 'react';
+import axios from 'axios';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
+
+// pick first non-empty plausible image field
+const pickEmployeeImage = (obj: any): string => {
+  const keys = [
+    'profileImageUrl',
+    'imageUrl',
+    'avatarUrl',
+    'photoUrl',
+    'profilePic',
+    'picture',
+    'profile_image_url',
+  ];
+  for (const k of keys) {
+    const v = obj?.[k];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return '';
+};
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, logout } = useAuth();
@@ -45,11 +67,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
 
+  // employee avatar state
+  const [avatarUrl, setAvatarUrl] = useState<string>('');
+  const [orgId, setOrgId] = useState('');
+  const [empId, setEmpId] = useState('');
+
   if (!user) {
     return null;
   }
 
-  // Close profile menu when clicking outside
+  // Close profile menu/search results when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
@@ -62,6 +89,64 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    setOrgId(localStorage.getItem('organizationId') || '');
+    setEmpId(localStorage.getItem('empId') || '');
+  }, []);
+
+  // Load avatar: prefer user-provided image, else fetch by empId
+  useEffect(() => {
+    let mounted = true;
+
+    const tryFromUser = () => {
+      const img = pickEmployeeImage(user || {});
+      if (img && mounted) setAvatarUrl(img);
+    };
+
+    const fetchFromApi = async () => {
+      if (!orgId || !empId) return;
+      try {
+        // Direct employee endpoint if available
+        const res = await axios.get(
+          `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/employees/${encodeURIComponent(empId)}`,
+          { timeout: 15000 }
+        );
+        const img = pickEmployeeImage(res.data || {});
+        if (img && mounted) {
+          setAvatarUrl(img);
+          return;
+        }
+      } catch {
+        // ignore and fallback to list
+      }
+      try {
+        const list = await axios.get(
+          `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/employees`,
+          { timeout: 15000 }
+        );
+        const arr = Array.isArray(list.data)
+          ? list.data
+          : Array.isArray(list.data?.content)
+          ? list.data.content
+          : [];
+        const found = arr.find((e: any) => String(e.empId || '').trim() === String(empId).trim());
+        const img2 = pickEmployeeImage(found || {});
+        if (img2 && mounted) setAvatarUrl(img2);
+      } catch {
+        // ignore
+      }
+    };
+
+    tryFromUser();
+    if (!avatarUrl) {
+      fetchFromApi();
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [orgId, empId, user]);
 
   // Complete navigation items based on user role
   const allNavItems = useMemo(() => {
@@ -85,8 +170,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       { title: 'My Profile', icon: Users, href: '/profile', roles: ['employee', 'manager', 'owner'] },
       { title: 'Settings', icon: Settings, href: '/settings', roles: ['owner', 'manager'] }
     ];
-
-    // Filter based on user role
     return items.filter(item => item.roles.includes(user.role as any));
   }, [user.role]);
 
@@ -94,10 +177,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const filteredResults = useMemo(() => {
     const searchTerm = query.trim().toLowerCase();
     if (!searchTerm) return [];
-
-    return allNavItems.filter(item =>
-      item.title.toLowerCase().includes(searchTerm)
-    ).slice(0, 8); // Limit to 8 results
+    return allNavItems
+      .filter(item => item.title.toLowerCase().includes(searchTerm))
+      .slice(0, 8);
   }, [query, allNavItems]);
 
   // Show search results when there's a query and results
@@ -250,9 +332,18 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     onClick={() => setShowProfileMenu(!showProfileMenu)}
                     className="gap-2 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-all rounded-lg px-3"
                   >
-                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
-                      <User className="h-4 w-4 text-white" />
-                    </div>
+                    <Avatar className="h-8 w-8">
+                      {avatarUrl ? (
+                        <AvatarImage
+                          src={avatarUrl}
+                          alt={user.name || user.username || 'User'}
+                          onError={() => setAvatarUrl('')}
+                        />
+                      ) : null}
+                      <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xs font-bold">
+                        {(user.name || user.username || 'U').slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
                     <div className="hidden xl:flex flex-col items-start">
                       <span className="text-xs font-semibold text-foreground">{user.name || 'User'}</span>
                       <span className="text-xs text-muted-foreground capitalize">{user.role || 'Admin'}</span>
@@ -313,7 +404,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               {children}
             </motion.div>
 
-            {/* Footer - NOT STICKY, scrolls with content */}
+            {/* Footer */}
             <motion.footer
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

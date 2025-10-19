@@ -9,13 +9,19 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Toaster } from "@/components/ui/toaster";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { Search, Eye, Users, UserCheck, Briefcase, ClipboardList, Star, Calendar, X, Mail, Phone, Clock, Filter } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 
+// Enable timezone support
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+const IST_TIMEZONE = "Asia/Kolkata";
 
 type Employee = {
   empId: string;
@@ -54,6 +60,9 @@ type DailyDutyCreate = {
 function formatTime(time?: string) {
   return time || "";
 }
+
+// Get current IST date
+const getTodayIST = () => dayjs().tz(IST_TIMEZONE).format("YYYY-MM-DD");
 
 export default function EmployeeSetDuty() {
   const { toast } = useToast();
@@ -172,14 +181,14 @@ export default function EmployeeSetDuty() {
     priority: "medium",
     shift: "",
     assignedToEmpId: "",
-    dueDate: dayjs().add(1, "day").format("YYYY-MM-DD"),
+    dueDate: dayjs().tz(IST_TIMEZONE).add(1, "day").format("YYYY-MM-DD"),
   });
 
   // Daily Duty State
   const [dailyDutyOpen, setDailyDutyOpen] = useState(false);
   const [dailyDutyForm, setDailyDutyForm] = useState<Omit<DailyDutyCreate, 'orgId' | 'products' | 'guns'>>({
     empId: "",
-    dutyDate: dayjs().format("YYYY-MM-DD"),
+    dutyDate: getTodayIST(),
     shiftStart: "",
     shiftEnd: "",
     status: "SCHEDULED",
@@ -207,9 +216,10 @@ export default function EmployeeSetDuty() {
       resetDailyForm();
     },
     onError: (error: any) => {
+      const errorMsg = error?.response?.data?.message || error?.message || "Could not assign daily duty.";
       toast({
         title: "Assignment Failed",
-        description: error?.response?.data?.message || "Could not assign daily duty.",
+        description: errorMsg,
         variant: "destructive",
       });
     },
@@ -234,9 +244,10 @@ export default function EmployeeSetDuty() {
       resetSpecialForm();
     },
     onError: (error: any) => {
+      const errorMsg = error?.response?.data?.message || error?.message || "Could not assign special duty.";
       toast({
         title: "Assignment Failed",
-        description: error?.response?.data?.message || "Could not assign special duty.",
+        description: errorMsg,
         variant: "destructive",
       });
     },
@@ -245,7 +256,7 @@ export default function EmployeeSetDuty() {
   function resetDailyForm() {
     setDailyDutyForm({
       empId: "",
-      dutyDate: dayjs().format("YYYY-MM-DD"),
+      dutyDate: getTodayIST(),
       shiftStart: "",
       shiftEnd: "",
       status: "SCHEDULED",
@@ -263,7 +274,7 @@ export default function EmployeeSetDuty() {
       priority: "medium",
       shift: "",
       assignedToEmpId: "",
-      dueDate: dayjs().add(1, "day").format("YYYY-MM-DD"),
+      dueDate: dayjs().tz(IST_TIMEZONE).add(1, "day").format("YYYY-MM-DD"),
     });
   }
 
@@ -276,7 +287,7 @@ export default function EmployeeSetDuty() {
       description: "",
       priority: "medium",
       shift: "",
-      dueDate: dayjs().add(1, "day").format("YYYY-MM-DD"),
+      dueDate: dayjs().tz(IST_TIMEZONE).add(1, "day").format("YYYY-MM-DD"),
     });
     setSpecialDutyOpen(true);
     setDailyDutyOpen(false);
@@ -286,7 +297,7 @@ export default function EmployeeSetDuty() {
     setCurrentEmp(emp);
     setDailyDutyForm({
       empId: emp.empId,
-      dutyDate: dayjs().format("YYYY-MM-DD"),
+      dutyDate: getTodayIST(),
       shiftStart: emp.shiftTiming?.start || "06:00",
       shiftEnd: emp.shiftTiming?.end || "18:00",
       status: "SCHEDULED",
@@ -380,6 +391,9 @@ export default function EmployeeSetDuty() {
           <h1 className="text-3xl font-bold text-foreground">Set Employee Duty</h1>
           <p className="text-muted-foreground">
             Assign special tasks or daily pump duties to team members
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Current IST Time: {dayjs().tz(IST_TIMEZONE).format("DD MMM YYYY, hh:mm A")}
           </p>
         </div>
         <Button className="btn-gradient-primary" onClick={() => navigate('/all-employee-tasks')}>
@@ -610,6 +624,7 @@ export default function EmployeeSetDuty() {
                 <Input
                   type="date"
                   required
+                  min={getTodayIST()}
                   value={specialDutyForm.dueDate}
                   onChange={(e) => setSpecialDutyForm((f) => ({ ...f, dueDate: e.target.value }))}
                   className="h-11"
@@ -646,7 +661,7 @@ export default function EmployeeSetDuty() {
           onClick={closeModal}
         >
           <div
-            className="relative bg-background shadow-2xl rounded-2xl mx-auto w-full max-w-lg my-auto"
+            className="relative bg-background shadow-2xl rounded-2xl mx-auto w-full max-w-lg my-auto max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -678,10 +693,14 @@ export default function EmployeeSetDuty() {
                 <Input
                   type="date"
                   required
+                  min={getTodayIST()}
                   value={dailyDutyForm.dutyDate}
                   onChange={(e) => setDailyDutyForm((f) => ({ ...f, dutyDate: e.target.value }))}
                   className="h-11"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Minimum date: {dayjs().tz(IST_TIMEZONE).format("DD MMM YYYY")} (IST)
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -756,7 +775,9 @@ export default function EmployeeSetDuty() {
               </div>
 
               {validationErr && (
-                <div className="text-sm text-destructive/90 font-semibold">{validationErr}</div>
+                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                  <p className="text-sm text-destructive font-semibold">{validationErr}</p>
+                </div>
               )}
 
               <div className="flex gap-3 justify-end mt-2">
@@ -781,9 +802,6 @@ export default function EmployeeSetDuty() {
           </div>
         </div>
       )}
-
-      {/* High z-index toaster so it appears above modals */}
-      <Toaster/>
     </div>
   );
 }

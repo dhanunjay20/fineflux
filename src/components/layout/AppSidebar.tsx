@@ -13,6 +13,9 @@ import {
   SidebarGroupContent, SidebarGroupLabel, SidebarHeader,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar,
 } from '@/components/ui/sidebar';
+import axios from 'axios';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
 
 interface NavItem {
   title: string;
@@ -42,17 +45,77 @@ export const navigationItems: NavItem[] = [
   { title: 'Settings', icon: Settings, href: '/settings', roles: ['owner', 'manager'] },
 ];
 
+const pickEmployeeImage = (obj: any): string => {
+  const keys = [
+    'profileImageUrl',
+    'imageUrl',
+    'avatarUrl',
+    'photoUrl',
+    'profilePic',
+    'picture',
+    'profile_image_url',
+  ];
+  for (const k of keys) {
+    const v = obj?.[k];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return '';
+};
+
 export function AppSidebar() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const { isMobile, setOpenMobile } = useSidebar();
   const [orgId, setOrgId] = useState<string>('');
   const [empId, setEmpId] = useState<string>('');
+  const [avatarUrl, setAvatarUrl] = useState<string>('');
 
   useEffect(() => {
     setOrgId(localStorage.getItem('organizationId') || '');
     setEmpId(localStorage.getItem('empId') || '');
   }, []);
+
+  // Fetch employee image (prefer AuthContext, else API)
+  useEffect(() => {
+    let mounted = true;
+
+    const setFromUser = () => {
+      const fromUser = pickEmployeeImage(user || {});
+      if (fromUser && mounted) setAvatarUrl(fromUser);
+    };
+
+    const fetchFromApi = async () => {
+      if (!orgId || !empId) return;
+      try {
+        // Try direct employee-by-id route first (if supported)
+        const one = await axios.get(`${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/employees/${encodeURIComponent(empId)}`, { timeout: 15000 });
+        const img = pickEmployeeImage(one.data || {});
+        if (img && mounted) {
+          setAvatarUrl(img);
+          return;
+        }
+      } catch {
+        // Fallback to list and filter by empId
+      }
+      try {
+        const list = await axios.get(`${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/employees`, { timeout: 15000 });
+        const arr = Array.isArray(list.data) ? list.data : Array.isArray(list.data?.content) ? list.data.content : [];
+        const found = arr.find((e: any) => String(e.empId || '').trim() === String(empId).trim());
+        const img2 = pickEmployeeImage(found || {});
+        if (img2 && mounted) setAvatarUrl(img2);
+      } catch {
+        // ignore
+      }
+    };
+
+    // Prefer auth user image if present
+    setFromUser();
+    if (!avatarUrl) fetchFromApi();
+
+    return () => {
+      mounted = false;
+    };
+  }, [orgId, empId, user]);
 
   const filteredItems = navigationItems.filter((item) => user && item.roles.includes(user.role));
   const isItemActive = (href: string) => !!matchPath({ path: href, end: false }, location.pathname);
@@ -91,7 +154,13 @@ export function AppSidebar() {
             <div className="absolute right-4 top-4 h-2 w-2 rounded-full bg-green-400 shadow-sm" title="Online" />
             <div className="flex items-center gap-3">
               <Avatar className="h-11 w-11 border-2 border-background shadow-md">
-                <AvatarImage src={user.profileImageUrl} alt={user.name} />
+                {avatarUrl ? (
+                  <AvatarImage
+                    src={avatarUrl}
+                    alt={user.name || user.username || 'User'}
+                    onError={() => setAvatarUrl('')}
+                  />
+                ) : null}
                 <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold text-sm">
                   {getUserInitials(user.name || user.username)}
                 </AvatarFallback>

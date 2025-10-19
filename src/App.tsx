@@ -1,8 +1,10 @@
+// App.tsx
+import React, { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -38,7 +40,19 @@ import DailyDutiesHistory from "./pages/DailyDutiesHistory";
 
 const queryClient = new QueryClient();
 
-const App = () => (
+// Scroll to top on route changes, skip hash anchors
+const ScrollToTop: React.FC = () => {
+  const { pathname, search, hash } = useLocation();
+  useEffect(() => {
+    if (hash) return;
+    // Use a valid ScrollBehavior value; “instant” is supported in modern browsers
+    // If TypeScript complains, switch to behavior: "auto" or use window.scrollTo(0, 0)
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [pathname, search, hash]);
+  return null;
+};
+
+const App: React.FC = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
@@ -50,6 +64,7 @@ const App = () => (
             v7_relativeSplatPath: true,
           }}
         >
+          <ScrollToTop />
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Index />} />
@@ -67,10 +82,11 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/guninfo"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                <ProtectedRoute requiredRoles={["owner", "manager"]}>
                   <DashboardLayout>
                     <GunInfo />
                   </DashboardLayout>
@@ -81,174 +97,192 @@ const App = () => (
             <Route
               path="/employees"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                <ProtectedRoute requiredRoles={["owner", "manager"]}>
                   <DashboardLayout>
                     <Employees />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/documents"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                <ProtectedRoute requiredRoles={["owner", "manager"]}>
                   <DashboardLayout>
                     <Documents />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/all-employee-tasks"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                <ProtectedRoute requiredRoles={["owner", "manager"]}>
                   <DashboardLayout>
                     <AllEmployeeTasks />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/employee-duty-info"
               element={
-                <ProtectedRoute requiredRoles={['employee']}>
+                <ProtectedRoute requiredRoles={["employee"]}>
                   <DashboardLayout>
                     <EmployeeDutyInfo />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/employee-task-history"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager', 'employee']}>
+                <ProtectedRoute requiredRoles={["owner", "manager", "employee"]}>
                   <DashboardLayout>
                     <EmployeeTaskHistory />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/special-duties"
               element={
-                <ProtectedRoute requiredRoles={['employee']}>
+                <ProtectedRoute requiredRoles={["employee"]}>
                   <DashboardLayout>
                     <SpecialDuties />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/special-duties-history"
               element={
-                <ProtectedRoute requiredRoles={['employee']}>
+                <ProtectedRoute requiredRoles={["employee"]}>
                   <DashboardLayout>
                     <SpecialDutiesHistory />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/daily-duties"
               element={
-                <ProtectedRoute requiredRoles={['employee']}>
+                <ProtectedRoute requiredRoles={["employee"]}>
                   <DashboardLayout>
                     <DailyDuties />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
-             <Route
+
+            <Route
               path="/daily-duties-history"
               element={
-                <ProtectedRoute requiredRoles={['employee']}>
+                <ProtectedRoute requiredRoles={["employee"]}>
                   <DashboardLayout>
                     <DailyDutiesHistory />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+
             <Route
               path="/employee-set-duty"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                <ProtectedRoute requiredRoles={["owner", "manager"]}>
                   <DashboardLayout>
                     <EmployeeSetDuty />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/inventory"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                <ProtectedRoute requiredRoles={["owner", "manager"]}>
                   <DashboardLayout>
                     <Inventory />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/inventory/history"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                <ProtectedRoute requiredRoles={["owner", "manager"]}>
                   <DashboardLayout>
                     <InventoryHistory />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/sales"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager', 'employee']}>
+                <ProtectedRoute requiredRoles={["owner", "manager", "employee"]}>
                   <DashboardLayout>
                     <Sales />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/products"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                <ProtectedRoute requiredRoles={["owner", "manager"]}>
                   <DashboardLayout>
                     <Products />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/borrowers"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                <ProtectedRoute requiredRoles={["owner", "manager"]}>
                   <DashboardLayout>
                     <Borrowers />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/reports"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                <ProtectedRoute requiredRoles={["owner", "manager"]}>
                   <DashboardLayout>
                     <Reports />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/expenses"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                <ProtectedRoute requiredRoles={["owner", "manager"]}>
                   <DashboardLayout>
                     <Expenses />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/attendance"
               element={
@@ -259,40 +293,44 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/profile"
               element={
-                <ProtectedRoute requiredRoles={['employee', 'manager','owner']}>
+                <ProtectedRoute requiredRoles={["employee", "manager", "owner"]}>
                   <DashboardLayout>
                     <Profile />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/settings"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                <ProtectedRoute requiredRoles={["owner", "manager"]}>
                   <DashboardLayout>
                     <Settings />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/analytics"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager']}>
+                <ProtectedRoute requiredRoles={["owner", "manager"]}>
                   <DashboardLayout>
                     <Analytics />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/sales-history"
               element={
-                <ProtectedRoute requiredRoles={['owner', 'manager', 'employee']}>
+                <ProtectedRoute requiredRoles={["owner", "manager", "employee"]}>
                   <DashboardLayout>
                     <SalesHistory />
                   </DashboardLayout>
