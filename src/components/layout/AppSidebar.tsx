@@ -13,9 +13,8 @@ import {
   SidebarGroupContent, SidebarGroupLabel, SidebarHeader,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar,
 } from '@/components/ui/sidebar';
-import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
+const PROFILE_URL_KEY = 'profileImageUrl';
 
 interface NavItem {
   title: string;
@@ -75,47 +74,26 @@ export function AppSidebar() {
     setEmpId(localStorage.getItem('empId') || '');
   }, []);
 
-  // Fetch employee image (prefer AuthContext, else API)
+  // Set avatar from user or localStorage (no API)
   useEffect(() => {
-    let mounted = true;
+    const fromUser = pickEmployeeImage(user || {});
+    if (fromUser) {
+      setAvatarUrl(fromUser);
+    } else {
+      setAvatarUrl(localStorage.getItem(PROFILE_URL_KEY) || '');
+    }
+  }, [user]);
 
-    const setFromUser = () => {
-      const fromUser = pickEmployeeImage(user || {});
-      if (fromUser && mounted) setAvatarUrl(fromUser);
-    };
-
-    const fetchFromApi = async () => {
-      if (!orgId || !empId) return;
-      try {
-        // Try direct employee-by-id route first (if supported)
-        const one = await axios.get(`${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/employees/${encodeURIComponent(empId)}`, { timeout: 15000 });
-        const img = pickEmployeeImage(one.data || {});
-        if (img && mounted) {
-          setAvatarUrl(img);
-          return;
-        }
-      } catch {
-        // Fallback to list and filter by empId
-      }
-      try {
-        const list = await axios.get(`${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/employees`, { timeout: 15000 });
-        const arr = Array.isArray(list.data) ? list.data : Array.isArray(list.data?.content) ? list.data.content : [];
-        const found = arr.find((e: any) => String(e.empId || '').trim() === String(empId).trim());
-        const img2 = pickEmployeeImage(found || {});
-        if (img2 && mounted) setAvatarUrl(img2);
-      } catch {
-        // ignore
+  // Sync avatar across tabs/windows via storage event
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === PROFILE_URL_KEY) {
+        setAvatarUrl(e.newValue || '');
       }
     };
-
-    // Prefer auth user image if present
-    setFromUser();
-    if (!avatarUrl) fetchFromApi();
-
-    return () => {
-      mounted = false;
-    };
-  }, [orgId, empId, user]);
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const filteredItems = navigationItems.filter((item) => user && item.roles.includes(user.role));
   const isItemActive = (href: string) => !!matchPath({ path: href, end: false }, location.pathname);

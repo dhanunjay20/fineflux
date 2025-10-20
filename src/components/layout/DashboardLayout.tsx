@@ -30,10 +30,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useMemo, useState, useRef, useEffect } from 'react';
-import axios from 'axios';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
+const PROFILE_URL_KEY = 'profileImageUrl';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -69,8 +68,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   // employee avatar state
   const [avatarUrl, setAvatarUrl] = useState<string>('');
-  const [orgId, setOrgId] = useState('');
-  const [empId, setEmpId] = useState('');
 
   if (!user) {
     return null;
@@ -90,63 +87,26 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Load avatar from user or localStorage (no API)
   useEffect(() => {
-    setOrgId(localStorage.getItem('organizationId') || '');
-    setEmpId(localStorage.getItem('empId') || '');
-  }, []);
-
-  // Load avatar: prefer user-provided image, else fetch by empId
-  useEffect(() => {
-    let mounted = true;
-
-    const tryFromUser = () => {
-      const img = pickEmployeeImage(user || {});
-      if (img && mounted) setAvatarUrl(img);
-    };
-
-    const fetchFromApi = async () => {
-      if (!orgId || !empId) return;
-      try {
-        // Direct employee endpoint if available
-        const res = await axios.get(
-          `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/employees/${encodeURIComponent(empId)}`,
-          { timeout: 15000 }
-        );
-        const img = pickEmployeeImage(res.data || {});
-        if (img && mounted) {
-          setAvatarUrl(img);
-          return;
-        }
-      } catch {
-        // ignore and fallback to list
-      }
-      try {
-        const list = await axios.get(
-          `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/employees`,
-          { timeout: 15000 }
-        );
-        const arr = Array.isArray(list.data)
-          ? list.data
-          : Array.isArray(list.data?.content)
-          ? list.data.content
-          : [];
-        const found = arr.find((e: any) => String(e.empId || '').trim() === String(empId).trim());
-        const img2 = pickEmployeeImage(found || {});
-        if (img2 && mounted) setAvatarUrl(img2);
-      } catch {
-        // ignore
-      }
-    };
-
-    tryFromUser();
-    if (!avatarUrl) {
-      fetchFromApi();
+    const fromUser = pickEmployeeImage(user || {});
+    if (fromUser) {
+      setAvatarUrl(fromUser);
+    } else {
+      setAvatarUrl(localStorage.getItem(PROFILE_URL_KEY) || '');
     }
+  }, [user]);
 
-    return () => {
-      mounted = false;
+  // Sync avatar across tabs/windows via storage event
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === PROFILE_URL_KEY) {
+        setAvatarUrl(e.newValue || '');
+      }
     };
-  }, [orgId, empId, user]);
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   // Complete navigation items based on user role
   const allNavItems = useMemo(() => {

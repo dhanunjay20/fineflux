@@ -19,6 +19,9 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-643072210
 const CLOUDINARY_UPLOAD_URL = import.meta.env.VITE_CLOUDINARY_UPLOAD_URL || 'https://api.cloudinary.com/v1_1/dosyyvmtb/auto/upload';
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_PROFILE_UPLOAD_PRESET || 'Profile_Pictures';
 
+// LocalStorage key for profile image
+const PROFILE_URL_KEY = "profileImageUrl";
+
 type AddressDTO = { line1?: string; line2?: string; city?: string; state?: string; postalCode?: string; country?: string };
 type ShiftTimingDTO = { start?: string; end?: string };
 type EmployeeResponse = {
@@ -53,6 +56,7 @@ export default function Profile() {
   const [showCurrentPwd, setShowCurrentPwd] = useState(false);
   const [showNewPwd, setShowNewPwd] = useState(false);
   const [savingPwd, setSavingPwd] = useState(false);
+
   const [form, setForm] = useState<EmployeeUpdateRequest>({
     role: '', department: '', firstName: '', lastName: '', phoneNumber: '', emailId: '', username: '', gender: '',
     salary: undefined, status: 'ACTIVE', shiftTiming: { start: '', end: '' },
@@ -75,6 +79,7 @@ export default function Profile() {
         const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employees/${id}`, { timeout: 15000 });
         if (cancelled) return;
         const data: EmployeeResponse = res.data;
+
         setEmployee(data);
         setForm({
           role: data.role || '', department: data.department || '', firstName: data.firstName || '', lastName: data.lastName || '',
@@ -88,6 +93,13 @@ export default function Profile() {
           emergencyContact: { name: data.emergencyContact?.name || '', phone: data.emergencyContact?.phone || '', relationship: data.emergencyContact?.relationship || '' },
           profileImageUrl: data.profileImageUrl || '',
         });
+
+        // Persist profile image URL to localStorage
+        if (data.profileImageUrl && data.profileImageUrl.trim()) {
+          localStorage.setItem(PROFILE_URL_KEY, data.profileImageUrl);
+        } else {
+          localStorage.removeItem(PROFILE_URL_KEY);
+        }
       } catch (e: any) {
         if (!cancelled) setError(e?.response?.data?.message || e?.message || 'Failed to load profile');
       } finally {
@@ -120,9 +132,18 @@ export default function Profile() {
       formData.append('folder', 'Profile_Photos');
       const res = await axios.post(CLOUDINARY_UPLOAD_URL, formData);
       const imageUrl = res.data.secure_url;
+
       setForm(prev => ({ ...prev, profileImageUrl: imageUrl }));
+
       await saveProfileImage(imageUrl);
       toast({ title: 'Profile photo updated successfully' });
+
+      // Persist uploaded URL quickly; API-confirmed URL will also be saved in saveProfileImage
+      if (imageUrl && imageUrl.trim()) {
+        localStorage.setItem(PROFILE_URL_KEY, imageUrl);
+      } else {
+        localStorage.removeItem(PROFILE_URL_KEY);
+      }
     } catch {
       toast({ title: 'Upload failed', variant: 'destructive' });
     } finally {
@@ -137,6 +158,14 @@ export default function Profile() {
       empId: employee.empId, organizationId: employee.organizationId, profileImageUrl: imageUrl
     });
     setEmployee(res.data);
+
+    // Persist canonical URL from server if provided
+    const finalUrl = res.data?.profileImageUrl || imageUrl;
+    if (finalUrl && finalUrl.trim()) {
+      localStorage.setItem(PROFILE_URL_KEY, finalUrl);
+    } else {
+      localStorage.removeItem(PROFILE_URL_KEY);
+    }
   };
 
   const handleSave = async () => {
@@ -148,6 +177,14 @@ export default function Profile() {
       setEmployee(res.data);
       setIsEditing(false);
       toast({ title: 'Profile updated successfully' });
+
+      // Persist profile image URL if present in general update
+      const updatedUrl = res.data?.profileImageUrl;
+      if (updatedUrl && updatedUrl.trim()) {
+        localStorage.setItem(PROFILE_URL_KEY, updatedUrl);
+      } else {
+        localStorage.removeItem(PROFILE_URL_KEY);
+      }
     } catch {
       toast({ title: 'Update failed', variant: 'destructive' });
     } finally {
@@ -172,6 +209,10 @@ export default function Profile() {
       setSavingPwd(false);
     }
   };
+
+  // Read from localStorage as a fallback for Avatar
+  const storedProfileUrl = useMemo(() => localStorage.getItem(PROFILE_URL_KEY) || '', []);
+  const profileUrl = employee?.profileImageUrl || storedProfileUrl;
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -214,8 +255,8 @@ export default function Profile() {
               {/* Avatar */}
               <div className="relative">
                 <Avatar className="h-32 w-32 border-4 border-white shadow-2xl ring-4 ring-blue-100">
-                  {employee.profileImageUrl ? (
-                    <AvatarImage src={employee.profileImageUrl} alt={fullName} className="object-cover" />
+                  {profileUrl ? (
+                    <AvatarImage src={profileUrl} alt={fullName} className="object-cover" />
                   ) : (
                     <AvatarFallback className="text-3xl font-bold bg-gradient-to-br from-blue-600 to-cyan-500 text-white">
                       {getUserInitials(fullName || employee.empId || 'U')}
@@ -280,7 +321,6 @@ export default function Profile() {
                   </>
                 )}
               </div>
-
             </div>
           </CardContent>
         </Card>
