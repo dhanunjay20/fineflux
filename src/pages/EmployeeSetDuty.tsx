@@ -601,7 +601,7 @@ export default function EmployeeSetDuty() {
                     <SelectTrigger className="h-11">
                       <SelectValue placeholder="Priority" />
                     </SelectTrigger>
-                    <SelectContent className="z-[100000]">
+                    <SelectContent className='z-[10000]'>
                       <SelectItem value="high">High</SelectItem>
                       <SelectItem value="medium">Medium</SelectItem>
                       <SelectItem value="low">Low</SelectItem>

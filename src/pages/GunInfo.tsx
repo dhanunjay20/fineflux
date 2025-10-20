@@ -271,7 +271,7 @@ export default function GunInfo() {
                     <SelectTrigger>
                       <SelectValue placeholder="Select Product" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className='z-[10000]'>
                       {products.map((p: any) => (
                         <SelectItem key={p.productName} value={p.productName}>
                           {p.productName}

@@ -47,7 +47,7 @@ export default function DailyDutiesHistory() {
   const [customEndDate, setCustomEndDate] = useState("");
 
   // Helpers
-  const normalizeDate = (d: Date) => { const x = new Date(d); x.setHours(0,0,0,0); return x; };  // [memory:11]
+  const normalizeDate = (d: Date) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };  // [memory:11]
   const parseLocalDate = (s?: string) => {
     if (!s) return undefined;
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
@@ -142,18 +142,32 @@ export default function DailyDutiesHistory() {
       {/* Header with right-aligned action */}
       <Card className="card-gradient">
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-2xl font-bold tracking-tight">Pump Duties — History</CardTitle>
-              <p className="text-sm text-muted-foreground">Filter and review past duties by status and date</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+            <div className="min-w-0">
+              <CardTitle className="text-2xl font-bold tracking-tight break-words">
+                Pump Duties — History
+              </CardTitle>
+              <p className="text-sm text-muted-foreground break-words">
+                Filter and review past duties by status and date
+              </p>
             </div>
-            <Button variant="outline" onClick={() => navigate("/daily-duties")}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Go to Pump Duties
-            </Button>
+
+            {/* Below on mobile, vertically centered on sm+ */}
+            <div className="row-start-2 sm:row-start-1 sm:col-start-2 sm:self-center">
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto justify-center"
+                onClick={() => navigate("/daily-duties")}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Go to Pump Duties
+              </Button>
+            </div>
           </div>
         </CardHeader>
-      </Card>  {/* modern header */} 
+      </Card>
+
+
 
       {/* Stats first */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -177,7 +191,7 @@ export default function DailyDutiesHistory() {
             </CardContent>
           </Card>
         ))}
-      </div>  {/* clear overview before filters */} 
+      </div>  {/* clear overview before filters */}
 
       {/* Filters below cards */}
       <Card className="card-gradient">
@@ -191,7 +205,7 @@ export default function DailyDutiesHistory() {
               <Input
                 placeholder="Search by product, date, employee, status..."
                 value={searchQuery}
-                onChange={(e)=>setSearchQuery(e.target.value)}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
                 aria-label="Search duties"
               />
@@ -204,7 +218,7 @@ export default function DailyDutiesHistory() {
                 onClick={() => setSelectedTab(tab as DutyStatusKey)}
               >
                 {tab.charAt(0) + tab.slice(1).toLowerCase()}
-                <Badge variant="secondary" className="ml-2">{duties.filter(d=>d.status===tab).length}</Badge>
+                <Badge variant="secondary" className="ml-2">{duties.filter(d => d.status === tab).length}</Badge>
               </Button>
             ))}
           </div>
@@ -215,7 +229,7 @@ export default function DailyDutiesHistory() {
                 <Button
                   key={df}
                   size="sm"
-                  variant={dateFilter===df ? "default" : "outline"}
+                  variant={dateFilter === df ? "default" : "outline"}
                   onClick={() => setDateFilter(df as DateFilterKey)}
                 >
                   {df.charAt(0).toUpperCase() + df.slice(1)}
@@ -224,13 +238,13 @@ export default function DailyDutiesHistory() {
             </div>
             {dateFilter === "custom" && (
               <div className="flex gap-2">
-                <Input type="date" value={customStartDate} onChange={(e)=>setCustomStartDate(e.target.value)} />
-                <Input type="date" value={customEndDate} onChange={(e)=>setCustomEndDate(e.target.value)} />
+                <Input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} />
+                <Input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} />
               </div>
             )}
           </div>
         </CardContent>
-      </Card>  {/* modern filters placement */} 
+      </Card>  {/* modern filters placement */}
 
       {/* List */}
       <Card className="shadow-lg">
@@ -272,8 +286,8 @@ export default function DailyDutiesHistory() {
                       <h4 className="font-semibold text-lg text-foreground group-hover:text-primary transition-colors">Pump Duty</h4>
                       <Badge className={
                         duty.status === "COMPLETED" ? "bg-green-500/10 text-green-700 border-green-500/20" :
-                        duty.status === "ACTIVE" ? "bg-blue-500/10 text-blue-700 border-blue-500/20" :
-                        "bg-yellow-500/10 text-yellow-700 border-yellow-500/20"
+                          duty.status === "ACTIVE" ? "bg-blue-500/10 text-blue-700 border-blue-500/20" :
+                            "bg-yellow-500/10 text-yellow-700 border-yellow-500/20"
                       }>{duty.status || "SCHEDULED"}</Badge>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm pt-2">

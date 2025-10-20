@@ -233,7 +233,7 @@ export default function InventoryHistory() {
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="All Products" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className='z-[10000]'>
                   <SelectItem value="ALL_PRODUCTS">All Products</SelectItem>
                   {products.map((prod: any) => (
                     <SelectItem key={prod.id || prod.productName} value={prod.productName}>
@@ -291,7 +291,7 @@ export default function InventoryHistory() {
                 <SelectTrigger className="w-[100px]">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className='z-[10000]'>
                   <SelectItem value="10">10</SelectItem>
                   <SelectItem value="25">25</SelectItem>
                   <SelectItem value="50">50</SelectItem>

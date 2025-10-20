@@ -262,22 +262,25 @@ export default function Expenses() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Expense Management</h1>
           <p className="text-muted-foreground">Track and approve business expenses</p>
         </div>
-        <div className="flex gap-2">
-          <Button className="btn-gradient-primary" onClick={openCreateExpenseModal}>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button className="btn-gradient-primary w-full sm:w-auto" onClick={openCreateExpenseModal}>
             <Plus className="mr-2 h-4 w-4" />
             Add Expense
           </Button>
-          <Button variant="outline" onClick={openCreateCategoryModal}>
+          <Button variant="outline" className="w-full sm:w-auto" onClick={openCreateCategoryModal}>
             <Plus className="mr-1 h-4 w-4" />
             New Category
           </Button>
         </div>
       </div>
+
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {stats.map((stat) => {
@@ -464,7 +467,7 @@ export default function Expenses() {
                   <SelectTrigger>
                     <SelectValue placeholder="Select Category" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className='z-[10000]'>
                     {categories.map((c) => (
                       <SelectItem key={c.id} value={c.categoryName}>
                         {c.categoryName}

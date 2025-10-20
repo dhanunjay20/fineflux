@@ -204,7 +204,8 @@ export function OwnerDashboard() {
       `}</style>
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 opacity-0 animate-slide-up">
+      {/* Header */}
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] sm:items-center gap-3 opacity-0 animate-slide-up">
         <div className="min-w-0">
           <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
             Owner Dashboard
@@ -214,19 +215,20 @@ export function OwnerDashboard() {
             Real-time overview of your petrol bunk operations
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-start sm:justify-end">
+
+        <div className="flex flex-wrap gap-2 justify-start sm:justify-end mt-2 sm:mt-0 shrink-0">
           <Button
             onClick={fetchAll}
             variant="outline"
             title="Refresh Data"
-            className="w-full sm:w-auto border-border/50 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-300"
+            className="border-border/50 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-300"
           >
             <RotateCcw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
 
           <Button
-            className="w-full sm:w-auto bg-primary text-white hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all duration-300"
+            className="bg-primary text-white hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all duration-300"
             onClick={() => navigate('/analytics')}
           >
             <BarChart3 className="mr-2 h-4 w-4 text-white" />

@@ -493,7 +493,7 @@ export default function Products() {
                     <SelectTrigger className="w-full h-10 sm:h-11 border-border/50 focus:border-primary transition-colors">
                       <SelectValue placeholder="Select Product" />
                     </SelectTrigger>
-                    <SelectContent className="z-[9999]">
+                    <SelectContent className="z-[10000]">
                       {PRODUCT_OPTIONS.map(opt => (
                         <SelectItem key={opt} value={opt}>
                           <div className="flex items-center gap-2">
@@ -571,7 +571,7 @@ export default function Products() {
                   <SelectTrigger className="w-full h-10 sm:h-11 border-border/50 focus:border-primary transition-colors">
                     <SelectValue placeholder="Select Supplier" />
                   </SelectTrigger>
-                  <SelectContent className="z-[9999]">
+                  <SelectContent className='z-[10000]'>
                     {SUPPLIER_OPTIONS.map(opt => (
                       <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                     ))}
@@ -600,7 +600,7 @@ export default function Products() {
                     <SelectTrigger className="w-full h-10 sm:h-11 border-border/50 focus:border-primary transition-colors">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="z-[9999]">
+                    <SelectContent className="z-[10000]">
                       <SelectItem value="Liters">Liters</SelectItem>
                       <SelectItem value="Gallons">Gallons</SelectItem>
                       <SelectItem value="Kiloliters">Kiloliters</SelectItem>
@@ -617,7 +617,7 @@ export default function Products() {
                     <SelectTrigger className="w-full h-10 sm:h-11 border-border/50 focus:border-primary transition-colors">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="z-[9999]">
+                    <SelectContent className="z-[10000]">
                       <SelectItem value="true">Active</SelectItem>
                       <SelectItem value="false">Inactive</SelectItem>
                     </SelectContent>

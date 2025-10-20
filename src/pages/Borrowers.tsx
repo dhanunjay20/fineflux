@@ -747,7 +747,7 @@ export default function Borrowers() {
                       <SelectTrigger className="w-full h-10 bg-white dark:bg-slate-900 border-border hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all">
                         <SelectValue placeholder="Select status" />
                       </SelectTrigger>
-                      <SelectContent className="z-[60]">
+                      <SelectContent className='z-[10000]'>
                         <SelectItem value="PENDING" className="cursor-pointer">
                           <div className="flex items-center gap-2">
                             <div className="h-2 w-2 rounded-full bg-yellow-500" />
@@ -822,7 +822,7 @@ export default function Borrowers() {
                         <SelectTrigger className="w-full h-10 bg-white dark:bg-slate-900 border-border hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all">
                           <SelectValue placeholder="Select State" />
                         </SelectTrigger>
-                        <SelectContent className="z-[60] max-h-[300px]">
+                        <SelectContent className="z-[10000] max-h-[300px]">
                           {IN_STATES.map((state) => (
                             <SelectItem key={state} value={state} className="cursor-pointer">
                               {state}

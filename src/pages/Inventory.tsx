@@ -513,7 +513,7 @@ export default function Inventory() {
                   <SelectTrigger className="w-full h-12 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border-2 border-blue-200/50 dark:border-blue-800/50 hover:border-blue-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all rounded-xl shadow-sm">
                     <SelectValue placeholder="Choose a tank..." />
                   </SelectTrigger>
-                  <SelectContent className="z-[60] max-h-[300px] rounded-xl border-2">
+                  <SelectContent className="z-[10000] max-h-[300px] rounded-xl border-2">
                     {products.map((prod) => (
                       <SelectItem key={prod.id} value={prod.id} className="cursor-pointer rounded-lg my-1">
                         <div className="flex items-center gap-3 py-1">
@@ -744,7 +744,7 @@ export default function Inventory() {
                   <SelectTrigger className="w-full h-11 bg-white/80 dark:bg-slate-900/80 border-2 hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all rounded-xl shadow-sm">
                     <SelectValue placeholder="Select Product" />
                   </SelectTrigger>
-                  <SelectContent className="z-[60] max-h-[300px] rounded-xl border-2">
+                  <SelectContent className="z-[10000]' max-h-[300px] rounded-xl border-2">
                     {activeTanks.map((prod) => (
                       <SelectItem key={prod.productId} value={prod.productId} className="cursor-pointer">
                         {prod.productName}

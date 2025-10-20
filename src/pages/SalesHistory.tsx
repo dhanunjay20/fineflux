@@ -539,7 +539,7 @@ const PaginationControls = ({
               <SelectTrigger className="w-[90px] h-9">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className='z-[10000]'>
                 {RECORDS_PER_PAGE_OPTIONS.map((option) => (
                   <SelectItem key={option} value={option.toString()}>
                     {option}

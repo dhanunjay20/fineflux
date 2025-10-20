@@ -466,7 +466,7 @@ export default function Analytics() {
               <CalendarDays className="h-4 w-4 mr-2" />
               <SelectValue placeholder="Select time range" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className='z-[10000]' >
               <SelectItem value="7d">Last 7 days</SelectItem>
               <SelectItem value="30d">Last 30 days</SelectItem>
               <SelectItem value="90d">Last 3 months</SelectItem>

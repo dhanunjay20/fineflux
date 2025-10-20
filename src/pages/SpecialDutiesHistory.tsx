@@ -16,7 +16,9 @@ import {
   Clock,
 } from "lucide-react";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://finflux-64307221061.asia-south1.run.app";
 const DEFAULT_PAGE_SIZE = 10;
 
 type SpecialTask = {
@@ -36,7 +38,6 @@ type DateFilterKey = "all" | "today" | "week" | "month" | "custom";
 export default function SpecialDutiesHistory() {
   const orgId = localStorage.getItem("organizationId") || "";
   const empId = localStorage.getItem("empId") || "";
-
   const navigate = useNavigate();
 
   const [tasks, setTasks] = useState<SpecialTask[]>([]);
@@ -55,7 +56,9 @@ export default function SpecialDutiesHistory() {
     if (!orgId || !empId) return;
     setLoading(true);
     axios
-      .get(`${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=completed`)
+      .get(
+        `${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=completed`
+      )
       .then((res) => setTasks(Array.isArray(res.data) ? res.data : []))
       .finally(() => setLoading(false));
   }, [orgId, empId]);
@@ -84,7 +87,9 @@ export default function SpecialDutiesHistory() {
         return d >= weekStart && d <= weekEnd;
       }
       case "month":
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        return (
+          d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+        );
       case "custom": {
         if (!customStartDate || !customEndDate) return true;
         const start = normalizeDate(new Date(customStartDate));
@@ -101,20 +106,20 @@ export default function SpecialDutiesHistory() {
     const bySearch = !searchQuery.trim()
       ? tasks
       : tasks.filter((t) => {
-          const composite = [
-            t.taskTitle,
-            t.description,
-            t.assignedToName,
-            t.assignedToEmpId,
-            t.shift,
-            t.priority,
-            t.dueDate,
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase();
-          return composite.includes(searchQuery.toLowerCase());
-        });
+        const composite = [
+          t.taskTitle,
+          t.description,
+          t.assignedToName,
+          t.assignedToEmpId,
+          t.shift,
+          t.priority,
+          t.dueDate,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return composite.includes(searchQuery.toLowerCase());
+      });
 
     const byDate = bySearch.filter((t) => inRange(t.dueDate));
 
@@ -133,20 +138,37 @@ export default function SpecialDutiesHistory() {
 
   useEffect(() => {
     setPage(0);
-  }, [searchQuery, pageSize, dateFilter, customStartDate, customEndDate, filteredSorted.length]);
+  }, [
+    searchQuery,
+    pageSize,
+    dateFilter,
+    customStartDate,
+    customEndDate,
+    filteredSorted.length,
+  ]);
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
+      {/* Header (grid ensures button is below text on mobile) */}
       <Card className="card-gradient">
         <CardHeader className="pb-0">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-2xl font-bold tracking-tight">Special Duties History</CardTitle>
-              <p className="text-sm text-muted-foreground">Review completed special tasks and their details</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+            <div className="min-w-0">
+              <CardTitle className="text-2xl font-bold tracking-tight leading-tight break-words">
+                Special Duties History
+              </CardTitle>
+              <p className="text-sm text-muted-foreground break-words">
+                Review completed special tasks and their details
+              </p>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => navigate("/special-duties")}>
+
+            {/* Below on mobile; vertically centered and right-aligned on sm+ */}
+            <div className="row-start-2 sm:row-start-1 sm:col-start-2 sm:self-center">
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto justify-center"
+                onClick={() => navigate("/special-duties")}
+              >
                 <ChevronLeft className="h-4 w-4 mr-2" />
                 Go back to Special Duties
               </Button>
@@ -156,8 +178,9 @@ export default function SpecialDutiesHistory() {
         <CardContent />
       </Card>
 
-      {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="stat-card hover-lift">
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
@@ -208,8 +231,8 @@ export default function SpecialDutiesHistory() {
         </CardHeader>
         <CardContent className="p-4 space-y-4">
           {/* Row 1: Search + page size */}
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            <div className="relative flex-1 min-w-[260px]">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div className="relative min-w-[220px]">
               <SearchIcon
                 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
                 aria-hidden="true"
@@ -219,17 +242,19 @@ export default function SpecialDutiesHistory() {
                 placeholder="Search completed tasks..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
+                className="pl-9 w-full"
                 aria-label="Search completed tasks"
               />
             </div>
 
-            <div className="flex items-center gap-3 lg:ml-auto">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">Show:</span>
+            <div className="flex items-center gap-3 lg:justify-end">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                Show:
+              </span>
               <select
                 value={pageSize}
                 onChange={(e) => setPageSize(Number(e.target.value))}
-                className="border border-border rounded-md px-3 py-1.5 text-sm bg-background"
+                className="border border-border rounded-md px-3 py-1.5 text-sm bg-background w-full sm:w-[140px]"
                 aria-label="Items per page"
               >
                 <option value={5}>5</option>
@@ -242,8 +267,12 @@ export default function SpecialDutiesHistory() {
 
           {/* Row 2: Date Filter */}
           <div className="space-y-3 pt-2 border-t border-border/50">
-            <Label className="text-xs uppercase text-muted-foreground">Filter by Date</Label>
-            <div className="flex flex-wrap gap-2">
+            <Label className="text-xs uppercase text-muted-foreground">
+              Filter by Date
+            </Label>
+
+            {/* Buttons wrap on small screens */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
               {[
                 { key: "all", label: "All Time" },
                 { key: "today", label: "Today" },
@@ -253,10 +282,14 @@ export default function SpecialDutiesHistory() {
               ].map((f) => (
                 <Button
                   key={f.key}
-                  variant={dateFilter === (f.key as DateFilterKey) ? "default" : "outline"}
+                  variant={
+                    dateFilter === (f.key as DateFilterKey) ? "default" : "outline"
+                  }
                   size="sm"
                   onClick={() => setDateFilter(f.key as DateFilterKey)}
-                  className={dateFilter === f.key ? "btn-gradient-primary" : ""}
+                  className={
+                    dateFilter === f.key ? "btn-gradient-primary" : "w-full"
+                  }
                 >
                   {f.label}
                 </Button>
@@ -264,14 +297,22 @@ export default function SpecialDutiesHistory() {
             </div>
 
             {dateFilter === "custom" && (
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1 space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
                   <Label className="text-xs">Start Date</Label>
-                  <Input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} />
+                  <Input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                  />
                 </div>
-                <div className="flex-1 space-y-2">
+                <div className="space-y-2">
                   <Label className="text-xs">End Date</Label>
-                  <Input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} />
+                  <Input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                  />
                 </div>
               </div>
             )}
@@ -289,21 +330,25 @@ export default function SpecialDutiesHistory() {
             Completed Tasks
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-6 space-y-4">
+        <CardContent className="p-4 sm:p-6 space-y-4">
           {loading && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="h-12 w-12 rounded-full border-4 border-primary/30 border-t-primary animate-spin mb-4" />
+            <div className="flex flex-col items-center justify-center py-10 sm:py-12">
+              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full border-4 border-primary/30 border-t-primary animate-spin mb-4" />
               <p className="text-muted-foreground">Loading...</p>
             </div>
           )}
 
           {!loading && paginated.length === 0 && (
-            <div className="text-center py-12">
-              <div className="h-24 w-24 mx-auto mb-6 rounded-full bg-muted flex items-center justify-center">
-                <FileText className="h-12 w-12 text-muted-foreground" />
+            <div className="text-center py-10 sm:py-12">
+              <div className="h-20 w-20 sm:h-24 sm:w-24 mx-auto mb-6 rounded-full bg-muted flex items-center justify-center">
+                <FileText className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">No Completed Tasks</h3>
-              <p className="text-muted-foreground">Try adjusting your search or date filters.</p>
+              <h3 className="text-lg sm:text-xl font-semibold mb-2">
+                No Completed Tasks
+              </h3>
+              <p className="text-muted-foreground">
+                Try adjusting your search or date filters.
+              </p>
             </div>
           )}
 
@@ -311,12 +356,12 @@ export default function SpecialDutiesHistory() {
             paginated.map((task) => (
               <div
                 key={task.id}
-                className="p-5 rounded-xl border border-border/50 hover:border-primary/30 hover:bg-muted/20 transition-all duration-300 hover:shadow-md group space-y-3"
+                className="p-4 sm:p-5 rounded-xl border border-border/50 hover:border-primary/30 hover:bg-muted/20 transition-all duration-300 hover:shadow-md group space-y-3"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 space-y-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex-1 space-y-3 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-semibold text-lg text-foreground group-hover:text-primary transition-colors">
+                      <h4 className="font-semibold text-base sm:text-lg text-foreground group-hover:text-primary transition-colors break-words">
                         {task.taskTitle}
                       </h4>
                       <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
@@ -331,10 +376,12 @@ export default function SpecialDutiesHistory() {
                     </div>
 
                     {task.description && (
-                      <p className="text-sm text-muted-foreground leading-relaxed">{task.description}</p>
+                      <p className="text-sm text-muted-foreground leading-relaxed break-words">
+                        {task.description}
+                      </p>
                     )}
 
-                    <div className="flex items-center gap-4 flex-wrap text-sm pt-2 border-t border-border/30">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 text-sm pt-2 border-top border-border/30">
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-green-600" />
                         <span className="text-muted-foreground">Due:</span>
@@ -353,32 +400,36 @@ export default function SpecialDutiesHistory() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-6 pt-6 border-t border-border/50">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-                className="border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300"
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Previous
-              </Button>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center mt-6 pt-6 border-t border-border/50">
+              <div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300 w-full sm:w-auto"
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </Button>
+              </div>
 
-              <span className="text-sm font-medium">
+              <span className="text-sm font-medium text-center">
                 Page <span className="text-primary">{page + 1}</span> of {totalPages}
               </span>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                disabled={page === totalPages - 1}
-                className="border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300"
-              >
-                Next
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
+              <div className="sm:justify-self-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  disabled={page === totalPages - 1}
+                  className="border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300 w-full sm:w-auto"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

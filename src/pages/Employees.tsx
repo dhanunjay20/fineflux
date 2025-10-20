@@ -10,7 +10,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  Users, Plus, Search, Edit, Eye, EyeOff, Phone, Mail, Filter, Camera, Loader2, UserCheck, UserX, Briefcase, X
+  Users, Plus, Search, Edit, Eye, EyeOff, Filter, Camera, Loader2, UserCheck, UserX, Briefcase, X,
+  Mail, Phone, IdCard
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -18,13 +19,22 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-643072210
 const CLOUDINARY_UPLOAD_URL = import.meta.env.VITE_CLOUDINARY_UPLOAD_URL || 'https://api.cloudinary.com/v1_1/dosyyvmtb/auto/upload';
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'FineFlux';
 
-export type ShiftTiming = { start?: string; end?: string };
-export type Address = {
-  line1?: string; line2?: string; city?: string; state?: string; postalCode?: string; country?: string;
-};
-export type EmergencyContact = { name?: string; phone?: string; relationship?: string };
+const INDIAN_STATES = [
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand",
+  "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan",
+  "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
+  "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi",
+  "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry"
+];
 
-export type Employee = {
+const DEPARTMENTS = ["Management", "Sales", "Operations", "Accounts", "HR", "Support"];
+const ROLES = ["Owner", "Manager", "Employee"];
+const STATUSES = [{ value: "ACTIVE", label: "Active" }, { value: "INACTIVE", label: "Inactive" }];
+
+type ShiftTiming = { start?: string; end?: string };
+type Address = { line1?: string; line2?: string; city?: string; state?: string; postalCode?: string; country?: string };
+type EmergencyContact = { name?: string; phone?: string; relationship?: string };
+type Employee = {
   id: string;
   empId: string;
   organizationId: string;
@@ -38,31 +48,10 @@ export type Employee = {
   status: string;
   gender?: string;
   salary?: number;
-  joinedDate?: string;
   profileImageUrl?: string;
   shiftTiming?: ShiftTiming;
   address?: Address;
   emergencyContact?: EmergencyContact;
-};
-
-type EmployeeFormData = {
-  empId: string;
-  organizationId: string;
-  firstName: string;
-  lastName: string;
-  emailId: string;
-  phoneNumber: string;
-  username: string;
-  password: string;
-  role: string;
-  department: string;
-  status: string;
-  gender?: string;
-  salary?: number;
-  profileImageUrl?: string;
-  shiftTiming: ShiftTiming;
-  address: Address;
-  emergencyContact: EmergencyContact;
 };
 
 export default function Employees() {
@@ -71,7 +60,6 @@ export default function Employees() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const orgId = typeof window !== 'undefined' ? localStorage.getItem('organizationId') || '' : '';
-
   if (!orgId) {
     return <div className="p-6 text-center text-muted-foreground">Loading organization context…</div>;
   }
@@ -84,7 +72,34 @@ export default function Employees() {
   const [showPassword, setShowPassword] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  const [form, setForm] = useState<EmployeeFormData>({
+  const { data: employeesRaw = [], isLoading } = useQuery({
+    queryKey: ['employees', orgId],
+    queryFn: async () => {
+      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employees?page=0&size=200`);
+      if (Array.isArray(res.data)) return res.data;
+      if (Array.isArray(res.data.content)) return res.data.content;
+      return [];
+    },
+    enabled: !!orgId,
+  });
+  const employees: Employee[] = Array.isArray(employeesRaw) ? employeesRaw : [];
+
+  // Auto-empId: FULL org letters + EMP + 000X
+  const generateEmpId = useCallback(() => {
+    const orgLetters = (orgId.match(/[A-Za-z]/g) || []).join('').toUpperCase();
+    const prefix = `${orgLetters}EMP`;
+    let maxNumber = 0;
+    employees.forEach((e) => {
+      const m = String(e.empId).match(/^([A-Z]+EMP)(\d+)$/);
+      if (m && m[1] === prefix) {
+        const n = parseInt(m[2], 10);
+        if (!Number.isNaN(n)) maxNumber = Math.max(maxNumber, n);
+      }
+    });
+    return `${prefix}${(maxNumber + 1).toString().padStart(4, '0')}`;
+  }, [orgId, employees]);
+
+  const [form, setForm] = useState<any>({
     empId: '',
     organizationId: orgId,
     firstName: '',
@@ -97,89 +112,38 @@ export default function Employees() {
     department: '',
     status: 'ACTIVE',
     gender: '',
-    salary: undefined,
+    salary: undefined as number | undefined,
     profileImageUrl: '',
-    shiftTiming: { start: '', end: '' },
-    address: { line1: '', line2: '', city: '', state: '', postalCode: '', country: 'India' },
-    emergencyContact: { name: '', phone: '', relationship: '' },
+    shiftTiming: { start: '', end: '' } as ShiftTiming,
+    address: { line1: '', line2: '', city: '', state: '', postalCode: '', country: 'India' } as Address,
+    emergencyContact: { name: '', phone: '', relationship: '' } as EmergencyContact,
   });
 
+  // Lock scroll when any dialog open
   useEffect(() => {
-    if (viewOpen || editOpen || createOpen) {
+    const anyOpen = viewOpen || editOpen || createOpen;
+    if (anyOpen) {
       document.body.style.overflow = 'hidden';
+      // @ts-ignore
+      document.body.style.scrollbarGutter = 'stable both-edges';
+      document.documentElement.style.margin = '0';
     } else {
       document.body.style.overflow = '';
+      // @ts-ignore
+      document.body.style.scrollbarGutter = '';
+      document.documentElement.style.margin = '';
     }
     return () => {
       document.body.style.overflow = '';
+      // @ts-ignore
+      document.body.style.scrollbarGutter = '';
+      document.documentElement.style.margin = '';
     };
   }, [viewOpen, editOpen, createOpen]);
 
-  const { data: employeesRaw = [], isLoading } = useQuery({
-    queryKey: ['employees', orgId],
-    queryFn: async () => {
-      if (!orgId) return [];
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employees?page=0&size=200`);
-      if (Array.isArray(res.data)) return res.data;
-      if (Array.isArray(res.data.content)) return res.data.content;
-      return [];
-    },
-    enabled: !!orgId,
-  });
-
-  const employees = Array.isArray(employeesRaw) ? employeesRaw : [];
-
-  const stats = useMemo(() => ([
-    {
-      title: 'Total Employees',
-      value: employees.length.toString(),
-      change: 'All team members',
-      icon: Users,
-      color: 'text-primary',
-      bgColor: 'bg-primary-soft',
-    },
-    {
-      title: 'Active',
-      value: employees.filter((e: Employee) => (e.status || '').toLowerCase() === 'active').length.toString(),
-      change: 'Currently working',
-      icon: UserCheck,
-      color: 'text-success',
-      bgColor: 'bg-success-soft',
-    },
-    {
-      title: 'Inactive',
-      value: employees.filter((e: Employee) => (e.status || '').toLowerCase() === 'inactive').length.toString(),
-      change: 'Not currently working',
-      icon: UserX,
-      color: 'text-warning',
-      bgColor: 'bg-warning-soft',
-    },
-    {
-      title: 'Departments',
-      value: new Set(employees.map((e: Employee) => e.department)).size.toString(),
-      change: 'Active departments',
-      icon: Briefcase,
-      color: 'text-accent',
-      bgColor: 'bg-accent-soft',
-    },
-  ]), [employees]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return employees;
-    return employees.filter((e: Employee) => {
-      const fullName = `${e.firstName} ${e.lastName}`.trim();
-      return [fullName, e.empId, e.emailId, e.phoneNumber, e.role, e.department]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(q);
-    });
-  }, [employees, search]);
-
-  const resetForm = useCallback(() => {
+  const resetFormBlank = useCallback(() => {
     setForm({
-      empId: '',
+      empId: generateEmpId(),
       organizationId: orgId,
       firstName: '',
       lastName: '',
@@ -197,97 +161,103 @@ export default function Employees() {
       address: { line1: '', line2: '', city: '', state: '', postalCode: '', country: 'India' },
       emergencyContact: { name: '', phone: '', relationship: '' },
     });
-  }, [orgId]);
+  }, [generateEmpId, orgId]);
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const getUserInitials = (firstName?: string, lastName?: string) =>
+    `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase();
 
-    if (!file.type.startsWith('image/')) {
-      toast({ title: 'Invalid File', description: 'Please select an image file.', variant: 'destructive' });
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: 'File Too Large', description: 'Image must be less than 5MB.', variant: 'destructive' });
-      return;
-    }
-
-    setUploadingImage(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-      formData.append('folder', 'Profile_Photos');
-
-      const res = await axios.post(CLOUDINARY_UPLOAD_URL, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      const imageUrl = res.data.secure_url;
-      setForm(prev => ({ ...prev, profileImageUrl: imageUrl }));
-      toast({ title: 'Success', description: 'Profile photo uploaded successfully!', variant: 'default' });
-    } catch (err: any) {
-      console.error('Upload error:', err);
-      toast({
-        title: 'Upload Failed',
-        description: err?.response?.data?.error?.message || 'Failed to upload image.',
-        variant: 'destructive',
-      });
-    } finally {
-      setUploadingImage(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
+  const getStatusBadge = (status: string) => {
+    const lower = (status || '').toLowerCase();
+    if (lower === 'active') return <Badge className="bg-green-100 text-green-800">Active</Badge>;
+    if (lower === 'inactive') return <Badge className="bg-red-100 text-red-700">Inactive</Badge>;
+    return <Badge>{status}</Badge>;
   };
 
-  const openView = (emp: Employee) => {
-    setCurrentEmp(emp);
-    setViewOpen(true);
-  };
+  const openView = (emp: Employee) => { setCurrentEmp(emp); setViewOpen(true); };
 
   const openEdit = (emp: Employee) => {
     setCurrentEmp(emp);
     setForm({
       empId: emp.empId,
       organizationId: emp.organizationId,
-      firstName: emp.firstName,
-      lastName: emp.lastName,
-      emailId: emp.emailId,
-      phoneNumber: emp.phoneNumber,
-      username: emp.username,
+      firstName: emp.firstName || '',
+      lastName: emp.lastName || '',
+      emailId: emp.emailId || '',
+      phoneNumber: emp.phoneNumber || '',
+      username: emp.username || '',
       password: '',
-      role: emp.role,
-      department: emp.department,
-      status: emp.status,
+      role: emp.role || 'Employee',
+      department: emp.department || '',
+      status: emp.status || 'ACTIVE',
       gender: emp.gender || '',
       salary: emp.salary,
       profileImageUrl: emp.profileImageUrl || '',
       shiftTiming: emp.shiftTiming || { start: '', end: '' },
-      address: emp.address || { line1: '', line2: '', city: '', state: '', postalCode: '', country: 'India' },
-      emergencyContact: emp.emergencyContact || { name: '', phone: '', relationship: '' },
+      address: {
+        line1: emp.address?.line1 || '',
+        line2: emp.address?.line2 || '',
+        city: emp.address?.city || '',
+        state: emp.address?.state || '',
+        postalCode: emp.address?.postalCode || '',
+        country: emp.address?.country || 'India'
+      },
+      emergencyContact: {
+        name: emp.emergencyContact?.name || '',
+        phone: emp.emergencyContact?.phone || '',
+        relationship: emp.emergencyContact?.relationship || ''
+      },
     });
     setEditOpen(true);
   };
 
-  const openCreate = () => {
-    resetForm();
+  const openCreate = useCallback(() => {
+    resetFormBlank(); // all empty except empId
     setCreateOpen(true);
+  }, [resetFormBlank]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Invalid File', description: 'Select an image file.', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'Too large', description: 'Must be less than 5MB.', variant: 'destructive' });
+      return;
+    }
+    setUploadingImage(true);
+    try {
+      const data = new FormData();
+      data.append('file', file);
+      data.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      data.append('folder', 'Profile_Photos');
+      const res = await axios.post(CLOUDINARY_UPLOAD_URL, data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setForm((prev: any) => ({ ...prev, profileImageUrl: res.data.secure_url }));
+      toast({ title: 'Uploaded!' });
+    } catch (err: any) {
+      toast({ title: 'Upload failed', description: err?.response?.data?.error?.message || String(err), variant: 'destructive' });
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   async function handleCreateSubmit(e: React.FormEvent) {
     e.preventDefault();
     try {
-      await axios.post(`${API_BASE}/api/organizations/${orgId}/employees`, form);
-      toast({ title: 'Employee created', description: `${form.firstName} ${form.lastName}` });
+      const payload = {
+        ...form,
+        empId: form.empId?.trim() ? form.empId : generateEmpId(),
+        organizationId: orgId
+      };
+      await axios.post(`${API_BASE}/api/organizations/${orgId}/employees`, payload);
+      toast({ title: 'Employee created (ID reserved)' });
       queryClient.invalidateQueries({ queryKey: ['employees', orgId] });
       setCreateOpen(false);
-      resetForm();
+      resetFormBlank();
     } catch (err: any) {
-      toast({
-        title: 'Create failed',
-        description: err?.response?.data?.message || 'Could not create employee.',
-        variant: 'destructive',
-      });
+      toast({ title: "Failed to create employee", description: err?.response?.data?.message || 'Error', variant: "destructive" });
     }
   }
 
@@ -303,37 +273,30 @@ export default function Employees() {
         delete payload.password;
       }
       await axios.put(`${API_BASE}/api/organizations/${orgId}/employees/${currentEmp.id}`, payload);
-      toast({ title: 'Employee updated', description: `${form.firstName} ${form.lastName}` });
+      toast({ title: 'Employee updated' });
       queryClient.invalidateQueries({ queryKey: ['employees', orgId] });
       setEditOpen(false);
     } catch (err: any) {
-      toast({
-        title: 'Update failed',
-        description: err?.response?.data?.message || 'Could not update employee.',
-        variant: 'destructive',
-      });
+      toast({ title: "Failed to update employee", description: err?.response?.data?.message || 'Error', variant: "destructive" });
     }
   }
 
-  const getUserInitials = (firstName: string, lastName: string) =>
-    `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase();
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return employees;
+    return employees.filter((e) => {
+      const fullName = `${e.firstName} ${e.lastName}`.trim();
+      return [fullName, e.empId, e.emailId, e.phoneNumber, e.role, e.department, e.status]
+        .filter(Boolean).join(' ').toLowerCase().includes(q);
+    });
+  }, [employees, search]);
 
-  const getStatusBadge = (status: string) => {
-    const s = (status || '').toLowerCase();
-    const colors: Record<string, string> = {
-      active: 'bg-success-soft text-success',
-      inactive: 'bg-muted text-muted-foreground',
-    };
-    return <Badge className={colors[s] || 'bg-muted'}>{status}</Badge>;
-  };
-
-  function formatTime(t?: string) {
-    return t || '—';
-  }
-
-  function closeModal(event: React.MouseEvent<HTMLDivElement>): void {
-    throw new Error('Function not implemented.');
-  }
+  const stats = useMemo(() => ([
+    { title: 'Total Employees', value: employees.length.toString(), change: 'All team members', icon: Users, color: 'text-primary', bgColor: 'bg-primary-soft' },
+    { title: 'Active', value: employees.filter(e => (e.status || '').toLowerCase() === 'active').length.toString(), change: 'Currently working', icon: UserCheck, color: 'text-success', bgColor: 'bg-success-soft' },
+    { title: 'Inactive', value: employees.filter(e => (e.status || '').toLowerCase() === 'inactive').length.toString(), change: 'Not currently working', icon: UserX, color: 'text-warning', bgColor: 'bg-warning-soft' },
+    { title: 'Departments', value: new Set(employees.map(e => e.department)).size.toString(), change: 'Active departments', icon: Briefcase, color: 'text-accent', bgColor: 'bg-accent-soft' },
+  ]), [employees]);
 
   return (
     <div className="space-y-6 animate-fade-in -mt-6">
@@ -357,10 +320,9 @@ export default function Employees() {
         </Button>
       </div>
 
-      {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => {
-          const Icon = stat.icon;
+          const Icon = stat.icon as any;
           return (
             <Card key={stat.title} className="stat-card hover-lift">
               <CardContent className="p-6">
@@ -413,7 +375,7 @@ export default function Employees() {
           {isLoading && <div className="text-muted-foreground">Loading employees…</div>}
           {!isLoading && (
             <div className="space-y-4">
-              {filtered.map((emp: Employee) => {
+              {filtered.map((emp) => {
                 const fullName = `${emp.firstName} ${emp.lastName}`;
                 return (
                   <div
@@ -434,21 +396,25 @@ export default function Employees() {
                       <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="font-semibold text-foreground truncate">{fullName}</h3>
-                          <Badge className="shrink-0">{emp.role}</Badge>
+                          <Badge>{emp.role}</Badge>
                           {getStatusBadge(emp.status)}
                         </div>
 
+                        {/* Info row with icons */}
                         <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground min-w-0">
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <IdCard className="h-4 w-4 shrink-0 text-foreground/70" aria-hidden />
                             <span className="font-mono text-xs">{emp.empId}</span>
                           </div>
-                          <div className="flex items-center gap-1 min-w-0">
-                            <Mail className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{emp.emailId}</span>
+
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <Mail className="h-4 w-4 shrink-0 text-foreground/70" aria-hidden />
+                            <span className="truncate">{emp.emailId || '—'}</span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Phone className="h-3 w-3" />
-                            <span>{emp.phoneNumber}</span>
+
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <Phone className="h-4 w-4 shrink-0 text-foreground/70" aria-hidden />
+                            <span className="truncate">{emp.phoneNumber || '—'}</span>
                           </div>
                         </div>
                       </div>
@@ -473,159 +439,24 @@ export default function Employees() {
         </CardContent>
       </Card>
 
-      {/* VIEW DIALOG */}
-      {viewOpen && currentEmp && (
-        <div
-          className={
-            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
-            (viewOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
-          }
-          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
-          onClick={closeModal}
-        >
-          <div
-            className="relative bg-background shadow-2xl rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-border">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-12 w-12">
-                  {currentEmp.profileImageUrl ? (
-                    <AvatarImage src={currentEmp.profileImageUrl} alt={`${currentEmp.firstName} ${currentEmp.lastName}`} />
-                  ) : (
-                    <AvatarFallback className="bg-primary text-primary-foreground">
-                      {getUserInitials(currentEmp.firstName, currentEmp.lastName)}
-                    </AvatarFallback>
-                  )}
-                </Avatar>
-                <div>
-                  <h2 className="text-2xl font-bold">{currentEmp.firstName} {currentEmp.lastName}</h2>
-                  <p className="text-sm text-muted-foreground">{currentEmp.role} • {currentEmp.department}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setViewOpen(false)}
-                className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Scrollable Content */}
-            <div className="overflow-y-auto p-6 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-muted-foreground text-xs uppercase">Employee ID</Label>
-                  <p className="font-mono font-medium mt-1">{currentEmp.empId}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground text-xs uppercase">Username</Label>
-                  <p className="font-medium mt-1">{currentEmp.username}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground text-xs uppercase">Status</Label>
-                  <div className="mt-1">{getStatusBadge(currentEmp.status)}</div>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground text-xs uppercase">Gender</Label>
-                  <p className="font-medium mt-1">{currentEmp.gender || '—'}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground text-xs uppercase">Email</Label>
-                  <p className="font-medium mt-1 truncate">{currentEmp.emailId}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground text-xs uppercase">Phone</Label>
-                  <p className="font-medium mt-1">{currentEmp.phoneNumber}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground text-xs uppercase">Salary</Label>
-                  <p className="font-medium mt-1">{currentEmp.salary ? `₹${currentEmp.salary.toLocaleString('en-IN')}` : '—'}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground text-xs uppercase">Joined Date</Label>
-                  <p className="font-medium mt-1">{currentEmp.joinedDate ? new Date(currentEmp.joinedDate).toLocaleDateString('en-IN') : '—'}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground text-xs uppercase">Shift Start</Label>
-                  <p className="font-medium mt-1">{formatTime(currentEmp.shiftTiming?.start)}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground text-xs uppercase">Shift End</Label>
-                  <p className="font-medium mt-1">{formatTime(currentEmp.shiftTiming?.end)}</p>
-                </div>
-              </div>
-
-              {currentEmp.address && (
-                <>
-                  <Separator />
-                  <div>
-                    <Label className="text-muted-foreground text-xs uppercase mb-3 block">Address</Label>
-                    <div className="p-4 bg-muted/30 rounded-lg text-sm space-y-1">
-                      {currentEmp.address.line1 && <p className="font-medium">{currentEmp.address.line1}</p>}
-                      {currentEmp.address.line2 && <p className="font-medium">{currentEmp.address.line2}</p>}
-                      {(currentEmp.address.city || currentEmp.address.state || currentEmp.address.postalCode) && (
-                        <p className="text-muted-foreground">
-                          {[currentEmp.address.city, currentEmp.address.state, currentEmp.address.postalCode]
-                            .filter(Boolean)
-                            .join(', ')}
-                        </p>
-                      )}
-                      {currentEmp.address.country && <p className="font-medium">{currentEmp.address.country}</p>}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {currentEmp.emergencyContact && (
-                <>
-                  <Separator />
-                  <div>
-                    <Label className="text-muted-foreground text-xs uppercase mb-3 block">Emergency Contact</Label>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Name</p>
-                        <p className="font-medium mt-1">{currentEmp.emergencyContact.name || '—'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Phone</p>
-                        <p className="font-medium mt-1">{currentEmp.emergencyContact.phone || '—'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Relationship</p>
-                        <p className="font-medium mt-1">{currentEmp.emergencyContact.relationship || '—'}</p>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CREATE DIALOG */}
+      {/* CREATE DIALOG — all fields present; only empId prefilled/read-only */}
       {createOpen && (
         <div
           className={
             "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
-            (createOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
+            (createOpen ? "opacity-100" : "opacity-0 pointer-events-none")
           }
-          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
-          onClick={closeModal}
+          style={{ margin: 0, padding: "1rem", minHeight: "100vh", minWidth: "100vw" }}
+          onClick={() => setCreateOpen(false)}
         >
-
           <div
             className="relative bg-background shadow-2xl rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-border shrink-0">
               <div>
                 <h2 className="text-2xl font-bold">Create New Employee</h2>
-                <p className="text-sm text-muted-foreground">Fill in the details below to add a new team member</p>
+                <p className="text-sm text-muted-foreground">Employee ID is auto-generated; fill other details as needed</p>
               </div>
               <button
                 type="button"
@@ -636,10 +467,8 @@ export default function Employees() {
               </button>
             </div>
 
-            {/* Scrollable Form */}
             <form onSubmit={handleCreateSubmit} className="flex-1 overflow-y-auto">
               <div className="p-6 space-y-8">
-                {/* Profile Photo */}
                 <div className="flex items-center gap-4">
                   <Avatar className="h-24 w-24 border-4 border-border">
                     {form.profileImageUrl ? (
@@ -676,40 +505,51 @@ export default function Employees() {
 
                 <Separator />
 
-                {/* Basic Information */}
+                {/* Basic Information with icons */}
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Basic Information</h3>
                   <div className="grid grid-cols-2 gap-4">
+                    {/* Emp ID (icon) */}
                     <div className="space-y-2">
-                      <Label>Employee ID *</Label>
-                      <Input required value={form.empId} onChange={(e) => setForm({ ...form, empId: e.target.value })} />
+                      <Label>Employee ID</Label>
+                      <div className="relative">
+                        <IdCard className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input value={form.empId} readOnly disabled className="pl-9 bg-muted/50" />
+                      </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Username *</Label>
-                      <Input required value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
+                      <Label>Username</Label>
+                      <Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
                     </div>
                     <div className="space-y-2">
-                      <Label>First Name *</Label>
-                      <Input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+                      <Label>First Name</Label>
+                      <Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Last Name *</Label>
-                      <Input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+                      <Label>Last Name</Label>
+                      <Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+                    </div>
+                    {/* Email (icon) */}
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <div className="relative">
+                        <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input type="email" value={form.emailId} onChange={(e) => setForm({ ...form, emailId: e.target.value })} className="pl-9" />
+                      </div>
+                    </div>
+                    {/* Phone (icon) */}
+                    <div className="space-y-2">
+                      <Label>Phone</Label>
+                      <div className="relative">
+                        <Phone className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} className="pl-9" />
+                      </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Email *</Label>
-                      <Input type="email" required value={form.emailId} onChange={(e) => setForm({ ...form, emailId: e.target.value })} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Phone *</Label>
-                      <Input required value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Password *</Label>
+                      <Label>Password</Label>
                       <div className="relative">
                         <Input
                           type={showPassword ? 'text' : 'password'}
-                          required
                           value={form.password}
                           onChange={(e) => setForm({ ...form, password: e.target.value })}
                         />
@@ -728,7 +568,7 @@ export default function Employees() {
                         <SelectTrigger>
                           <SelectValue placeholder="Select Gender" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="z-[10000]">
                           <SelectItem value="Male">Male</SelectItem>
                           <SelectItem value="Female">Female</SelectItem>
                           <SelectItem value="Other">Other</SelectItem>
@@ -740,48 +580,39 @@ export default function Employees() {
 
                 <Separator />
 
-                {/* Employment Details */}
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Employment Details</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Role *</Label>
+                      <Label>Role</Label>
                       <Select value={form.role} onValueChange={(value) => setForm({ ...form, role: value })}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Owner">Owner</SelectItem>
-                          <SelectItem value="Manager">Manager</SelectItem>
-                          <SelectItem value="Employee">Employee</SelectItem>
+                        <SelectContent className="z-[10000]">
+                          {ROLES.map(role => <SelectItem key={role} value={role}>{role}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Department *</Label>
+                      <Label>Department</Label>
                       <Select value={form.department} onValueChange={(value) => setForm({ ...form, department: value })}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select Department" />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Management">Management</SelectItem>
-                          <SelectItem value="Sales">Sales</SelectItem>
-                          <SelectItem value="Operations">Operations</SelectItem>
-                          <SelectItem value="Accounts">Accounts</SelectItem>
-                          <SelectItem value="HR">HR</SelectItem>
-                          <SelectItem value="Support">Support</SelectItem>
+                        <SelectContent className="z-[10000]">
+                          {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Status *</Label>
+                      <Label>Status</Label>
                       <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value })}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ACTIVE">Active</SelectItem>
-                          <SelectItem value="INACTIVE">Inactive</SelectItem>
+                        <SelectContent className="z-[10000]">
+                          {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
@@ -799,7 +630,6 @@ export default function Employees() {
 
                 <Separator />
 
-                {/* Shift Timing */}
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Shift Timing</h3>
                   <div className="grid grid-cols-2 gap-4">
@@ -824,7 +654,6 @@ export default function Employees() {
 
                 <Separator />
 
-                {/* Address */}
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Address</h3>
                   <div className="grid grid-cols-2 gap-4">
@@ -853,10 +682,17 @@ export default function Employees() {
                     </div>
                     <div className="space-y-2">
                       <Label>State</Label>
-                      <Input
-                        value={form.address.state}
-                        onChange={(e) => setForm({ ...form, address: { ...form.address, state: e.target.value } })}
-                      />
+                      <Select
+                        value={form.address.state || ''}
+                        onValueChange={(value) => setForm({ ...form, address: { ...form.address, state: value } })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select State" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[10000] max-h-80">
+                          {INDIAN_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label>Postal Code</Label>
@@ -877,7 +713,6 @@ export default function Employees() {
 
                 <Separator />
 
-                {/* Emergency Contact */}
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Emergency Contact</h3>
                   <div className="grid grid-cols-3 gap-4">
@@ -906,7 +741,6 @@ export default function Employees() {
                 </div>
               </div>
 
-              {/* Footer */}
               <div className="flex justify-end gap-3 p-6 border-t border-border bg-muted/20 shrink-0">
                 <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
                   Cancel
@@ -920,17 +754,20 @@ export default function Employees() {
         </div>
       )}
 
-      {/* EDIT DIALOG - Same improved design */}
+      {/* EDIT DIALOG — same design; icons on ID/Email/Phone too */}
       {editOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (editOpen ? "opacity-100" : "opacity-0 pointer-events-none")
+          }
+          style={{ margin: 0, padding: "1rem", minHeight: "100vh", minWidth: "100vw" }}
           onClick={() => setEditOpen(false)}
         >
           <div
             className="relative bg-background shadow-2xl rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-border shrink-0">
               <div>
                 <h2 className="text-2xl font-bold">Edit Employee</h2>
@@ -945,10 +782,8 @@ export default function Employees() {
               </button>
             </div>
 
-            {/* Scrollable Form */}
             <form onSubmit={handleEditSubmit} className="flex-1 overflow-y-auto">
               <div className="p-6 space-y-8">
-                {/* Profile Photo */}
                 <div className="flex items-center gap-4">
                   <Avatar className="h-24 w-24 border-4 border-border">
                     {form.profileImageUrl ? (
@@ -985,33 +820,44 @@ export default function Employees() {
 
                 <Separator />
 
-                {/* Basic Information */}
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Basic Information</h3>
                   <div className="grid grid-cols-2 gap-4">
+                    {/* Emp ID (icon) */}
                     <div className="space-y-2">
                       <Label>Employee ID</Label>
-                      <Input disabled value={form.empId} className="bg-muted/50" />
+                      <div className="relative">
+                        <IdCard className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input disabled value={form.empId} className="pl-9 bg-muted/50" />
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label>Username</Label>
                       <Input disabled value={form.username} className="bg-muted/50" />
                     </div>
                     <div className="space-y-2">
-                      <Label>First Name *</Label>
-                      <Input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+                      <Label>First Name</Label>
+                      <Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Last Name *</Label>
-                      <Input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+                      <Label>Last Name</Label>
+                      <Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
                     </div>
+                    {/* Email (icon) */}
                     <div className="space-y-2">
-                      <Label>Email *</Label>
-                      <Input type="email" required value={form.emailId} onChange={(e) => setForm({ ...form, emailId: e.target.value })} />
+                      <Label>Email</Label>
+                      <div className="relative">
+                        <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input type="email" value={form.emailId} onChange={(e) => setForm({ ...form, emailId: e.target.value })} className="pl-9" />
+                      </div>
                     </div>
+                    {/* Phone (icon) */}
                     <div className="space-y-2">
-                      <Label>Phone *</Label>
-                      <Input required value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} />
+                      <Label>Phone</Label>
+                      <div className="relative">
+                        <Phone className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} className="pl-9" />
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label>New Password (optional)</Label>
@@ -1028,7 +874,7 @@ export default function Employees() {
                         <SelectTrigger>
                           <SelectValue placeholder="Select Gender" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="z-[10000]">
                           <SelectItem value="Male">Male</SelectItem>
                           <SelectItem value="Female">Female</SelectItem>
                           <SelectItem value="Other">Other</SelectItem>
@@ -1040,48 +886,39 @@ export default function Employees() {
 
                 <Separator />
 
-                {/* Employment Details */}
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Employment Details</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Role *</Label>
+                      <Label>Role</Label>
                       <Select value={form.role} onValueChange={(value) => setForm({ ...form, role: value })}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Owner">Owner</SelectItem>
-                          <SelectItem value="Manager">Manager</SelectItem>
-                          <SelectItem value="Employee">Employee</SelectItem>
+                        <SelectContent className="z-[10000]">
+                          {ROLES.map(role => <SelectItem key={role} value={role}>{role}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Department *</Label>
+                      <Label>Department</Label>
                       <Select value={form.department} onValueChange={(value) => setForm({ ...form, department: value })}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select Department" />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Management">Management</SelectItem>
-                          <SelectItem value="Sales">Sales</SelectItem>
-                          <SelectItem value="Operations">Operations</SelectItem>
-                          <SelectItem value="Accounts">Accounts</SelectItem>
-                          <SelectItem value="HR">HR</SelectItem>
-                          <SelectItem value="Support">Support</SelectItem>
+                        <SelectContent className="z-[10000]">
+                          {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Status *</Label>
+                      <Label>Status</Label>
                       <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value })}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ACTIVE">Active</SelectItem>
-                          <SelectItem value="INACTIVE">Inactive</SelectItem>
+                        <SelectContent className="z-[10000]">
+                          {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1099,7 +936,6 @@ export default function Employees() {
 
                 <Separator />
 
-                {/* Shift Timing */}
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Shift Timing</h3>
                   <div className="grid grid-cols-2 gap-4">
@@ -1124,7 +960,6 @@ export default function Employees() {
 
                 <Separator />
 
-                {/* Address */}
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Address</h3>
                   <div className="grid grid-cols-2 gap-4">
@@ -1153,10 +988,17 @@ export default function Employees() {
                     </div>
                     <div className="space-y-2">
                       <Label>State</Label>
-                      <Input
-                        value={form.address.state}
-                        onChange={(e) => setForm({ ...form, address: { ...form.address, state: e.target.value } })}
-                      />
+                      <Select
+                        value={form.address.state || ''}
+                        onValueChange={(value) => setForm({ ...form, address: { ...form.address, state: value } })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select State" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[10000] max-h-80">
+                          {INDIAN_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label>Postal Code</Label>
@@ -1177,7 +1019,6 @@ export default function Employees() {
 
                 <Separator />
 
-                {/* Emergency Contact */}
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Emergency Contact</h3>
                   <div className="grid grid-cols-3 gap-4">
@@ -1206,7 +1047,6 @@ export default function Employees() {
                 </div>
               </div>
 
-              {/* Footer */}
               <div className="flex justify-end gap-3 p-6 border-t border-border bg-muted/20 shrink-0">
                 <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
                   Cancel
@@ -1216,6 +1056,132 @@ export default function Employees() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW DIALOG (unchanged layout) */}
+      {viewOpen && currentEmp && (
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (viewOpen ? "opacity-100" : "opacity-0 pointer-events-none")
+          }
+          style={{ margin: 0, padding: "1rem", minHeight: "100vh", minWidth: "100vw" }}
+          onClick={() => setViewOpen(false)}
+        >
+          <div
+            className="relative bg-background shadow-2xl rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-6 border-b border-border shrink-0">
+              <div>
+                <h2 className="text-2xl font-bold">Employee Details</h2>
+                <p className="text-sm text-muted-foreground">Profile and employment information</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewOpen(false)}
+                className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-8">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-20 w-20 border-2">
+                  {currentEmp.profileImageUrl ? (
+                    <AvatarImage src={currentEmp.profileImageUrl} alt="Profile" />
+                  ) : (
+                    <AvatarFallback className="bg-primary text-primary-foreground text-xl">
+                      {getUserInitials(currentEmp.firstName, currentEmp.lastName)}
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+                <div>
+                  <h3 className="text-xl font-semibold">{currentEmp.firstName} {currentEmp.lastName}</h3>
+                  <div className="flex items-center gap-2">
+                    <Badge>{currentEmp.role}</Badge>
+                    {getStatusBadge(currentEmp.status)}
+                  </div>
+                  <div className="text-sm text-muted-foreground font-mono">{currentEmp.empId}</div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Email</Label>
+                  <div>{currentEmp.emailId || '—'}</div>
+                </div>
+                <div>
+                  <Label>Phone</Label>
+                  <div>{currentEmp.phoneNumber || '—'}</div>
+                </div>
+                <div>
+                  <Label>Username</Label>
+                  <div>{currentEmp.username || '—'}</div>
+                </div>
+                <div>
+                  <Label>Gender</Label>
+                  <div>{currentEmp.gender || '—'}</div>
+                </div>
+                <div>
+                  <Label>Department</Label>
+                  <div>{currentEmp.department || '—'}</div>
+                </div>
+                <div>
+                  <Label>Salary</Label>
+                  <div>{currentEmp.salary ? `₹${currentEmp.salary}` : '—'}</div>
+                </div>
+                <div>
+                  <Label>Shift Start</Label>
+                  <div>{currentEmp.shiftTiming?.start || '—'}</div>
+                </div>
+                <div>
+                  <Label>Shift End</Label>
+                  <div>{currentEmp.shiftTiming?.end || '—'}</div>
+                </div>
+                <div className="col-span-2">
+                  <Label>Address</Label>
+                  <div>
+                    {[
+                      currentEmp.address?.line1,
+                      currentEmp.address?.line2,
+                      currentEmp.address?.city,
+                      currentEmp.address?.state,
+                      currentEmp.address?.postalCode,
+                      currentEmp.address?.country,
+                    ].filter(Boolean).join(', ') || '—'}
+                  </div>
+                </div>
+                <div className="col-span-2">
+                  <Label>Emergency Contact</Label>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Name</p>
+                      <p className="font-medium">{currentEmp.emergencyContact?.name || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Phone</p>
+                      <p className="font-medium">{currentEmp.emergencyContact?.phone || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Relationship</p>
+                      <p className="font-medium">{currentEmp.emergencyContact?.relationship || '—'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-6 border-t border-border bg-muted/20 shrink-0">
+              <Button type="button" variant="outline" onClick={() => setViewOpen(false)}>
+                Close
+              </Button>
+            </div>
           </div>
         </div>
       )}

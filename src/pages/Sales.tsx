@@ -692,7 +692,7 @@ export default function Sales() {
                   <Label htmlFor="fuel-type">Fuel Type</Label>
                   <Select value={form.fuel} onValueChange={(val) => setForm((f) => ({ ...f, fuel: val }))}>
                     <SelectTrigger id="fuel-type" className="w-full"><SelectValue placeholder="Select Fuel" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className='z-[10000]'>
                       {products.map((p: any) => (
                         <SelectItem key={p.productName} value={p.productName}>{p.productName}</SelectItem>
                       ))}
@@ -703,7 +703,7 @@ export default function Sales() {
                   <Label htmlFor="gun">Gun</Label>
                   <Select value={form.gun} onValueChange={(val) => setForm((f) => ({ ...f, gun: val }))}>
                     <SelectTrigger id="gun" className="w-full"><SelectValue placeholder="Select Gun" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className='z-[10000]'>
                       {filteredGuns.map((g: any) => (
                         <SelectItem key={g.guns} value={g.guns}>{g.guns} ({g.serialNumber})</SelectItem>
                       ))}
