@@ -213,10 +213,10 @@ export default function Products() {
       form.currentLevel !== "" &&
       parseFloat(form.currentLevel) > parseFloat(form.tankCapacity)
     ) {
-      toast({ 
-        title: "Invalid stock level", 
+      toast({
+        title: "Invalid stock level",
         description: "Current level cannot exceed tank capacity",
-        variant: "destructive" 
+        variant: "destructive"
       });
       return;
     }
@@ -225,7 +225,7 @@ export default function Products() {
   };
 
   const getProductIcon = (productName: string) => {
-    switch(productName) {
+    switch (productName) {
       case 'Petrol':
       case 'Premium Petrol':
         return <Fuel className="h-4 w-4 sm:h-5 sm:w-5" />;
@@ -306,13 +306,13 @@ export default function Products() {
           ) : (
             <div className="space-y-4">
               {products.map((prod: any) => {
-                const fillPercentage = prod.tankCapacity > 0 
+                const fillPercentage = prod.tankCapacity > 0
                   ? ((prod.currentLevel / prod.tankCapacity) * 100).toFixed(0)
                   : '0';
-                
+
                 return (
-                  <div 
-                    key={prod.id || prod._id} 
+                  <div
+                    key={prod.id || prod._id}
                     className="group p-3 sm:p-5 rounded-xl border border-border/50 bg-card hover:shadow-md hover:border-primary/30 transition-all duration-300"
                   >
                     <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
@@ -329,7 +329,7 @@ export default function Products() {
                           <h3 className="text-base sm:text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
                             {prod.productName}
                           </h3>
-                          <Badge 
+                          <Badge
                             variant={prod.status ? "default" : "secondary"}
                             className={prod.status ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20" : ""}
                           >
@@ -366,12 +366,11 @@ export default function Products() {
                               <span className="font-medium">{fillPercentage}%</span>
                             </div>
                             <div className="h-2 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full transition-all duration-500 ${
-                                  Number(fillPercentage) > 70 ? 'bg-green-500' :
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${Number(fillPercentage) > 70 ? 'bg-green-500' :
                                   Number(fillPercentage) > 40 ? 'bg-yellow-500' :
-                                  'bg-red-500'
-                                }`}
+                                    'bg-red-500'
+                                  }`}
                                 style={{ width: `${fillPercentage}%` }}
                               />
                             </div>
@@ -397,10 +396,10 @@ export default function Products() {
                         </div>
 
                         <div className="flex gap-2">
-                          <Button 
-                            size="icon" 
-                            variant="outline" 
-                            className="h-9 w-9 hover:bg-primary hover:text-primary-foreground transition-colors" 
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-9 w-9 hover:bg-primary hover:text-primary-foreground transition-colors"
                             onClick={() => openEditModal(prod)}
                           >
                             <Edit2 className="h-4 w-4" />
@@ -428,11 +427,13 @@ export default function Products() {
       </Card>
 
       {/* Add/Edit Modal - FULLY RESPONSIVE */}
+      {/* Add/Edit Modal - FULLY RESPONSIVE WITH FIXED FOOTER */}
       <div
         className={
-          "fixed inset-0 z-[9998] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 p-2 sm:p-4 " +
+          "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
           (modalOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
         }
+        style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
         onClick={closeModal}
       >
         <div
@@ -443,22 +444,23 @@ export default function Products() {
           onClick={(e) => e.stopPropagation()}
         >
           <style>{`
-            .modal-scroll { 
-              scrollbar-width: thin; 
-              scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent; 
-            } 
-            .modal-scroll::-webkit-scrollbar { width: 6px; } 
-            .modal-scroll::-webkit-scrollbar-track { background: transparent; } 
-            .modal-scroll::-webkit-scrollbar-thumb { 
-              background: hsl(var(--muted-foreground) / 0.3); 
-              border-radius: 3px; 
-            }
-            .modal-scroll::-webkit-scrollbar-thumb:hover {
-              background: hsl(var(--muted-foreground) / 0.5);
-            }
-          `}</style>
-          
-          <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border/50 bg-gradient-to-r from-primary/5 to-accent/5">
+      .modal-scroll { 
+        scrollbar-width: thin; 
+        scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent; 
+      } 
+      .modal-scroll::-webkit-scrollbar { width: 6px; } 
+      .modal-scroll::-webkit-scrollbar-track { background: transparent; } 
+      .modal-scroll::-webkit-scrollbar-thumb { 
+        background: hsl(var(--muted-foreground) / 0.3); 
+        border-radius: 3px; 
+      }
+      .modal-scroll::-webkit-scrollbar-thumb:hover {
+        background: hsl(var(--muted-foreground) / 0.5);
+      }
+    `}</style>
+
+          {/* Header - Fixed */}
+          <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border/50 bg-gradient-to-r from-primary/5 to-accent/5 shrink-0">
             <div>
               <h2 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
                 {editId ? 'Edit Product' : 'Add New Product'}
@@ -477,11 +479,8 @@ export default function Products() {
             </button>
           </div>
 
-          <form
-            className="modal-scroll flex-1 overflow-y-auto"
-            onSubmit={handleFormSubmit}
-            autoComplete="off"
-          >
+          {/* Scrollable Content */}
+          <div className="modal-scroll flex-1 overflow-y-auto">
             <div className="flex flex-col gap-4 sm:gap-5 p-4 sm:p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
                 <div className="space-y-2">
@@ -634,63 +633,85 @@ export default function Products() {
                 </div>
               )}
             </div>
+          </div>
 
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 border-t border-border/50 bg-muted/20">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={closeModal}
-                className="flex-1 h-10 sm:h-11 border-border/50 hover:bg-muted order-2 sm:order-1"
-              >
-                Cancel
-              </Button>
-              <Button 
-                type="submit" 
-                className="flex-1 h-10 sm:h-11 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all duration-200 shadow-md hover:shadow-lg order-1 sm:order-2" 
-                disabled={updateMutation.isPending || createMutation.isPending}
-              >
-                {editId
-                  ? (updateMutation.isPending ? "Updating..." : "Update Product")
-                  : (createMutation.isPending ? "Adding..." : "Add Product")
-                }
-              </Button>
-            </div>
-          </form>
+          {/* Footer - Fixed */}
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 border-t border-border/50 bg-muted/20 shrink-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeModal}
+              className="flex-1 h-10 sm:h-11 border-border/50 hover:bg-muted order-2 sm:order-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              onClick={handleFormSubmit}
+              className="flex-1 h-10 sm:h-11 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all duration-200 shadow-md hover:shadow-lg order-1 sm:order-2"
+              disabled={updateMutation.isPending || createMutation.isPending}
+            >
+              {editId
+                ? (updateMutation.isPending ? "Updating..." : "Update Product")
+                : (createMutation.isPending ? "Adding..." : "Add Product")
+              }
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent className="border-border/50 max-w-[90vw] sm:max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <div className="p-2 rounded-full bg-destructive/10">
-                <Trash2 className="h-5 w-5 text-destructive" />
+      {/* Delete Confirmation Dialog */}
+      {confirmOpen && (
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (confirmOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={() => setConfirmOpen(false)}
+        >
+          <div
+            className="relative bg-background shadow-2xl rounded-xl sm:rounded-2xl border border-border/50 max-w-[90vw] sm:max-w-md w-full p-6 transition-all duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-full bg-destructive/10">
+                  <Trash2 className="h-6 w-6 text-destructive" />
+                </div>
+                <h3 className="text-xl font-bold">Delete Product?</h3>
               </div>
-              Delete Product?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-base">
-              {`This action cannot be undone.${deleteTarget?.name ? ` "${deleteTarget.name}" will be permanently removed from your inventory.` : ''}`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel
-              onClick={() => setDeleteTarget(null)}
-              className="border-border/50 w-full sm:w-auto"
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-lg w-full sm:w-auto"
-              onClick={() => {
-                if (deleteTarget?.id) deleteMutation.mutate(deleteTarget.id);
-              }}
-            >
-              Delete Product
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
+              <p className="text-base text-muted-foreground">
+                {`This action cannot be undone.${deleteTarget?.name ? ` "${deleteTarget.name}" will be permanently removed from your inventory.` : ''}`}
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDeleteTarget(null);
+                    setConfirmOpen(false);
+                  }}
+                  className="flex-1 border-border/50 h-10 sm:h-11"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-lg h-10 sm:h-11"
+                  onClick={() => {
+                    if (deleteTarget?.id) deleteMutation.mutate(deleteTarget.id);
+                  }}
+                >
+                  Delete Product
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

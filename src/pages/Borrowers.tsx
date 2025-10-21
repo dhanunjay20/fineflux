@@ -608,8 +608,18 @@ export default function Borrowers() {
     <div className="space-y-6 animate-fade-in">
       {/* Delete Confirmation Modal */}
       {deleteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="relative bg-background shadow-2xl rounded-2xl w-full max-w-md p-8">
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (deleteOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={() => setDeleteOpen(false)}
+        >
+          <div
+            className="relative bg-background shadow-2xl rounded-2xl w-full max-w-md p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               onClick={() => setDeleteOpen(false)}
               className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-1 transition"
@@ -646,10 +656,21 @@ export default function Borrowers() {
         </div>
       )}
 
-      {/* Add Borrower Modal */}
+
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="relative bg-background shadow-2xl rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (open ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="relative bg-background shadow-2xl rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header - Fixed */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
               <div>
                 <h2 className="text-2xl font-bold">Add New Borrower</h2>
@@ -663,8 +684,10 @@ export default function Borrowers() {
               </button>
             </div>
 
-            <form onSubmit={onSubmit} className="flex-1 overflow-y-auto">
-              <div className="p-6 space-y-4">
+            {/* Form with Scrollable Content and Fixed Footer */}
+            <form onSubmit={onSubmit} className="flex-1 flex flex-col min-h-0">
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
                 {/* Organization ID */}
                 <div className="space-y-2">
                   <Label>Organization ID *</Label>
@@ -853,6 +876,7 @@ export default function Borrowers() {
                 </div>
               </div>
 
+              {/* Footer - Fixed */}
               <div className="flex justify-end gap-3 p-6 border-t border-border bg-muted/20 shrink-0">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
                   Cancel
@@ -875,8 +899,19 @@ export default function Borrowers() {
 
       {/* Transaction Modal */}
       {transactionOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="relative bg-background shadow-2xl rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (transactionOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={() => setTransactionOpen(false)}
+        >
+          <div
+            className="relative bg-background shadow-2xl rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header - Fixed */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
               <div>
                 <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -895,8 +930,10 @@ export default function Borrowers() {
               </button>
             </div>
 
-            <form onSubmit={onTransactionSubmit} className="flex-1 overflow-y-auto">
-              <div className="p-6 space-y-4">
+            {/* Form with Scrollable Content and Fixed Footer */}
+            <form onSubmit={onTransactionSubmit} className="flex-1 flex flex-col min-h-0">
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
                 <div className="space-y-2">
                   <Label>Customer ID *</Label>
                   <Input value={transactionForm.custId} readOnly disabled className="bg-muted/50" required />
@@ -983,6 +1020,7 @@ export default function Borrowers() {
                 </div>
               </div>
 
+              {/* Footer - Fixed */}
               <div className="flex justify-end gap-3 p-6 border-t border-border bg-muted/20 shrink-0">
                 <Button
                   type="button"
@@ -1008,10 +1046,22 @@ export default function Borrowers() {
         </div>
       )}
 
+
       {/* History Modal */}
       {historyOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="relative bg-background shadow-2xl rounded-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div
+          className={
+            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+            (historyOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
+          }
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={() => setHistoryOpen(false)}
+        >
+          <div
+            className="relative bg-background shadow-2xl rounded-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header - Fixed */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
               <div>
                 <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -1030,6 +1080,7 @@ export default function Borrowers() {
               </button>
             </div>
 
+            {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto p-6">
               {historyLoading && (
                 <div className="text-muted-foreground p-4 text-center">
@@ -1131,6 +1182,7 @@ export default function Borrowers() {
               )}
             </div>
 
+            {/* Footer - Fixed */}
             <div className="flex justify-end p-6 border-t border-border bg-muted/20 shrink-0">
               <Button variant="outline" onClick={() => setHistoryOpen(false)}>
                 Close
@@ -1139,6 +1191,7 @@ export default function Borrowers() {
           </div>
         </div>
       )}
+
 
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

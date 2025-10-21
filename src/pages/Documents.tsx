@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   FileText, Eye, Download, Pencil, Trash2, UploadCloud,
   Calendar, User, Building2, Clock, FileCheck, X, Loader2,
-  Search, AlertCircle
+  Search, AlertCircle, File
 } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
@@ -48,7 +48,6 @@ export default function Documents() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
 
-  // Lock scroll when modal is open
   useEffect(() => {
     if (open || deleteDialogOpen) {
       document.body.style.overflow = 'hidden';
@@ -60,7 +59,6 @@ export default function Documents() {
     };
   }, [open, deleteDialogOpen]);
 
-  // Stats
   const stats = useMemo(() => {
     const total = documents.length;
     const now = new Date();
@@ -112,7 +110,6 @@ export default function Documents() {
     ];
   }, [documents]);
 
-  // Filter documents
   const filteredDocs = useMemo(() => {
     if (!searchQuery.trim()) return documents;
     const q = searchQuery.toLowerCase();
@@ -236,6 +233,24 @@ export default function Documents() {
     }
   };
 
+  const handleDownload = async (fileUrl: string, documentType: string) => {
+    try {
+      const response = await fetch(fileUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${documentType.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast({ title: "Success", description: "Document downloaded successfully!" });
+    } catch {
+      toast({ title: "Error", description: "Failed to download document", variant: "destructive" });
+    }
+  };
+
   const getExpiryStatus = (expiryDate: string) => {
     if (!expiryDate) return { label: "No Expiry", color: "bg-muted text-muted-foreground" };
     const expiry = new Date(expiryDate);
@@ -248,10 +263,6 @@ export default function Documents() {
     if (days <= 30) return { label: `${days} days left`, color: "bg-warning/10 text-warning" };
     return { label: "Valid", color: "bg-success/10 text-success" };
   };
-
-  function closeModal(event: React.MouseEvent<HTMLDivElement>): void {
-    throw new Error("Function not implemented.");
-  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -267,7 +278,7 @@ export default function Documents() {
         </Button>
       </div>
 
-      {/* Stats Cards - Icons on Right */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
@@ -292,177 +303,155 @@ export default function Documents() {
         })}
       </div>
 
-      {/* Documents Table */}
+      {/* Search Bar */}
       <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-4">
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              All Documents ({filteredDocs.length})
-            </CardTitle>
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search documents..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+        <CardContent className="p-4">
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search documents by type, authority, or responsible party..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
           </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <Loader2 className="h-12 w-12 mb-3 opacity-50 animate-spin mx-auto text-primary" />
-                <p className="text-muted-foreground">Loading documents...</p>
-              </div>
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center py-12 text-destructive">
-              <AlertCircle className="h-12 w-12 mb-3 opacity-50" />
-              <p>{error}</p>
-            </div>
-          ) : filteredDocs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              {searchQuery ? (
-                <>
-                  <Search className="h-12 w-12 mb-3 opacity-50" />
-                  <p className="text-lg font-medium">No documents found</p>
-                  <p className="text-sm">Try adjusting your search</p>
-                </>
-              ) : (
-                <>
-                  <FileText className="h-12 w-12 mb-3 opacity-50" />
-                  <p className="text-lg font-medium">No documents yet</p>
-                  <p className="text-sm">Upload your first document to get started</p>
-                </>
-              )}
-            </div>
-          ) : (
-            <div className="overflow-x-auto border border-border rounded-lg">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 border-b border-border">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold">Document Type</th>
-                    <th className="px-4 py-3 text-left font-semibold">Authority</th>
-                    <th className="px-4 py-3 text-left font-semibold">Issued</th>
-                    <th className="px-4 py-3 text-left font-semibold">Expiry</th>
-                    <th className="px-4 py-3 text-left font-semibold">Status</th>
-                    <th className="px-4 py-3 text-left font-semibold">Responsible</th>
-                    <th className="px-4 py-3 text-center font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredDocs.map((doc: any, i: number) => {
-                    const expiryStatus = getExpiryStatus(doc.expiryDate);
-                    return (
-                      <tr
-                        key={doc.id}
-                        className={`border-b border-border transition-colors ${i % 2 === 0 ? "bg-background hover:bg-muted/20" : "bg-muted/20 hover:bg-muted/40"
-                          }`}
-                      >
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            <div className="p-2 bg-primary/10 rounded-lg">
-                              <FileText className="h-4 w-4 text-primary" />
-                            </div>
-                            <span className="font-medium">{doc.documentType}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            <Building2 className="h-4 w-4 text-muted-foreground" />
-                            <span>{doc.issuingAuthority}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                            <span>{new Date(doc.issuedDate).toLocaleDateString('en-IN', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric'
-                            })}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            <span>{new Date(doc.expiryDate).toLocaleDateString('en-IN', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric'
-                            })}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <Badge className={`${expiryStatus.color} font-medium`}>
-                            {expiryStatus.label}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <span className="truncate max-w-[150px]">{doc.responsibleParty}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center justify-center gap-2">
-                            <Button
-                              asChild
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
-                              title="View Document"
-                            >
-                              <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">
-                                <Eye className="h-4 w-4" />
-                              </a>
-                            </Button>
-                            <Button
-                              asChild
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0 hover:bg-green-50 hover:text-green-600"
-                              title="Download"
-                            >
-                              <a href={doc.fileUrl} download target="_blank" rel="noopener noreferrer">
-                                <Download className="h-4 w-4" />
-                              </a>
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleEdit(doc)}
-                              className="h-8 w-8 p-0 hover:bg-orange-50 hover:text-orange-600"
-                              title="Edit"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => confirmDelete(doc)}
-                              className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
         </CardContent>
       </Card>
 
-      {/* Add/Edit Modal - Full Screen Background */}
+      {/* Documents Grid */}
+      {loading ? (
+        <div className="flex items-center justify-center py-24">
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 mb-3 opacity-50 animate-spin mx-auto text-primary" />
+            <p className="text-muted-foreground">Loading documents...</p>
+          </div>
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center py-24 text-destructive">
+          <AlertCircle className="h-12 w-12 mb-3 opacity-50" />
+          <p>{error}</p>
+        </div>
+      ) : filteredDocs.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
+          {searchQuery ? (
+            <>
+              <Search className="h-16 w-16 mb-4 opacity-50" />
+              <p className="text-lg font-medium">No documents found</p>
+              <p className="text-sm">Try adjusting your search</p>
+            </>
+          ) : (
+            <>
+              <FileText className="h-16 w-16 mb-4 opacity-50" />
+              <p className="text-lg font-medium">No documents yet</p>
+              <p className="text-sm">Upload your first document to get started</p>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredDocs.map((doc: any) => {
+            const expiryStatus = getExpiryStatus(doc.expiryDate);
+            return (
+              <Card key={doc.id} className="group relative overflow-hidden hover:shadow-lg transition-all duration-300 hover:border-primary/50">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/5 to-accent/5 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform" />
+
+                <CardHeader className="relative pb-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="p-3 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 shrink-0">
+                        <File className="h-6 w-6 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-bold text-lg truncate">{doc.documentType}</h3>
+                        <Badge className={`${expiryStatus.color} text-xs mt-1`}>
+                          {expiryStatus.label}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-3">
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Building2 className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{doc.issuingAuthority}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <User className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{doc.responsibleParty}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Calendar className="h-4 w-4 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs">Issued</p>
+                          <p className="font-medium text-foreground truncate">
+                            {new Date(doc.issuedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Clock className="h-4 w-4 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs">Expires</p>
+                          <p className="font-medium text-foreground truncate">
+                            {new Date(doc.expiryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-3 border-t border-border">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-600"
+                      onClick={() => window.open(doc.fileUrl, '_blank')}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      View
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 hover:bg-green-50 hover:text-green-600 hover:border-green-600"
+                      onClick={() => handleDownload(doc.fileUrl, doc.documentType)}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="flex-1 hover:bg-orange-50 hover:text-orange-600"
+                      onClick={() => handleEdit(doc)}
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="flex-1 hover:bg-red-50 hover:text-red-600"
+                      onClick={() => confirmDelete(doc)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add/Edit Modal */}
       {open && (
         <div
           className={
@@ -470,10 +459,13 @@ export default function Documents() {
             (open ? 'opacity-100' : 'opacity-0 pointer-events-none')
           }
           style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
-          onClick={closeModal}
+          onClick={() => setOpen(false)}
         >
-
-          <div className="relative bg-background shadow-2xl rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div
+            className="relative bg-background shadow-2xl rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header - Fixed */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
               <div>
                 <h2 className="text-2xl font-bold">{editId ? "Edit Document" : "Add New Document"}</h2>
@@ -487,8 +479,9 @@ export default function Documents() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
-              <div className="p-6 space-y-6">
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-xs uppercase text-muted-foreground">Document Type *</Label>
@@ -536,23 +529,29 @@ export default function Documents() {
                   </div>
                 </div>
               </div>
+            </div>
 
-              <div className="flex justify-end gap-3 p-6 border-t border-border bg-muted/20 shrink-0">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
-                  Cancel
-                </Button>
-                <Button type="submit" className="btn-gradient-primary" disabled={submitting || uploading}>
-                  {submitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      {editId ? "Saving..." : "Adding..."}
-                    </>
-                  ) : (
-                    editId ? "Save Changes" : "Add Document"
-                  )}
-                </Button>
-              </div>
-            </form>
+            {/* Footer - Fixed */}
+            <div className="flex justify-end gap-3 p-6 border-t border-border bg-muted/20 shrink-0">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="btn-gradient-primary"
+                disabled={submitting || uploading}
+                onClick={handleSubmit}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {editId ? "Saving..." : "Adding..."}
+                  </>
+                ) : (
+                  editId ? "Save Changes" : "Add Document"
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -565,7 +564,7 @@ export default function Documents() {
             (deleteDialogOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
           }
           style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
-          onClick={closeModal}
+          onClick={() => setDeleteDialogOpen(false)}
         >
           <div className="bg-background p-8 rounded-2xl shadow-2xl relative w-full max-w-md">
             <button

@@ -9,18 +9,21 @@ import { Separator } from "@/components/ui/separator";
 import {
   User, Mail, Phone, Calendar, Clock, Edit3, Camera, Lock, Shield,
   Briefcase, MapPin, Users, Building, Eye, EyeOff, Loader2, Save, X,
-  AlertCircle, CheckCircle2, Home, UserCircle
+  AlertCircle, CheckCircle2, Home, UserCircle, LogOut
 } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
 const CLOUDINARY_UPLOAD_URL = import.meta.env.VITE_CLOUDINARY_UPLOAD_URL || 'https://api.cloudinary.com/v1_1/dosyyvmtb/auto/upload';
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_PROFILE_UPLOAD_PRESET || 'Profile_Pictures';
 
+
 // LocalStorage key for profile image
 const PROFILE_URL_KEY = "profileImageUrl";
+
 
 type AddressDTO = { line1?: string; line2?: string; city?: string; state?: string; postalCode?: string; country?: string };
 type ShiftTimingDTO = { start?: string; end?: string };
@@ -37,10 +40,12 @@ type EmployeeUpdateRequest = {
   emergencyContact?: { name?: string; phone?: string; relationship?: string }; profileImageUrl?: string;
 };
 
+
 export default function Profile() {
   const orgId = localStorage.getItem('organizationId') || '';
   const empId = localStorage.getItem('empId') || '';
   const { toast } = useToast();
+
 
   const [employee, setEmployee] = useState<EmployeeResponse | null>(null);
   const [internalId, setInternalId] = useState('');
@@ -57,12 +62,14 @@ export default function Profile() {
   const [showNewPwd, setShowNewPwd] = useState(false);
   const [savingPwd, setSavingPwd] = useState(false);
 
+
   const [form, setForm] = useState<EmployeeUpdateRequest>({
     role: '', department: '', firstName: '', lastName: '', phoneNumber: '', emailId: '', username: '', gender: '',
     salary: undefined, status: 'ACTIVE', shiftTiming: { start: '', end: '' },
     address: { line1: '', line2: '', city: '', state: '', postalCode: '', country: 'India' },
     emergencyContact: { name: '', phone: '', relationship: '' }, profileImageUrl: '',
   });
+
 
   useEffect(() => {
     let cancelled = false;
@@ -80,6 +87,7 @@ export default function Profile() {
         if (cancelled) return;
         const data: EmployeeResponse = res.data;
 
+
         setEmployee(data);
         setForm({
           role: data.role || '', department: data.department || '', firstName: data.firstName || '', lastName: data.lastName || '',
@@ -93,6 +101,7 @@ export default function Profile() {
           emergencyContact: { name: data.emergencyContact?.name || '', phone: data.emergencyContact?.phone || '', relationship: data.emergencyContact?.relationship || '' },
           profileImageUrl: data.profileImageUrl || '',
         });
+
 
         // Persist profile image URL to localStorage
         if (data.profileImageUrl && data.profileImageUrl.trim()) {
@@ -110,14 +119,35 @@ export default function Profile() {
     return () => { cancelled = true; };
   }, [orgId, empId]);
 
+
   const fullName = useMemo(() => employee ? `${employee.firstName || ''} ${employee.lastName || ''}`.trim() : '', [employee]);
   const getUserInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase();
   const formatDate = (iso?: string) => iso ? new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
 
   const handleChange = (field: keyof EmployeeUpdateRequest, value: any) => setForm(prev => ({ ...prev, [field]: value }));
   const handleAddress = (k: keyof AddressDTO, v: string) => setForm(prev => ({ ...prev, address: { ...prev.address, [k]: v } }));
   const handleEC = (k: 'name' | 'phone' | 'relationship', v: string) => setForm(prev => ({ ...prev, emergencyContact: { ...prev.emergencyContact, [k]: v } }));
   const handleShift = (k: 'start' | 'end', v: string) => setForm(prev => ({ ...prev, shiftTiming: { ...prev.shiftTiming, [k]: v } }));
+
+
+  // Logout handler - clears all user data from localStorage
+  const handleLogout = () => {
+    // Remove all user-specific data from localStorage
+    localStorage.removeItem(PROFILE_URL_KEY);
+    localStorage.removeItem('organizationId');
+    localStorage.removeItem('empId');
+    localStorage.removeItem('authToken'); // if you have one
+    
+    // You can also clear everything with: localStorage.clear();
+    
+    // Show success message
+    toast({ title: 'Logged out successfully' });
+    
+    // Redirect to login page
+    window.location.href = '/login';
+  };
+
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -133,10 +163,13 @@ export default function Profile() {
       const res = await axios.post(CLOUDINARY_UPLOAD_URL, formData);
       const imageUrl = res.data.secure_url;
 
+
       setForm(prev => ({ ...prev, profileImageUrl: imageUrl }));
+
 
       await saveProfileImage(imageUrl);
       toast({ title: 'Profile photo updated successfully' });
+
 
       // Persist uploaded URL quickly; API-confirmed URL will also be saved in saveProfileImage
       if (imageUrl && imageUrl.trim()) {
@@ -152,12 +185,14 @@ export default function Profile() {
     }
   };
 
+
   const saveProfileImage = async (imageUrl: string) => {
     if (!employee || !internalId) return;
     const res = await axios.put(`${API_BASE}/api/organizations/${orgId}/employees/${internalId}`, {
       empId: employee.empId, organizationId: employee.organizationId, profileImageUrl: imageUrl
     });
     setEmployee(res.data);
+
 
     // Persist canonical URL from server if provided
     const finalUrl = res.data?.profileImageUrl || imageUrl;
@@ -168,6 +203,7 @@ export default function Profile() {
     }
   };
 
+
   const handleSave = async () => {
     if (!employee || !internalId) return;
     setSaving(true);
@@ -177,6 +213,7 @@ export default function Profile() {
       setEmployee(res.data);
       setIsEditing(false);
       toast({ title: 'Profile updated successfully' });
+
 
       // Persist profile image URL if present in general update
       const updatedUrl = res.data?.profileImageUrl;
@@ -191,6 +228,7 @@ export default function Profile() {
       setSaving(false);
     }
   };
+
 
   const handlePwdChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -210,9 +248,11 @@ export default function Profile() {
     }
   };
 
+
   // Read from localStorage as a fallback for Avatar
   const storedProfileUrl = useMemo(() => localStorage.getItem(PROFILE_URL_KEY) || '', []);
   const profileUrl = employee?.profileImageUrl || storedProfileUrl;
+
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -222,6 +262,7 @@ export default function Profile() {
       </div>
     </div>
   );
+
 
   if (error) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
@@ -240,11 +281,14 @@ export default function Profile() {
     </div>
   );
 
+
   if (!employee) return null;
+
 
   return (
     <div className="min-h-screen ">
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header Card */}
@@ -273,6 +317,7 @@ export default function Profile() {
                 </Button>
               </div>
 
+
               {/* Info */}
               <div className="flex-1 pt-4">
                 <h1 className="text-3xl font-bold text-slate-900 mb-2">{fullName || 'Employee'}</h1>
@@ -295,6 +340,7 @@ export default function Profile() {
                 </div>
               </div>
 
+
               {/* Actions */}
               <div className="grid grid-cols-2 gap-2 pt-4 sm:flex sm:flex-row">
                 {!isEditing ? (
@@ -306,6 +352,10 @@ export default function Profile() {
                     <Button onClick={() => setPwdDialogOpen(true)} variant="outline" className="w-full sm:w-auto border-slate-300">
                       <Lock className="h-4 w-4 mr-2" />
                       Change Password
+                    </Button>
+                    <Button onClick={handleLogout} variant="outline" className="w-full sm:w-auto border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700">
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Logout
                     </Button>
                   </>
                 ) : (
@@ -324,6 +374,7 @@ export default function Profile() {
             </div>
           </CardContent>
         </Card>
+
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -384,6 +435,7 @@ export default function Profile() {
                 </div>
               </CardContent>
             </Card>
+
 
             {/* Employment Details */}
             <Card className="border-0 shadow-lg">
@@ -475,6 +527,7 @@ export default function Profile() {
               </CardContent>
             </Card>
 
+
             {/* Address */}
             <Card className="border-0 shadow-lg">
               <CardHeader className="border-b bg-slate-50/50">
@@ -522,6 +575,7 @@ export default function Profile() {
               </CardContent>
             </Card>
 
+
             {/* Emergency Contact */}
             <Card className="border-0 shadow-lg">
               <CardHeader className="border-b bg-slate-50/50">
@@ -563,6 +617,7 @@ export default function Profile() {
             </Card>
           </div>
 
+
           {/* Right Sidebar */}
           <div className="space-y-6">
             {/* Quick Stats */}
@@ -596,6 +651,7 @@ export default function Profile() {
           </div>
         </div>
       </div>
+
 
       {/* Password Dialog */}
       <Dialog open={pwdDialogOpen} onOpenChange={setPwdDialogOpen}>

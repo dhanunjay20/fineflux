@@ -453,6 +453,7 @@ export default function Employees() {
             className="relative bg-background shadow-2xl rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Header - Fixed */}
             <div className="flex items-center justify-between p-6 border-b border-border shrink-0">
               <div>
                 <h2 className="text-2xl font-bold">Create New Employee</h2>
@@ -467,8 +468,10 @@ export default function Employees() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateSubmit} className="flex-1 overflow-y-auto">
-              <div className="p-6 space-y-8">
+            {/* Form with Scrollable Content and Fixed Footer */}
+            <form onSubmit={handleCreateSubmit} className="flex-1 flex flex-col min-h-0">
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-8">
                 <div className="flex items-center gap-4">
                   <Avatar className="h-24 w-24 border-4 border-border">
                     {form.profileImageUrl ? (
@@ -741,6 +744,7 @@ export default function Employees() {
                 </div>
               </div>
 
+              {/* Footer - Fixed */}
               <div className="flex justify-end gap-3 p-6 border-t border-border bg-muted/20 shrink-0">
                 <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
                   Cancel
@@ -754,7 +758,6 @@ export default function Employees() {
         </div>
       )}
 
-      {/* EDIT DIALOG — same design; icons on ID/Email/Phone too */}
       {editOpen && (
         <div
           className={
@@ -768,6 +771,7 @@ export default function Employees() {
             className="relative bg-background shadow-2xl rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Header - Fixed */}
             <div className="flex items-center justify-between p-6 border-b border-border shrink-0">
               <div>
                 <h2 className="text-2xl font-bold">Edit Employee</h2>
@@ -782,8 +786,10 @@ export default function Employees() {
               </button>
             </div>
 
-            <form onSubmit={handleEditSubmit} className="flex-1 overflow-y-auto">
-              <div className="p-6 space-y-8">
+            {/* Form with Scrollable Content and Fixed Footer */}
+            <form onSubmit={handleEditSubmit} className="flex-1 flex flex-col min-h-0">
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-8">
                 <div className="flex items-center gap-4">
                   <Avatar className="h-24 w-24 border-4 border-border">
                     {form.profileImageUrl ? (
@@ -1047,6 +1053,7 @@ export default function Employees() {
                 </div>
               </div>
 
+              {/* Footer - Fixed */}
               <div className="flex justify-end gap-3 p-6 border-t border-border bg-muted/20 shrink-0">
                 <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
                   Cancel
@@ -1059,6 +1066,7 @@ export default function Employees() {
           </div>
         </div>
       )}
+
 
       {/* VIEW DIALOG (unchanged layout) */}
       {viewOpen && currentEmp && (
