@@ -23,7 +23,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  DollarSign,
   Plus,
   CreditCard,
   Banknote,
@@ -48,11 +47,15 @@ import {
 import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
+import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
+import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
+dayjs.extend(isSameOrAfter);
+dayjs.extend(isSameOrBefore);
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
@@ -244,11 +247,12 @@ export default function Sales() {
         empId,
         productName: input.fuel,
         guns: input.gun,
+        price: Number(input.price),
         dateTime: now.toISOString(),
         cashReceived: Number(input.cashReceived) || 0,
         phonePay: Number(input.phonePay) || 0,
         creditCard: Number(input.creditCard) || 0,
-        shortCollections: Number(input.shortCollections) || 0,
+        // shortCollections is NOT sent - backend calculates it
       };
       await axios.post(`${API_BASE}/api/organizations/${orgId}/sales`, saleDTO);
       await axios.post(`${API_BASE}/api/organizations/${orgId}/collections`, collectionDTO);
@@ -256,6 +260,7 @@ export default function Sales() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales", orgId] });
       queryClient.invalidateQueries({ queryKey: ["collections", orgId] });
+      queryClient.invalidateQueries({ queryKey: ["guninfo", orgId] });
       if (!isBatchRef.current) {
         setForm(initialFormState);
         toast({ title: "Sale & Collection Recorded", description: "Latest record added.", variant: "default" });
@@ -496,10 +501,11 @@ export default function Sales() {
   const tz = "Asia/Kolkata";
   const start = dayjs().tz(tz).startOf("day");
   const end = dayjs().tz(tz).endOf("day");
+  
   const isWithin = (iso?: string) => {
     if (!iso) return false;
-    const d = dayjs(iso);
-    return d.isAfter(start) && d.isBefore(end);
+    const d = dayjs(iso).tz(tz);
+    return d.isSameOrAfter(start) && d.isSameOrBefore(end);
   };
 
   const todaySalesRaw = useMemo(() => sales.filter((s: any) => isWithin(s.dateTime)).slice().reverse(), [sales]);
@@ -887,7 +893,6 @@ export default function Sales() {
         </Card>
       </div>
 
-      {/* FUEL-WISE SALES AT BOTTOM */}
       <Card className="overflow-hidden border-0 shadow-xl bg-gradient-to-br from-background via-muted/5 to-background">
         <CardHeader className="border-b bg-gradient-to-r from-accent/5 to-primary/5">
           <CardTitle className="flex items-center gap-3">
