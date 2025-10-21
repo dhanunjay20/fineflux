@@ -717,12 +717,12 @@ export default function Inventory() {
           style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
           onClick={closeModal}
         >
-
           <div
             className="bg-gradient-to-br from-white/95 via-violet-50/90 to-indigo-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-indigo-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-lg my-auto animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <button type="button" className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm" onClick={() => { setReportModal(false); setReportProductId(""); setReportProduct(null); }}>
+            <button type="button" className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm"
+              onClick={() => { setReportModal(false); setReportProductId(""); setReportProduct(null); }}>
               <X className="h-5 w-5" />
             </button>
             <div className="mb-6 flex items-center gap-3">
@@ -744,7 +744,8 @@ export default function Inventory() {
                   <SelectTrigger className="w-full h-11 bg-white/80 dark:bg-slate-900/80 border-2 hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all rounded-xl shadow-sm">
                     <SelectValue placeholder="Select Product" />
                   </SelectTrigger>
-                  <SelectContent className="z-[10000]' max-h-[300px] rounded-xl border-2">
+                  {/* Highest z-index to ensure dropdown is above modal */}
+                  <SelectContent className="z-[10100] max-h-[300px] rounded-xl border-2">
                     {activeTanks.map((prod) => (
                       <SelectItem key={prod.productId} value={prod.productId} className="cursor-pointer">
                         {prod.productName}
