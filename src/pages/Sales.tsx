@@ -110,8 +110,8 @@ function entryKey(e: FormState) {
 }
 
 export default function Sales() {
-  const orgId = localStorage.getItem("organizationId") || "ORG-DEV-001";
-  const empId = localStorage.getItem("empId") || "";
+  const orgId = localStorage.getItem("organizationId");
+  const empId = localStorage.getItem("empId");
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const navigate = useNavigate();
