@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
-import { Search, Eye, Users, UserCheck, Briefcase, ClipboardList, Star, Calendar, X, Mail, Phone, Clock, Filter } from "lucide-react";
+import { Search, Eye, Users, UserCheck, Briefcase, ClipboardList, Star, Calendar, X, Mail, Phone, Clock, Filter, Fuel, CheckCircle2, AlertCircle, Target, Loader2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -654,154 +654,294 @@ export default function EmployeeSetDuty() {
       )}
 
       {/* DAILY DUTY MODAL */}
+      {/* DAILY DUTY MODAL - MODERNIZED WITH STICKY HEADER/FOOTER */}
       {dailyDutyOpen && (
         <div
-          className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md"
-          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
-          onClick={closeModal}
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setDailyDutyOpen(false);
+              setValidationErr(null);
+            }
+          }}
         >
           <div
-            className="relative bg-background shadow-2xl rounded-2xl mx-auto w-full max-w-lg my-auto max-h-[90vh] overflow-y-auto"
+            className="relative bg-background shadow-2xl rounded-2xl w-full max-w-3xl max-h-[95vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              onClick={() => { setDailyDutyOpen(false); setValidationErr(null); }}
-              className="absolute top-4 right-4 z-10 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-1 transition"
-              aria-label="Close"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <form className="flex flex-col gap-5 p-8 pt-6" onSubmit={assignDailyDuty}>
-              <div className="flex items-center gap-3 mb-2">
+            {/* STICKY HEADER */}
+            <div className="sticky top-0 z-10 bg-background border-b px-6 py-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setDailyDutyOpen(false);
+                  setValidationErr(null);
+                }}
+                className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              <div className="flex items-center gap-3 pr-12">
                 {currentEmp && (
-                  <Avatar className="h-10 w-10">
+                  <Avatar className="h-12 w-12 ring-2 ring-primary/20">
                     {currentEmp.profileImageUrl ? (
                       <AvatarImage src={currentEmp.profileImageUrl} alt={`${currentEmp.firstName} ${currentEmp.lastName}`} />
                     ) : (
-                      <AvatarFallback className="bg-primary text-primary-foreground">
+                      <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white font-bold">
                         {getUserInitials(`${currentEmp.firstName} ${currentEmp.lastName}`)}
                       </AvatarFallback>
                     )}
                   </Avatar>
                 )}
-                <h2 className="text-2xl font-bold">Daily Duty - {currentEmp?.firstName} {currentEmp?.lastName}</h2>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Fuel className="h-5 w-5 text-primary shrink-0" />
+                    <h2 className="text-xl font-bold truncate">Daily Pump Duty</h2>
+                  </div>
+                  <p className="text-sm text-muted-foreground truncate">
+                    {currentEmp?.firstName} {currentEmp?.lastName} • {currentEmp?.empId}
+                  </p>
+                </div>
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label>Duty Date *</Label>
-                <Input
-                  type="date"
-                  required
-                  min={getTodayIST()}
-                  value={dailyDutyForm.dutyDate}
-                  onChange={(e) => setDailyDutyForm((f) => ({ ...f, dutyDate: e.target.value }))}
-                  className="h-11"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Minimum date: {dayjs().tz(IST_TIMEZONE).format("DD MMM YYYY")} (IST)
-                </p>
-              </div>
+            {/* SCROLLABLE CONTENT */}
+            <form onSubmit={assignDailyDuty} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+                {/* Duty Date */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    <Label htmlFor="dutyDate" className="font-semibold">Duty Date *</Label>
+                  </div>
+                  <Input
+                    id="dutyDate"
+                    type="date"
+                    required
+                    min={getTodayIST()}
+                    value={dailyDutyForm.dutyDate}
+                    onChange={(e) => setDailyDutyForm((f) => ({ ...f, dutyDate: e.target.value }))}
+                    className="h-11"
+                  />
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    Minimum date: {dayjs().tz(IST_TIMEZONE).format("DD MMM YYYY")} (IST)
+                  </p>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Products * (Select one or more)</Label>
-                <div className="border rounded-lg p-3 max-h-40 overflow-y-auto space-y-2 bg-muted/20">
-                  {products.length === 0
-                    ? <p className="text-sm text-muted-foreground">No products available</p>
-                    : products.map((product: any) => (
-                      <div key={product.productName} className="flex items-center gap-2">
-                        <Checkbox
-                          id={`prod-${product.productName}`}
-                          checked={selectedProducts.includes(product.productName)}
-                          onCheckedChange={() => toggleProductSelection(product.productName)}
-                        />
-                        <label htmlFor={`prod-${product.productName}`} className="text-sm font-medium cursor-pointer">
-                          {product.productName}
-                        </label>
+                {/* Products Section - Card Based */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Fuel className="h-4 w-4 text-primary" />
+                      <Label className="font-semibold">Products *</Label>
+                    </div>
+                    {selectedProducts.length > 0 && (
+                      <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        {selectedProducts.length} selected
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {products.length === 0 ? (
+                      <div className="col-span-2 text-center py-8 border-2 border-dashed rounded-lg bg-muted/30">
+                        <Fuel className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">No products available</p>
                       </div>
-                    ))}
+                    ) : (
+                      products.map((product: any) => {
+                        const isSelected = selectedProducts.includes(product.productName);
+                        return (
+                          <div
+                            key={product.productName}
+                            onClick={() => toggleProductSelection(product.productName)}
+                            className={`
+                        relative p-4 rounded-lg border-2 cursor-pointer transition-all duration-200
+                        ${isSelected
+                                ? 'border-primary bg-primary/5 shadow-md'
+                                : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                              }
+                      `}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className={`mt-0.5 h-5 w-5 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${isSelected ? 'bg-primary border-primary' : 'border-muted-foreground'
+                                }`}>
+                                {isSelected && <CheckCircle2 className="h-3 w-3 text-white" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">{product.productName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {product.productType || 'Fuel Product'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {selectedProducts.length === 0 && products.length > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/20 p-3 rounded-lg">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>Please select at least one product to continue</span>
+                    </div>
+                  )}
                 </div>
-                {selectedProducts.length > 0 && (
-                  <p className="text-xs text-muted-foreground">✓ {selectedProducts.length} product(s) selected</p>
+
+                {/* Guns Section - Card Based */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Target className="h-4 w-4 text-primary" />
+                      <Label className="font-semibold">Guns *</Label>
+                    </div>
+                    {selectedGuns.length > 0 && (
+                      <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        {selectedGuns.length} selected
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {selectedProducts.length === 0 ? (
+                      <div className="col-span-2 text-center py-8 border-2 border-dashed rounded-lg bg-muted/30">
+                        <Target className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">Select products first to enable guns</p>
+                      </div>
+                    ) : filteredGuns.length === 0 ? (
+                      <div className="col-span-2 text-center py-8 border-2 border-dashed rounded-lg bg-muted/30">
+                        <AlertCircle className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">No guns available for selected product(s)</p>
+                      </div>
+                    ) : (
+                      filteredGuns.map((gun: any) => {
+                        const isSelected = selectedGuns.includes(gun.guns);
+                        return (
+                          <div
+                            key={gun.guns}
+                            onClick={() => toggleGunSelection(gun.guns)}
+                            className={`
+                        relative p-4 rounded-lg border-2 cursor-pointer transition-all duration-200
+                        ${isSelected
+                                ? 'border-primary bg-primary/5 shadow-md'
+                                : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                              }
+                      `}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className={`mt-0.5 h-5 w-5 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${isSelected ? 'bg-primary border-primary' : 'border-muted-foreground'
+                                }`}>
+                                {isSelected && <CheckCircle2 className="h-3 w-3 text-white" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">{gun.guns}</p>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {gun.productName} • {gun.serialNumber || 'N/A'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {selectedGuns.length === 0 && filteredGuns.length > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/20 p-3 rounded-lg">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>Please select at least one gun to continue</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Shift Times */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-primary" />
+                    <Label className="font-semibold">Shift Timing *</Label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="shiftStart" className="text-xs text-muted-foreground">Start Time</Label>
+                      <Input
+                        id="shiftStart"
+                        type="time"
+                        required
+                        value={dailyDutyForm.shiftStart}
+                        onChange={(e) => setDailyDutyForm((f) => ({ ...f, shiftStart: e.target.value }))}
+                        className="h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="shiftEnd" className="text-xs text-muted-foreground">End Time</Label>
+                      <Input
+                        id="shiftEnd"
+                        type="time"
+                        required
+                        value={dailyDutyForm.shiftEnd}
+                        onChange={(e) => setDailyDutyForm((f) => ({ ...f, shiftEnd: e.target.value }))}
+                        className="h-11"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Validation Error */}
+                {validationErr && (
+                  <div className="flex items-start gap-3 p-4 rounded-lg bg-destructive/10 border border-destructive/20 animate-in slide-in-from-top-2">
+                    <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-destructive">{validationErr}</p>
+                    </div>
+                  </div>
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label>Guns * (Select one or more)</Label>
-                <div className="border rounded-lg p-3 max-h-44 overflow-y-auto space-y-2 bg-muted/20">
-                  {selectedProducts.length === 0
-                    ? <p className="text-sm text-muted-foreground">Select products to enable guns</p>
-                    : filteredGuns.length === 0
-                      ? <p className="text-sm text-muted-foreground">No guns for selected product(s)</p>
-                      : filteredGuns.map((gun: any) => (
-                        <div key={gun.guns} className="flex items-center gap-2">
-                          <Checkbox
-                            id={`gun-${gun.guns}`}
-                            checked={selectedGuns.includes(gun.guns)}
-                            onCheckedChange={() => toggleGunSelection(gun.guns)}
-                          />
-                          <label htmlFor={`gun-${gun.guns}`} className="text-sm font-medium cursor-pointer">
-                            {gun.guns} — {gun.productName} — {gun.serialNumber || "N/A"}
-                          </label>
-                        </div>
-                      ))}
+              {/* STICKY FOOTER */}
+              <div className="sticky bottom-0 z-10 bg-background border-t px-6 py-4">
+                <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setDailyDutyOpen(false);
+                      setValidationErr(null);
+                    }}
+                    variant="outline"
+                    disabled={createDutyMutation.isPending}
+                    className="h-11 flex-1 sm:flex-none"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={createDutyMutation.isPending}
+                    className="btn-gradient-primary h-11 flex-1 sm:flex-none"
+                  >
+                    {createDutyMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Assigning...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Assign Daily Duty
+                      </>
+                    )}
+                  </Button>
                 </div>
-                {selectedGuns.length > 0 && (
-                  <p className="text-xs text-muted-foreground">✓ {selectedGuns.length} gun(s) selected</p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Shift Start *</Label>
-                  <Input
-                    type="time"
-                    required
-                    value={dailyDutyForm.shiftStart}
-                    onChange={(e) => setDailyDutyForm((f) => ({ ...f, shiftStart: e.target.value }))}
-                    className="h-11"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Shift End *</Label>
-                  <Input
-                    type="time"
-                    required
-                    value={dailyDutyForm.shiftEnd}
-                    onChange={(e) => setDailyDutyForm((f) => ({ ...f, shiftEnd: e.target.value }))}
-                    className="h-11"
-                  />
-                </div>
-              </div>
-
-              {validationErr && (
-                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                  <p className="text-sm text-destructive font-semibold">{validationErr}</p>
-                </div>
-              )}
-
-              <div className="flex gap-3 justify-end mt-2">
-                <Button
-                  type="button"
-                  onClick={() => { setDailyDutyOpen(false); setValidationErr(null); }}
-                  variant="outline"
-                  disabled={createDutyMutation.isPending}
-                  className="h-11"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={createDutyMutation.isPending}
-                  className="btn-gradient-primary h-11"
-                >
-                  {createDutyMutation.isPending ? "Assigning..." : "Assign Daily Duty"}
-                </Button>
               </div>
             </form>
           </div>
         </div>
       )}
+
     </div>
   );
 }

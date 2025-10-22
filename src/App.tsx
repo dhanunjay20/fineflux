@@ -286,7 +286,7 @@ const App: React.FC = () => (
             <Route
               path="/attendance"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRoles={["employee"]}>
                   <DashboardLayout>
                     <Attendance />
                   </DashboardLayout>

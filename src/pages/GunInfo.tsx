@@ -7,11 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Edit, Box, Archive, Hash, Barcode, Fuel, Activity, TrendingUp, AlertCircle } from "lucide-react";
+import { Trash2, Edit, Box, Archive, Barcode, Fuel, Activity, TrendingUp, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
-const GUNS_PER_PAGE = 6;
+const GUNS_PER_PAGE = 4;
+
+// Generate gun options G1 to G20
+const ALL_GUN_OPTIONS = Array.from({ length: 20 }, (_, i) => `G${i + 1}`);
 
 export default function GunInfo() {
   const orgId = localStorage.getItem("organizationId") || "ORG-DEV-001";
@@ -37,6 +40,7 @@ export default function GunInfo() {
   const [editId, setEditId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
+  const [gunDropdownLimit, setGunDropdownLimit] = useState(4);
 
   const { data: guns = [], isLoading } = useQuery({
     queryKey: ["guninfo", orgId],
@@ -47,7 +51,6 @@ export default function GunInfo() {
     },
   });
 
-  // Enhanced Stats with icons on right
   const statCards = useMemo(() => {
     const totalProducts = products.length;
     const totalGuns = guns.length;
@@ -90,7 +93,18 @@ export default function GunInfo() {
     ];
   }, [products, guns]);
 
-  // Filter guns by search query
+  const visibleGunOptions = useMemo(() => ALL_GUN_OPTIONS.slice(0, gunDropdownLimit), [gunDropdownLimit]);
+
+  const handleGunDropdownExpansion = () => {
+    if (gunDropdownLimit === 4) {
+      setGunDropdownLimit(10);
+    } else if (gunDropdownLimit === 10) {
+      setGunDropdownLimit(20);
+    } else {
+      setGunDropdownLimit(4);
+    }
+  };
+
   const filteredGuns = useMemo(() => {
     if (!searchQuery.trim()) return guns;
     const q = searchQuery.toLowerCase();
@@ -205,13 +219,11 @@ export default function GunInfo() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Page Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground">Gun Information Management</h1>
         <p className="text-muted-foreground">Manage and monitor petrol pump dispensers</p>
       </div>
 
-      {/* Stat Cards - Icons on Right */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((stat) => {
           const Icon = stat.icon;
@@ -237,7 +249,6 @@ export default function GunInfo() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Form Section - Takes 1 column */}
         <div className="lg:col-span-1">
           <Card className="sticky top-6">
             <CardHeader>
@@ -280,18 +291,62 @@ export default function GunInfo() {
                     </SelectContent>
                   </Select>
                 </div>
+                
+                {/* FIXED: Gun Name Dropdown */}
                 <div className="space-y-2">
-                  <Label htmlFor="guns" className="text-xs uppercase text-muted-foreground">Gun Name/Number *</Label>
-                  <Input
-                    id="guns"
-                    name="guns"
+                  <Label htmlFor="guns" className="text-xs uppercase text-muted-foreground">
+                    Gun Name/Number *
+                  </Label>
+                  <Select
                     value={form.guns}
-                    onChange={handleFormChange}
-                    placeholder="e.g. Gun #1"
-                    required
+                    onValueChange={(value) => setForm((prev) => ({ ...prev, guns: value }))}
                     disabled={updateMutation.isPending || createMutation.isPending}
-                  />
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Gun (G1-G20)" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[10000]">
+                      <div className="max-h-[240px] overflow-y-auto">
+                        {visibleGunOptions.map((gunName) => (
+                          <SelectItem key={gunName} value={gunName}>
+                            {gunName}
+                          </SelectItem>
+                        ))}
+                      </div>
+                      
+                      <div className="sticky bottom-0 bg-popover border-t border-border mt-1 pt-2 pb-1 px-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-center text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/50 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleGunDropdownExpansion();
+                          }}
+                        >
+                          {gunDropdownLimit === 20 ? (
+                            <>
+                              <ChevronUp className="h-3 w-3 mr-1.5" />
+                              <span>Close</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-3 w-3 mr-1.5" />
+                              <span>Show More ({gunDropdownLimit === 4 ? '10' : '20'} guns)</span>
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </SelectContent>
+                  </Select>
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="serialNumber" className="text-xs uppercase text-muted-foreground">Serial Number *</Label>
                   <Input
@@ -349,7 +404,6 @@ export default function GunInfo() {
           </Card>
         </div>
 
-        {/* List Section - Takes 2 columns */}
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
@@ -405,7 +459,6 @@ export default function GunInfo() {
                       >
                         <div className="flex items-center justify-between gap-4">
                           <div className="flex-1 min-w-0 space-y-4">
-                            {/* Header */}
                             <div className="flex items-center gap-3 flex-wrap">
                               <div className="flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-full">
                                 <Fuel className="h-4 w-4 text-primary" />
@@ -416,7 +469,6 @@ export default function GunInfo() {
                               </Badge>
                             </div>
 
-                            {/* Details Grid */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <div className="flex items-start gap-3">
                                 <div className="p-2 bg-accent-soft rounded-lg">
@@ -441,7 +493,6 @@ export default function GunInfo() {
                             </div>
                           </div>
 
-                          {/* Action Buttons */}
                           <div className="flex flex-col gap-2 shrink-0">
                             <Button
                               size="sm"
@@ -468,7 +519,6 @@ export default function GunInfo() {
                     ))}
                   </div>
 
-                  {/* Pagination */}
                   {filteredGuns.length > GUNS_PER_PAGE && (
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6 pt-4 border-t border-border">
                       <div className="text-sm text-muted-foreground">
