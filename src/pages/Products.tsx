@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  Plus, Edit2, Trash2, Box, Archive, Layers, PackageCheck, Database, X, CalendarDays, Fuel, Droplets, Zap
+  Plus, Edit2, Trash2, Box, Archive, Layers, PackageCheck,
+  Database, X, CalendarDays, Fuel, Droplets, Zap
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -368,7 +369,7 @@ export default function Products() {
             onClick={e => e.stopPropagation()}
             style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
           >
-            {/* Header */}
+            {/* Modal Header */}
             <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border/50 bg-gradient-to-r from-primary/5 to-accent/5">
               <div>
                 <h2 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
@@ -386,13 +387,15 @@ export default function Products() {
                 <X className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
             </div>
-            {/* Full form, scrolls ONLY this area if needed */}
+            {/* Modal Form */}
             <form
               onSubmit={handleFormSubmit}
               className="flex-1 overflow-y-auto p-4 sm:p-6"
               style={{ minHeight: 0 }}
+              id="product-form"
             >
               <div className="flex flex-col gap-4 sm:gap-5">
+                {/* Product Name & Price */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium flex items-center gap-1">
@@ -436,9 +439,10 @@ export default function Products() {
                     />
                   </div>
                 </div>
+                {/* Tank Capacity & Current Level */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Tank Capacity (L)</Label>
+                    <Label className="text-sm font-medium">Tank Capacity (L) <span className="text-red-600">*</span></Label>
                     <Input
                       name="tankCapacity"
                       type="number"
@@ -450,10 +454,13 @@ export default function Products() {
                       onWheel={preventWheel}
                       className="h-10 sm:h-11 border-border/50 focus:border-primary transition-colors"
                       placeholder="0"
+                      required
+                      disabled={!!editId}
+                      readOnly={!!editId}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Current Level (L)</Label>
+                    <Label className="text-sm font-medium">Current Level (L) <span className="text-red-600">*</span></Label>
                     <Input
                       name="currentLevel"
                       type="number"
@@ -467,6 +474,7 @@ export default function Products() {
                       className="h-10 sm:h-11 border-border/50 focus:border-primary transition-colors"
                       placeholder="0"
                       disabled={!!editId}
+                      required
                     />
                     {form.tankCapacity !== "" && form.currentLevel !== "" && parseFloat(form.currentLevel) > parseFloat(form.tankCapacity) && (
                       <p className="text-xs text-destructive flex items-center gap-1 mt-1">
@@ -476,6 +484,7 @@ export default function Products() {
                     )}
                   </div>
                 </div>
+                {/* Supplier */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Supplier</Label>
                   <Select
@@ -492,6 +501,7 @@ export default function Products() {
                     </SelectContent>
                   </Select>
                 </div>
+                {/* Description */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Description</Label>
                   <Input
@@ -502,6 +512,7 @@ export default function Products() {
                     placeholder="Add product description..."
                   />
                 </div>
+                {/* Metric & Status */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Metric</Label>
@@ -535,19 +546,21 @@ export default function Products() {
                     </Select>
                   </div>
                 </div>
+                {/* Last Updated (read only) */}
                 {form.lastUpdated && (
                   <div className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-lg bg-muted/50 border border-border/30">
                     <CalendarDays className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
                     <span className="text-xs text-muted-foreground">Created: {formatDateTime(form.lastUpdated)}</span>
                   </div>
                 )}
+                {/* Created By */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Created By (Emp ID)</Label>
                   <Input value={form.empId || empId} readOnly className="bg-muted cursor-not-allowed" />
                 </div>
               </div>
             </form>
-            {/* True fixed non-scrolling footer */}
+            {/* Modal Footer */}
             <div className="w-full flex flex-col sm:flex-row gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 border-t border-border/50 bg-muted/20 rounded-b-xl">
               <Button type="button" variant="outline" onClick={closeModal}
                 className="flex-1 h-10 sm:h-11 border-border/50 hover:bg-muted order-2 sm:order-1">Cancel</Button>
@@ -560,7 +573,6 @@ export default function Products() {
           </div>
         </div>
       )}
-
       {/* Delete Confirmation Modal */}
       {confirmOpen && (
         <div

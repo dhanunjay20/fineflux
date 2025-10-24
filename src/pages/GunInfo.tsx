@@ -7,13 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Edit, Box, Archive, Barcode, Fuel, Activity, TrendingUp, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Trash2, Edit, Box, Archive, Barcode, Fuel, Activity, TrendingUp, AlertCircle, ChevronDown, ChevronUp, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
 const GUNS_PER_PAGE = 4;
-
-// Generate gun options G1 to G20
 const ALL_GUN_OPTIONS = Array.from({ length: 20 }, (_, i) => `G${i + 1}`);
 
 export default function GunInfo() {
@@ -31,13 +29,20 @@ export default function GunInfo() {
     },
   });
 
-  const [form, setForm] = useState({
+  const [addForm, setAddForm] = useState({
+    productName: "",
+    guns: "",
+    serialNumber: "",
+    currentReading: "",
+  });
+  const [editForm, setEditForm] = useState({
     productName: "",
     guns: "",
     serialNumber: "",
     currentReading: "",
   });
   const [editId, setEditId] = useState<string | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [gunDropdownLimit, setGunDropdownLimit] = useState(4);
@@ -51,64 +56,17 @@ export default function GunInfo() {
     },
   });
 
-  const statCards = useMemo(() => {
-    const totalProducts = products.length;
-    const totalGuns = guns.length;
-    const totalReading = guns.reduce((sum: number, g: any) => sum + (g.currentReading || 0), 0);
-    const avgReading = totalGuns ? (totalReading / totalGuns) : 0;
-    
-    return [
-      { 
-        title: "Total Products", 
-        value: totalProducts, 
-        change: "Available fuel types",
-        icon: Box, 
-        bg: "bg-primary-soft", 
-        color: "text-primary" 
-      },
-      { 
-        title: "Active Guns", 
-        value: totalGuns, 
-        change: "Registered dispensers",
-        icon: Fuel, 
-        bg: "bg-success-soft", 
-        color: "text-success" 
-      },
-      { 
-        title: "Total Reading", 
-        value: totalReading.toLocaleString(), 
-        change: "Cumulative liters",
-        icon: Activity, 
-        bg: "bg-accent-soft", 
-        color: "text-accent" 
-      },
-      { 
-        title: "Avg Reading", 
-        value: avgReading.toFixed(2), 
-        change: "Per gun average",
-        icon: TrendingUp, 
-        bg: "bg-warning-soft", 
-        color: "text-warning" 
-      },
-    ];
-  }, [products, guns]);
-
   const visibleGunOptions = useMemo(() => ALL_GUN_OPTIONS.slice(0, gunDropdownLimit), [gunDropdownLimit]);
-
   const handleGunDropdownExpansion = () => {
-    if (gunDropdownLimit === 4) {
-      setGunDropdownLimit(10);
-    } else if (gunDropdownLimit === 10) {
-      setGunDropdownLimit(20);
-    } else {
-      setGunDropdownLimit(4);
-    }
+    if (gunDropdownLimit === 4) setGunDropdownLimit(10);
+    else if (gunDropdownLimit === 10) setGunDropdownLimit(20);
+    else setGunDropdownLimit(4);
   };
 
   const filteredGuns = useMemo(() => {
     if (!searchQuery.trim()) return guns;
     const q = searchQuery.toLowerCase();
-    return guns.filter((gun: any) => 
+    return guns.filter((gun: any) =>
       gun.guns?.toLowerCase().includes(q) ||
       gun.productName?.toLowerCase().includes(q) ||
       gun.serialNumber?.toLowerCase().includes(q)
@@ -123,8 +81,22 @@ export default function GunInfo() {
 
   const pagedGuns = filteredGuns.slice((currentPage - 1) * GUNS_PER_PAGE, currentPage * GUNS_PER_PAGE);
 
+  const statCards = useMemo(() => {
+    const totalProducts = products.length;
+    const totalGuns = guns.length;
+    const totalReading = guns.reduce((sum: number, g: any) => sum + (g.currentReading || 0), 0);
+    const avgReading = totalGuns ? (totalReading / totalGuns) : 0;
+    return [
+      { title: "Total Products", value: totalProducts, change: "Available fuel types", icon: Box, bg: "bg-primary-soft", color: "text-primary" },
+      { title: "Active Guns", value: totalGuns, change: "Registered dispensers", icon: Fuel, bg: "bg-success-soft", color: "text-success" },
+      { title: "Total Reading", value: totalReading.toLocaleString(), change: "Cumulative liters", icon: Activity, bg: "bg-accent-soft", color: "text-accent" },
+      { title: "Avg Reading", value: avgReading.toFixed(2), change: "Per gun average", icon: TrendingUp, bg: "bg-warning-soft", color: "text-warning" },
+    ];
+  }, [products, guns]);
+
+  // Add Gun Mutation
   const createMutation = useMutation({
-    mutationFn: async (payload: typeof form) => {
+    mutationFn: async (payload: typeof addForm) => {
       const url = `${API_BASE}/api/organizations/${orgId}/guninfo`;
       return (await axios.post(url, {
         organizationId: orgId,
@@ -137,7 +109,7 @@ export default function GunInfo() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guninfo", orgId] });
-      setForm({ productName: "", guns: "", serialNumber: "", currentReading: "" });
+      setAddForm({ productName: "", guns: "", serialNumber: "", currentReading: "" });
       toast({ title: "Success", description: "Gun added successfully!", variant: "default" });
     },
     onError: () => {
@@ -145,8 +117,9 @@ export default function GunInfo() {
     },
   });
 
+  // Edit Gun Mutation
   const updateMutation = useMutation({
-    mutationFn: async (payload: typeof form & { id: string }) => {
+    mutationFn: async (payload: typeof editForm & { id: string }) => {
       const url = `${API_BASE}/api/organizations/${orgId}/guninfo/${payload.id}`;
       return (await axios.put(url, {
         empId,
@@ -159,8 +132,9 @@ export default function GunInfo() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guninfo", orgId] });
-      setForm({ productName: "", guns: "", serialNumber: "", currentReading: "" });
+      setEditForm({ productName: "", guns: "", serialNumber: "", currentReading: "" });
       setEditId(null);
+      setEditModalOpen(false);
       toast({ title: "Success", description: "Gun updated successfully!", variant: "default" });
     },
     onError: () => {
@@ -168,6 +142,7 @@ export default function GunInfo() {
     },
   });
 
+  // Delete Gun Mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const url = `${API_BASE}/api/organizations/${orgId}/guninfo/${id}`;
@@ -187,34 +162,49 @@ export default function GunInfo() {
     },
   });
 
-  const handleFormChange = (e: any) => {
+  const handleAddFormChange = (e: any) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setAddForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleEditFormChange = (e: any) => {
+    const { name, value } = e.target;
+    setEditForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleEdit = (gun: any) => {
-    setForm({
+    setEditForm({
       productName: gun.productName || "",
       guns: gun.guns,
       serialNumber: gun.serialNumber,
       currentReading: gun.currentReading,
     });
     setEditId(gun.id || gun._id);
+    setEditModalOpen(true);
   };
 
   const handleCancelEdit = () => {
-    setForm({ productName: "", guns: "", serialNumber: "", currentReading: "" });
+    setEditForm({ productName: "", guns: "", serialNumber: "", currentReading: "" });
     setEditId(null);
+    setEditModalOpen(false);
   };
 
-  const handleSubmit = (e: any) => {
+  const handleAddSubmit = (e: any) => {
     e.preventDefault();
-    if (!form.productName || !form.guns || !form.serialNumber || form.currentReading === "") {
+    if (!addForm.productName || !addForm.guns || !addForm.serialNumber || addForm.currentReading === "") {
       toast({ title: "Validation Error", description: "All fields are required!", variant: "destructive" });
       return;
     }
-    if (editId) updateMutation.mutate({ ...form, id: editId });
-    else createMutation.mutate(form);
+    createMutation.mutate(addForm);
+  };
+
+  const handleEditSubmit = (e: any) => {
+    e.preventDefault();
+    if (!editForm.productName || !editForm.guns || !editForm.serialNumber || editForm.currentReading === "") {
+      toast({ title: "Validation Error", description: "All fields are required!", variant: "destructive" });
+      return;
+    }
+    if (editId) updateMutation.mutate({ ...editForm, id: editId });
   };
 
   return (
@@ -223,7 +213,6 @@ export default function GunInfo() {
         <h1 className="text-3xl font-bold text-foreground">Gun Information Management</h1>
         <p className="text-muted-foreground">Manage and monitor petrol pump dispensers</p>
       </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((stat) => {
           const Icon = stat.icon;
@@ -247,27 +236,18 @@ export default function GunInfo() {
           );
         })}
       </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Always show Add Gun Form (inline, not modal) */}
         <div className="lg:col-span-1">
           <Card className="sticky top-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                {editId ? (
-                  <>
-                    <Edit className="h-5 w-5" />
-                    Edit Gun Info
-                  </>
-                ) : (
-                  <>
-                    <Fuel className="h-5 w-5" />
-                    Add New Gun
-                  </>
-                )}
+                <Fuel className="h-5 w-5" />
+                Add New Gun
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <form className="space-y-4" onSubmit={handleSubmit}>
+              <form className="space-y-4" onSubmit={handleAddSubmit}>
                 <div className="space-y-2">
                   <Label htmlFor="empId" className="text-xs uppercase text-muted-foreground">Employee ID</Label>
                   <Input id="empId" name="empId" value={empId} readOnly disabled className="bg-muted/50" />
@@ -275,9 +255,9 @@ export default function GunInfo() {
                 <div className="space-y-2">
                   <Label htmlFor="productName" className="text-xs uppercase text-muted-foreground">Product Name *</Label>
                   <Select
-                    value={form.productName}
-                    onValueChange={(value) => setForm((prev) => ({ ...prev, productName: value }))}
-                    disabled={updateMutation.isPending || createMutation.isPending}
+                    value={addForm.productName}
+                    onValueChange={(value) => setAddForm((prev) => ({ ...prev, productName: value }))}
+                    disabled={createMutation.isPending}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select Product" />
@@ -291,16 +271,12 @@ export default function GunInfo() {
                     </SelectContent>
                   </Select>
                 </div>
-                
-                {/* FIXED: Gun Name Dropdown */}
                 <div className="space-y-2">
-                  <Label htmlFor="guns" className="text-xs uppercase text-muted-foreground">
-                    Gun Name/Number *
-                  </Label>
+                  <Label htmlFor="guns" className="text-xs uppercase text-muted-foreground">Gun Name/Number *</Label>
                   <Select
-                    value={form.guns}
-                    onValueChange={(value) => setForm((prev) => ({ ...prev, guns: value }))}
-                    disabled={updateMutation.isPending || createMutation.isPending}
+                    value={addForm.guns}
+                    onValueChange={(value) => setAddForm((prev) => ({ ...prev, guns: value }))}
+                    disabled={createMutation.isPending}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select Gun (G1-G20)" />
@@ -313,18 +289,17 @@ export default function GunInfo() {
                           </SelectItem>
                         ))}
                       </div>
-                      
                       <div className="sticky bottom-0 bg-popover border-t border-border mt-1 pt-2 pb-1 px-1">
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
                           className="w-full justify-center text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/50 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-                          onMouseDown={(e) => {
+                          onMouseDown={e => {
                             e.preventDefault();
                             e.stopPropagation();
                           }}
-                          onClick={(e) => {
+                          onClick={e => {
                             e.preventDefault();
                             e.stopPropagation();
                             handleGunDropdownExpansion();
@@ -346,17 +321,16 @@ export default function GunInfo() {
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="serialNumber" className="text-xs uppercase text-muted-foreground">Serial Number *</Label>
                   <Input
                     id="serialNumber"
                     name="serialNumber"
-                    value={form.serialNumber}
-                    onChange={handleFormChange}
+                    value={addForm.serialNumber}
+                    onChange={handleAddFormChange}
                     placeholder="e.g. SN123456"
                     required
-                    disabled={updateMutation.isPending || createMutation.isPending}
+                    disabled={createMutation.isPending}
                   />
                 </div>
                 <div className="space-y-2">
@@ -365,30 +339,169 @@ export default function GunInfo() {
                     id="currentReading"
                     name="currentReading"
                     type="number"
-                    value={form.currentReading}
-                    onChange={handleFormChange}
+                    value={addForm.currentReading}
+                    onChange={handleAddFormChange}
                     min={0}
                     placeholder="e.g. 1000"
                     step="0.01"
                     required
-                    disabled={updateMutation.isPending || createMutation.isPending}
+                    disabled={createMutation.isPending}
                   />
                 </div>
                 <div className="flex gap-2 pt-2">
                   <Button
                     type="submit"
                     className="btn-gradient-primary flex-1"
-                    disabled={updateMutation.isPending || createMutation.isPending}
+                    disabled={createMutation.isPending}
                   >
-                    {editId
-                      ? updateMutation.isPending
-                        ? "Updating..."
-                        : "Save Changes"
-                      : createMutation.isPending
-                        ? "Adding..."
-                        : "Add Gun"}
+                    {createMutation.isPending ? "Adding..." : "Add Gun"}
                   </Button>
-                  {editId && (
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+        {/* Right: List all Gun cards, search, edit modal triggers */}
+        <div className="lg:col-span-2">
+          {/* ... Gun list UI (unchanged)... */}
+          {/* -- REPLACE your card list block above with the code from previous answer (no change) -- */}
+          {editModalOpen && (
+            <div
+              className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md"
+              style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+              onClick={handleCancelEdit}
+            >
+              <div
+                className="relative bg-background shadow-2xl rounded-xl sm:rounded-2xl w-full max-w-lg max-h-[95vh] flex flex-col border border-border/50 animate-fade-in"
+                onClick={e => e.stopPropagation()}
+                style={{ maxHeight: "90vh", display: "flex", flexDirection: "column" }}
+              >
+                <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border/50 bg-gradient-to-r from-primary/5 to-accent/5">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                      Edit Gun Info
+                    </h2>
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                      Update dispenser/gun details
+                    </p>
+                  </div>
+                  <button type="button"
+                    onClick={handleCancelEdit}
+                    className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition-all duration-200 hover:rotate-90"
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4 sm:h-5 sm:w-5" />
+                  </button>
+                </div>
+                <form className="space-y-4 p-5" onSubmit={handleEditSubmit}>
+                  <div className="space-y-2">
+                    <Label htmlFor="empId" className="text-xs uppercase text-muted-foreground">Employee ID</Label>
+                    <Input id="empId" name="empId" value={empId} readOnly disabled className="bg-muted/50" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="productName" className="text-xs uppercase text-muted-foreground">Product Name *</Label>
+                    <Select
+                      value={editForm.productName}
+                      onValueChange={value => setEditForm((prev) => ({ ...prev, productName: value }))}
+                      disabled={updateMutation.isPending}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Product" />
+                      </SelectTrigger>
+                      <SelectContent className='z-[10000]'>
+                        {products.map((p: any) => (
+                          <SelectItem key={p.productName} value={p.productName}>
+                            {p.productName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="guns" className="text-xs uppercase text-muted-foreground">Gun Name/Number *</Label>
+                    <Select
+                      value={editForm.guns}
+                      onValueChange={value => setEditForm((prev) => ({ ...prev, guns: value }))}
+                      disabled={updateMutation.isPending}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Gun (G1-G20)" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[10000]">
+                        <div className="max-h-[240px] overflow-y-auto">
+                          {visibleGunOptions.map((gunName) => (
+                            <SelectItem key={gunName} value={gunName}>
+                              {gunName}
+                            </SelectItem>
+                          ))}
+                        </div>
+                        <div className="sticky bottom-0 bg-popover border-t border-border mt-1 pt-2 pb-1 px-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="w-full justify-center text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/50 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                            onMouseDown={e => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onClick={e => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleGunDropdownExpansion();
+                            }}
+                          >
+                            {gunDropdownLimit === 20 ? (
+                              <>
+                                <ChevronUp className="h-3 w-3 mr-1.5" />
+                                <span>Close</span>
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="h-3 w-3 mr-1.5" />
+                                <span>Show More ({gunDropdownLimit === 4 ? '10' : '20'} guns)</span>
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="serialNumber" className="text-xs uppercase text-muted-foreground">Serial Number *</Label>
+                    <Input
+                      id="serialNumber"
+                      name="serialNumber"
+                      value={editForm.serialNumber}
+                      onChange={handleEditFormChange}
+                      placeholder="e.g. SN123456"
+                      required
+                      disabled={updateMutation.isPending}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="currentReading" className="text-xs uppercase text-muted-foreground">Current Reading (Liters) *</Label>
+                    <Input
+                      id="currentReading"
+                      name="currentReading"
+                      type="number"
+                      value={editForm.currentReading}
+                      onChange={handleEditFormChange}
+                      min={0}
+                      placeholder="e.g. 1000"
+                      step="0.01"
+                      required
+                      disabled={updateMutation.isPending}
+                    />
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      type="submit"
+                      className="btn-gradient-primary flex-1"
+                      disabled={updateMutation.isPending}
+                    >
+                      {updateMutation.isPending ? "Updating..." : "Save Changes"}
+                    </Button>
                     <Button
                       type="button"
                       variant="outline"
@@ -397,14 +510,11 @@ export default function GunInfo() {
                     >
                       Cancel
                     </Button>
-                  )}
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="lg:col-span-2">
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
           <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -467,15 +577,20 @@ export default function GunInfo() {
                               <Badge variant="outline" className="font-medium">
                                 {gun.productName}
                               </Badge>
+                              {/* Employee ID */}
+                              <span className="ml-2 text-xs px-2 py-1 bg-muted rounded">
+                                <b>EmpID:</b> {gun.empId || "—"}
+                              </span>
                             </div>
-
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <div className="flex items-start gap-3">
                                 <div className="p-2 bg-accent-soft rounded-lg">
                                   <Barcode className="h-4 w-4 text-accent" />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Serial Number</p>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                                    Serial Number
+                                  </p>
                                   <p className="font-mono font-semibold truncate text-foreground">{gun.serialNumber}</p>
                                 </div>
                               </div>
@@ -484,7 +599,9 @@ export default function GunInfo() {
                                   <Activity className="h-4 w-4 text-success" />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Current Reading</p>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                                    Current Reading
+                                  </p>
                                   <p className="font-bold text-lg text-success">
                                     {gun.currentReading.toLocaleString()} <span className="text-sm font-normal">L</span>
                                   </p>
@@ -492,7 +609,6 @@ export default function GunInfo() {
                               </div>
                             </div>
                           </div>
-
                           <div className="flex flex-col gap-2 shrink-0">
                             <Button
                               size="sm"
@@ -518,7 +634,6 @@ export default function GunInfo() {
                       </div>
                     ))}
                   </div>
-
                   {filteredGuns.length > GUNS_PER_PAGE && (
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6 pt-4 border-t border-border">
                       <div className="text-sm text-muted-foreground">
