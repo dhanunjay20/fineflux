@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import axios from "axios";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,8 +13,6 @@ import {
 } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
-const CLOUDINARY_UPLOAD_URL = import.meta.env.VITE_CLOUDINARY_UPLOAD_URL || "https://api.cloudinary.com/v1_1/dosyyvmtb/auto/upload";
-const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "FineFlux";
 
 function safeArray(v: any) {
   return Array.isArray(v) ? v : Array.isArray(v?.content) ? v.content : [];
@@ -28,7 +26,6 @@ export default function Documents() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -44,7 +41,6 @@ export default function Documents() {
   });
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
 
@@ -54,9 +50,7 @@ export default function Documents() {
     } else {
       document.body.style.overflow = '';
     }
-    return () => {
-      document.body.style.overflow = '';
-    };
+    return () => { document.body.style.overflow = ''; };
   }, [open, deleteDialogOpen]);
 
   const stats = useMemo(() => {
@@ -73,40 +67,11 @@ export default function Documents() {
       if (!doc.expiryDate) return false;
       return new Date(doc.expiryDate) < now;
     }).length;
-
     return [
-      {
-        title: "Total Documents",
-        value: total,
-        change: "All documents",
-        icon: FileText,
-        bg: "bg-primary-soft",
-        color: "text-primary"
-      },
-      {
-        title: "Expiring Soon",
-        value: expiringSoon,
-        change: "Within 30 days",
-        icon: Clock,
-        bg: "bg-warning-soft",
-        color: "text-warning"
-      },
-      {
-        title: "Expired",
-        value: expired,
-        change: "Need renewal",
-        icon: AlertCircle,
-        bg: "bg-destructive/10",
-        color: "text-destructive"
-      },
-      {
-        title: "Valid",
-        value: total - expired,
-        change: "Currently active",
-        icon: FileCheck,
-        bg: "bg-success-soft",
-        color: "text-success"
-      },
+      { title: "Total Documents", value: total, change: "All documents", icon: FileText, bg: "bg-primary-soft", color: "text-primary" },
+      { title: "Expiring Soon", value: expiringSoon, change: "Within 30 days", icon: Clock, bg: "bg-warning-soft", color: "text-warning" },
+      { title: "Expired", value: expired, change: "Need renewal", icon: AlertCircle, bg: "bg-destructive/10", color: "text-destructive" },
+      { title: "Valid", value: total - expired, change: "Currently active", icon: FileCheck, bg: "bg-success-soft", color: "text-success" },
     ];
   }, [documents]);
 
@@ -133,21 +98,29 @@ export default function Documents() {
       setLoading(false);
     }
   };
-
   useEffect(() => { fetchDocs(); }, [orgId]);
+
+  const calculatedRenewalDays = useMemo(() => {
+    if (!form.issuedDate || !form.expiryDate) return "";
+    const d1 = new Date(form.issuedDate); const d2 = new Date(form.expiryDate);
+    const diff = d2.getTime() - d1.getTime();
+    const days = Math.max(Math.round(diff / (1000 * 60 * 60 * 24)), 0);
+    return isNaN(days) ? "" : days.toString();
+  }, [form.issuedDate, form.expiryDate]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-      const res = await axios.post(CLOUDINARY_UPLOAD_URL, formData, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
-      setForm(f => ({ ...f, file, fileUrl: res.data.secure_url }));
+      const data = new FormData();
+      data.append("file", file);
+      const res = await axios.post(
+        `${API_BASE}/api/organizations/${orgId}/documents/upload`,
+        data,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+      setForm(f => ({ ...f, file, fileUrl: res.data }));
       toast({ title: "Success", description: "File uploaded successfully!" });
     } catch {
       toast({ title: "Upload Error", description: "Failed to upload file", variant: "destructive" });
@@ -159,6 +132,17 @@ export default function Documents() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const today = new Date();
+    const issued = form.issuedDate ? new Date(form.issuedDate) : null;
+    const expired = form.expiryDate ? new Date(form.expiryDate) : null;
+    if (issued && issued > today) {
+      toast({ title: "Validation", description: "Issued date cannot be in the future.", variant: "destructive" });
+      return;
+    }
+    if (issued && expired && expired < issued) {
+      toast({ title: "Validation", description: "Expiry date cannot be before issued date.", variant: "destructive" });
+      return;
+    }
     if (!form.fileUrl) {
       toast({ title: "Validation", description: "Please upload the file first.", variant: "destructive" });
       return;
@@ -171,7 +155,7 @@ export default function Documents() {
         issuingAuthority: form.issuingAuthority,
         issuedDate: form.issuedDate,
         expiryDate: form.expiryDate,
-        renewalPeriodDays: Number(form.renewalPeriodDays),
+        renewalPeriodDays: Number(calculatedRenewalDays),
         responsibleParty: form.responsibleParty,
         fileUrl: form.fileUrl,
         notes: form.notes,
@@ -214,11 +198,7 @@ export default function Documents() {
     setOpen(true);
   };
 
-  const confirmDelete = (doc: any) => {
-    setDeleteTarget(doc);
-    setDeleteDialogOpen(true);
-  };
-
+  const confirmDelete = (doc: any) => { setDeleteTarget(doc); setDeleteDialogOpen(true); };
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     try {
@@ -228,8 +208,7 @@ export default function Documents() {
     } catch (err: any) {
       toast({ title: "Error", description: err?.response?.data?.message || "Failed to delete", variant: "destructive" });
     } finally {
-      setDeleteDialogOpen(false);
-      setDeleteTarget(null);
+      setDeleteDialogOpen(false); setDeleteTarget(null);
     }
   };
 
@@ -240,7 +219,7 @@ export default function Documents() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${documentType.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+      link.download = `${documentType.replace(/\s+/g, '_')}_${Date.now()}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -253,11 +232,8 @@ export default function Documents() {
 
   const getExpiryStatus = (expiryDate: string) => {
     if (!expiryDate) return { label: "No Expiry", color: "bg-muted text-muted-foreground" };
-    const expiry = new Date(expiryDate);
-    const now = new Date();
-    const diff = expiry.getTime() - now.getTime();
-    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-
+    const expiry = new Date(expiryDate), now = new Date();
+    const diff = expiry.getTime() - now.getTime(), days = Math.ceil(diff / (1000 * 60 * 60 * 24));
     if (days < 0) return { label: "Expired", color: "bg-destructive/10 text-destructive" };
     if (days <= 7) return { label: `${days} days left`, color: "bg-destructive/10 text-destructive" };
     if (days <= 30) return { label: `${days} days left`, color: "bg-warning/10 text-warning" };
@@ -266,7 +242,7 @@ export default function Documents() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
+      {/* Header, Stats, Search, Document Cards */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Document Management</h1>
@@ -277,8 +253,6 @@ export default function Documents() {
           Upload Document
         </Button>
       </div>
-
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
@@ -302,8 +276,6 @@ export default function Documents() {
           );
         })}
       </div>
-
-      {/* Search Bar */}
       <Card>
         <CardContent className="p-4">
           <div className="relative w-full">
@@ -317,8 +289,6 @@ export default function Documents() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Documents Grid */}
       {loading ? (
         <div className="flex items-center justify-center py-24">
           <div className="text-center">
@@ -354,7 +324,6 @@ export default function Documents() {
             return (
               <Card key={doc.id} className="group relative overflow-hidden hover:shadow-lg transition-all duration-300 hover:border-primary/50">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/5 to-accent/5 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform" />
-
                 <CardHeader className="relative pb-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -370,7 +339,6 @@ export default function Documents() {
                     </div>
                   </div>
                 </CardHeader>
-
                 <CardContent className="space-y-3">
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2 text-muted-foreground">
@@ -387,7 +355,9 @@ export default function Documents() {
                         <div className="min-w-0">
                           <p className="text-xs">Issued</p>
                           <p className="font-medium text-foreground truncate">
-                            {new Date(doc.issuedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            {doc.issuedDate
+                              ? new Date(doc.issuedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                              : "--"}
                           </p>
                         </div>
                       </div>
@@ -396,13 +366,14 @@ export default function Documents() {
                         <div className="min-w-0">
                           <p className="text-xs">Expires</p>
                           <p className="font-medium text-foreground truncate">
-                            {new Date(doc.expiryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            {doc.expiryDate
+                              ? new Date(doc.expiryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                              : "--"}
                           </p>
                         </div>
                       </div>
                     </div>
                   </div>
-
                   <div className="flex items-center gap-2 pt-3 border-t border-border">
                     <Button
                       size="sm"
@@ -423,7 +394,6 @@ export default function Documents() {
                       Download
                     </Button>
                   </div>
-
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"
@@ -454,18 +424,15 @@ export default function Documents() {
       {/* Add/Edit Modal */}
       {open && (
         <div
-          className={
-            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
-            (open ? 'opacity-100' : 'opacity-0 pointer-events-none')
-          }
+          className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300"
           style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
           onClick={() => setOpen(false)}
         >
           <div
-            className="relative bg-background shadow-2xl rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+            className="relative flex flex-col w-full max-w-2xl max-h-[90vh] bg-background shadow-2xl rounded-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header - Fixed */}
+            {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
               <div>
                 <h2 className="text-2xl font-bold">{editId ? "Edit Document" : "Add New Document"}</h2>
@@ -479,69 +446,91 @@ export default function Documents() {
               </button>
             </div>
 
-            {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase text-muted-foreground">Document Type *</Label>
-                    <Input value={form.documentType} onChange={e => setForm(f => ({ ...f, documentType: e.target.value }))} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase text-muted-foreground">Issuing Authority *</Label>
-                    <Input value={form.issuingAuthority} onChange={e => setForm(f => ({ ...f, issuingAuthority: e.target.value }))} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase text-muted-foreground">Issued Date *</Label>
-                    <Input type="date" value={form.issuedDate} onChange={e => setForm(f => ({ ...f, issuedDate: e.target.value }))} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase text-muted-foreground">Expiry Date *</Label>
-                    <Input type="date" value={form.expiryDate} onChange={e => setForm(f => ({ ...f, expiryDate: e.target.value }))} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase text-muted-foreground">Renewal Period (Days) *</Label>
-                    <Input type="number" min="0" value={form.renewalPeriodDays} onChange={e => setForm(f => ({ ...f, renewalPeriodDays: e.target.value }))} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase text-muted-foreground">Responsible Party *</Label>
-                    <Input value={form.responsibleParty} onChange={e => setForm(f => ({ ...f, responsibleParty: e.target.value }))} required />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label className="text-xs uppercase text-muted-foreground">Upload File (PDF/Image) *</Label>
-                    <Input type="file" accept="image/*,.pdf" onChange={handleFileChange} required={!editId} />
-                    {form.fileUrl && (
-                      <a href={form.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline flex items-center gap-1">
-                        <Eye className="h-3 w-3" />
-                        Preview uploaded file
-                      </a>
-                    )}
-                    {uploading && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Uploading...
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label className="text-xs uppercase text-muted-foreground">Notes</Label>
-                    <Input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Additional notes (optional)" />
+            {/*Add Edit  Modal content */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              <form id="document-form" onSubmit={handleSubmit}>
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase text-muted-foreground">Document Type *</Label>
+                      <Input value={form.documentType} onChange={e => setForm(f => ({ ...f, documentType: e.target.value }))} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase text-muted-foreground">Issuing Authority *</Label>
+                      <Input value={form.issuingAuthority} onChange={e => setForm(f => ({ ...f, issuingAuthority: e.target.value }))} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase text-muted-foreground">Issued Date *</Label>
+                      <Input
+                        type="date"
+                        value={form.issuedDate}
+                        max={new Date().toISOString().slice(0, 10)}
+                        onChange={e => setForm(f => ({
+                          ...f,
+                          issuedDate: e.target.value,
+                          expiryDate: f.expiryDate && f.expiryDate < e.target.value ? "" : f.expiryDate
+                        }))}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase text-muted-foreground">Expiry Date *</Label>
+                      <Input
+                        type="date"
+                        value={form.expiryDate}
+                        min={form.issuedDate || ""}
+                        onChange={e => setForm(f => ({ ...f, expiryDate: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase text-muted-foreground">Renewal Period (Days)</Label>
+                      <Input
+                        value={calculatedRenewalDays}
+                        readOnly
+                        className="bg-yellow-50 border border-yellow-300 text-yellow-800 font-bold"
+                        tabIndex={-1}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase text-muted-foreground">Responsible Party *</Label>
+                      <Input value={form.responsibleParty} onChange={e => setForm(f => ({ ...f, responsibleParty: e.target.value }))} required />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label className="text-xs uppercase text-muted-foreground">Upload File (PDF/Image/Any) *</Label>
+                      <Input type="file" accept=".pdf,image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt" onChange={handleFileChange} required={!editId} />
+                      {form.fileUrl && (
+                        <a href={form.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline flex items-center gap-1">
+                          <Eye className="h-3 w-3" />
+                          Preview uploaded file
+                        </a>
+                      )}
+                      {uploading && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Uploading...
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label className="text-xs uppercase text-muted-foreground">Notes</Label>
+                      <Input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Additional notes (optional)" />
+                    </div>
                   </div>
                 </div>
-              </div>
+              </form>
             </div>
 
-            {/* Footer - Fixed */}
-            <div className="flex justify-end gap-3 p-6 border-t border-border bg-muted/20 shrink-0">
+            {/* Stretched Footer (sticky, full width, no margin) */}
+            <div className="sticky bottom-0 left-0 w-full px-6 py-4 border-t border-border bg-background flex justify-end gap-4 rounded-b-2xl">
               <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
                 Cancel
               </Button>
               <Button
+                form="document-form"
                 type="submit"
                 className="btn-gradient-primary"
-                disabled={submitting || uploading}
-                onClick={handleSubmit}
-              >
+                disabled={submitting || uploading}>
                 {submitting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -556,7 +545,7 @@ export default function Documents() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal - Full Screen Background */}
+      {/* Delete Confirmation Modal */}
       {deleteDialogOpen && (
         <div
           className={
@@ -595,6 +584,7 @@ export default function Documents() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, NavLink, matchPath } from 'react-router-dom';
-import {
-  BarChart3, Users, Fuel, DollarSign, UserCheck, Settings, LogOut,
-  Home, CreditCard, FileText, ClipboardList, Archive, Wrench, Sparkles
-} from 'lucide-react';
+import { BarChart3, Users, Fuel, DollarSign, UserCheck, Settings, LogOut, Home, CreditCard, FileText, ClipboardList, Archive, Wrench, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -14,17 +11,16 @@ import {
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar,
 } from '@/components/ui/sidebar';
 
+// PRODUCTION: MOVE navigationItems TO src/constants/sidebarNavigation.ts FOR VITE HMR SAFETY
 const PROFILE_URL_KEY = 'profileImageUrl';
 
-interface NavItem {
+const navigationItems: {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
   href: string;
   roles: UserRole[];
   badge?: string;
-}
-
-export const navigationItems: NavItem[] = [
+}[] = [
   { title: 'Dashboard', icon: Home, href: '/dashboard', roles: ['owner', 'manager', 'employee'] },
   { title: 'Analytics', icon: BarChart3, href: '/analytics', roles: ['owner', 'manager'], badge: 'New' },
   { title: 'Employees', icon: Users, href: '/employees', roles: ['owner', 'manager'] },
@@ -46,13 +42,7 @@ export const navigationItems: NavItem[] = [
 
 const pickEmployeeImage = (obj: any): string => {
   const keys = [
-    'profileImageUrl',
-    'imageUrl',
-    'avatarUrl',
-    'photoUrl',
-    'profilePic',
-    'picture',
-    'profile_image_url',
+    'profileImageUrl', 'imageUrl', 'avatarUrl', 'photoUrl', 'profilePic', 'picture', 'profile_image_url'
   ];
   for (const k of keys) {
     const v = obj?.[k];
@@ -69,23 +59,15 @@ export function AppSidebar() {
   const [empId, setEmpId] = useState<string>('');
   const [avatarUrl, setAvatarUrl] = useState<string>('');
 
+  // Load orgId/empId from localStorage once
   useEffect(() => {
     setOrgId(localStorage.getItem('organizationId') || '');
     setEmpId(localStorage.getItem('empId') || '');
   }, []);
 
-  // Set avatar from user or localStorage (no API)
+  // Always get avatar from localStorage profile key, reactively across tabs
   useEffect(() => {
-    const fromUser = pickEmployeeImage(user || {});
-    if (fromUser) {
-      setAvatarUrl(fromUser);
-    } else {
-      setAvatarUrl(localStorage.getItem(PROFILE_URL_KEY) || '');
-    }
-  }, [user]);
-
-  // Sync avatar across tabs/windows via storage event
-  useEffect(() => {
+    setAvatarUrl(localStorage.getItem(PROFILE_URL_KEY) || '');
     const onStorage = (e: StorageEvent) => {
       if (e.key === PROFILE_URL_KEY) {
         setAvatarUrl(e.newValue || '');
@@ -105,12 +87,12 @@ export function AppSidebar() {
 
   const handleLogout = () => {
     logout();
+    localStorage.removeItem(PROFILE_URL_KEY);
     if (isMobile) setOpenMobile?.(false);
   };
 
   return (
     <Sidebar className="border-r bg-gradient-to-b from-slate-50 via-blue-50/30 to-indigo-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
-      {/* Header */}
       <SidebarHeader className="border-b px-6 py-5 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/20">
@@ -124,42 +106,44 @@ export function AppSidebar() {
           </div>
         </div>
       </SidebarHeader>
-
       <SidebarContent className="px-3 py-4">
-        {/* User Card */}
         {user && (
-          <div className="mb-4 mx-1 p-4 rounded-2xl bg-white dark:bg-slate-800/50 border border-blue-100 dark:border-slate-700 shadow-sm relative">
-            <div className="absolute right-4 top-4 h-2 w-2 rounded-full bg-green-400 shadow-sm" title="Online" />
-            <div className="flex items-center gap-3">
-              <Avatar className="h-11 w-11 border-2 border-background shadow-md">
-                {avatarUrl ? (
-                  <AvatarImage
-                    src={avatarUrl}
-                    alt={user.name || user.username || 'User'}
-                    onError={() => setAvatarUrl('')}
-                  />
-                ) : null}
-                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold text-sm">
-                  {getUserInitials(user.name || user.username)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                <p className="text-sm font-bold truncate text-foreground">{user.name || user.username}</p>
-                <div className="flex items-center gap-1 mt-1">
-                  <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 text-[10px] px-2 py-0.5 font-bold capitalize border-0 hover:bg-blue-100 dark:hover:bg-blue-950">
-                    {user.role}
-                  </Badge>
-                  {empId && <span className="text-[10px] text-muted-foreground">• {empId}</span>}
-                </div>
-                {orgId && (
-                  <p className="text-[10px] text-muted-foreground font-medium mt-1">Org: {orgId}</p>
-                )}
+          <div className="mb-7">
+            <div className="relative rounded-3xl border border-blue-200/70 dark:border-blue-900/70 bg-gradient-to-br from-blue-50/95 via-white/90 to-indigo-100/80 dark:from-slate-900/95 dark:to-blue-950/90 shadow-lg px-3 py-6 flex flex-col items-center max-w-full overflow-visible">
+              <span className="absolute right-5 top-5 h-3 w-3 rounded-full bg-green-400 border-2 border-white dark:border-slate-900 animate-pulse shadow" title="Online"></span>
+              <div className="relative mb-1">
+                <Avatar className="h-16 w-16 ring-2 ring-primary shadow-lg">
+                  {avatarUrl ? (
+                    <AvatarImage
+                      src={avatarUrl}
+                      alt={user.name || user.username || 'User'}
+                      onError={() => setAvatarUrl('')}
+                    />
+                  ) : null}
+                  <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-xl">
+                    {getUserInitials(user.name || user.username)}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-gradient-to-tr from-primary to-blue-600 text-white text-xs px-3 py-1 rounded-xl font-semibold shadow-md border border-white dark:border-blue-950">
+                  {user.role}
+                </span>
               </div>
+              <span className="mt-3 text-lg sm:text-xl font-extrabold text-blue-900 dark:text-blue-100 truncate max-w-full text-center">
+                {user.name || user.username}
+              </span>
+              {empId && (
+                <span className="mt-1 px-2 py-px rounded-full font-mono bg-blue-200/60 dark:bg-blue-900/50 text-xs text-blue-800 dark:text-blue-100 border border-blue-300/50 dark:border-blue-900/50 shadow-sm">
+                  {empId}
+                </span>
+              )}
+              {orgId && (
+                <span className="mt-2 text-xs font-medium text-blue-700/80 dark:text-blue-200/80 truncate w-full text-center">
+                  <span className="opacity-80">Org:</span> <span className="font-semibold">{orgId}</span>
+                </span>
+              )}
             </div>
           </div>
         )}
-
-        {/* Navigation */}
         <SidebarGroup>
           <SidebarGroupLabel className="px-2 text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2">
             Menu
@@ -174,11 +158,10 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       asChild
                       isActive={active}
-                      className={`rounded-lg transition-all ${
-                        active
-                          ? 'bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold shadow-sm border border-blue-200 dark:border-blue-800'
-                          : 'text-muted-foreground hover:bg-blue-50 dark:hover:bg-slate-800/50 hover:text-foreground font-medium'
-                      }`}
+                      className={`rounded-lg transition-all ${active
+                        ? 'bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold shadow-sm border border-blue-200 dark:border-blue-800'
+                        : 'text-muted-foreground hover:bg-blue-50 dark:hover:bg-slate-800/50 hover:text-foreground font-medium'
+                        }`}
                     >
                       <NavLink
                         to={item.href}
@@ -203,8 +186,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
-      {/* Footer */}
       <SidebarFooter className="border-t p-3 shadow-sm">
         <Button
           variant="ghost"

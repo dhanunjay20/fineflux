@@ -1,60 +1,26 @@
-import { AppSidebar } from './AppSidebar';
-import { useAuth } from '@/contexts/AuthContext';
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
-import { Separator } from '@/components/ui/separator';
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage } from '@/components/ui/breadcrumb';
+import { useMemo, useRef, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Home,
-  ChevronRight,
-  Sparkles,
-  User,
-  Search,
-  LogOut,
-  UserCircle,
-  ChevronDown,
-  BarChart3,
-  Users,
-  Fuel,
-  DollarSign,
-  UserCheck,
-  Settings,
-  CreditCard,
-  FileText,
-  ClipboardList,
-  Archive,
-  Wrench
+  Home, ChevronRight, Sparkles, User, Search, LogOut, UserCircle,
+  ChevronDown, BarChart3, Users, Fuel, DollarSign, UserCheck, Settings,
+  CreditCard, FileText, ClipboardList, Archive, Wrench
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { useMemo, useState, useRef, useEffect } from 'react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { useAuth } from '@/contexts/AuthContext';
+import { Separator } from '@/components/ui/separator';
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage } from '@/components/ui/breadcrumb';
+import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
+import { AppSidebar } from './AppSidebar';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const PROFILE_URL_KEY = 'profileImageUrl';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
-
-// pick first non-empty plausible image field
-const pickEmployeeImage = (obj: any): string => {
-  const keys = [
-    'profileImageUrl',
-    'imageUrl',
-    'avatarUrl',
-    'photoUrl',
-    'profilePic',
-    'picture',
-    'profile_image_url',
-  ];
-  for (const k of keys) {
-    const v = obj?.[k];
-    if (typeof v === 'string' && v.trim()) return v.trim();
-  }
-  return '';
-};
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, logout } = useAuth();
@@ -65,15 +31,21 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
-
-  // employee avatar state
   const [avatarUrl, setAvatarUrl] = useState<string>('');
 
-  if (!user) {
-    return null;
-  }
+  useEffect(() => {
+    setAvatarUrl(localStorage.getItem(PROFILE_URL_KEY) || '');
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === PROFILE_URL_KEY) {
+        setAvatarUrl(e.newValue || '');
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
-  // Close profile menu/search results when clicking outside
+  if (!user) return null;
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
@@ -87,53 +59,27 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Load avatar from user or localStorage (no API)
-  useEffect(() => {
-    const fromUser = pickEmployeeImage(user || {});
-    if (fromUser) {
-      setAvatarUrl(fromUser);
-    } else {
-      setAvatarUrl(localStorage.getItem(PROFILE_URL_KEY) || '');
-    }
-  }, [user]);
+  const allNavItems = useMemo(() => [
+    { title: 'Dashboard', icon: Home, href: '/dashboard', roles: ['owner', 'manager', 'employee'] },
+    { title: 'Analytics', icon: BarChart3, href: '/analytics', roles: ['owner', 'manager'], badge: 'New' },
+    { title: 'Employees', icon: Users, href: '/employees', roles: ['owner', 'manager'] },
+    { title: 'Set Duty', icon: ClipboardList, href: '/employee-set-duty', roles: ['owner', 'manager'] },
+    { title: 'Tank Inventory', icon: Fuel, href: '/inventory', roles: ['owner', 'manager'] },
+    { title: 'Sales & Collections', icon: DollarSign, href: '/sales', roles: ['owner', 'manager', 'employee'] },
+    { title: 'Products', icon: Archive, href: '/products', roles: ['owner', 'manager'] },
+    { title: 'Borrowers', icon: CreditCard, href: '/borrowers', roles: ['owner', 'manager'] },
+    { title: 'Documents', icon: FileText, href: '/documents', roles: ['owner', 'manager'] },
+    { title: 'Gun Info', icon: Wrench, href: '/guninfo', roles: ['owner', 'manager'] },
+    { title: 'Expenses', icon: DollarSign, href: '/expenses', roles: ['owner', 'manager'] },
+    { title: 'Reports', icon: FileText, href: '/reports', roles: ['owner', 'manager'] },
+    { title: 'Attendance', icon: UserCheck, href: '/attendance', roles: ['employee'] },
+    { title: 'Special Duties', icon: Sparkles, href: '/special-duties', roles: ['employee'] },
+    { title: 'Daily Duty', icon: BarChart3, href: '/daily-duties', roles: ['employee'] },
+    { title: 'Duty History', icon: ClipboardList, href: '/employee-task-history', roles: ['employee'] },
+    { title: 'My Profile', icon: Users, href: '/profile', roles: ['employee', 'manager', 'owner'] },
+    { title: 'Settings', icon: Settings, href: '/settings', roles: ['owner', 'manager'] }
+  ].filter(item => item.roles.includes(user.role as any)), [user.role]);
 
-  // Sync avatar across tabs/windows via storage event
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === PROFILE_URL_KEY) {
-        setAvatarUrl(e.newValue || '');
-      }
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
-
-  // Complete navigation items based on user role
-  const allNavItems = useMemo(() => {
-    const items = [
-      { title: 'Dashboard', icon: Home, href: '/dashboard', roles: ['owner', 'manager', 'employee'] },
-      { title: 'Analytics', icon: BarChart3, href: '/analytics', roles: ['owner', 'manager'], badge: 'New' },
-      { title: 'Employees', icon: Users, href: '/employees', roles: ['owner', 'manager'] },
-      { title: 'Set Duty', icon: ClipboardList, href: '/employee-set-duty', roles: ['owner', 'manager'] },
-      { title: 'Tank Inventory', icon: Fuel, href: '/inventory', roles: ['owner', 'manager'] },
-      { title: 'Sales & Collections', icon: DollarSign, href: '/sales', roles: ['owner', 'manager', 'employee'] },
-      { title: 'Products', icon: Archive, href: '/products', roles: ['owner', 'manager'] },
-      { title: 'Borrowers', icon: CreditCard, href: '/borrowers', roles: ['owner', 'manager'] },
-      { title: 'Documents', icon: FileText, href: '/documents', roles: ['owner', 'manager'] },
-      { title: 'Gun Info', icon: Wrench, href: '/guninfo', roles: ['owner', 'manager'] },
-      { title: 'Expenses', icon: DollarSign, href: '/expenses', roles: ['owner', 'manager'] },
-      { title: 'Reports', icon: FileText, href: '/reports', roles: ['owner', 'manager'] },
-      { title: 'Attendance', icon: UserCheck, href: '/attendance', roles: ['employee'] },
-      { title: 'Special Duties', icon: Sparkles, href: '/special-duties', roles: ['employee'] },
-      { title: 'Daily Duty', icon: BarChart3, href: '/daily-duties', roles: ['employee'] },
-      { title: 'Duty History', icon: ClipboardList, href: '/employee-task-history', roles: ['employee'] },
-      { title: 'My Profile', icon: Users, href: '/profile', roles: ['employee', 'manager', 'owner'] },
-      { title: 'Settings', icon: Settings, href: '/settings', roles: ['owner', 'manager'] }
-    ];
-    return items.filter(item => item.roles.includes(user.role as any));
-  }, [user.role]);
-
-  // Search filtering with better matching
   const filteredResults = useMemo(() => {
     const searchTerm = query.trim().toLowerCase();
     if (!searchTerm) return [];
@@ -142,7 +88,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       .slice(0, 8);
   }, [query, allNavItems]);
 
-  // Show search results when there's a query and results
   useEffect(() => {
     setShowSearchResults(query.trim().length > 0 && filteredResults.length > 0);
   }, [query, filteredResults]);
@@ -156,11 +101,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       return { title, href, isLast: index === segments.length - 1 };
     });
   };
-
   const breadcrumbs = getBreadcrumbs();
 
   const handleLogout = () => {
     setShowProfileMenu(false);
+    localStorage.removeItem(PROFILE_URL_KEY);
     logout();
   };
 
@@ -179,9 +124,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950">
         <AppSidebar />
-
         <SidebarInset className="flex-1 flex flex-col min-w-0">
-          {/* STICKY HEADER */}
           <motion.header
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -193,8 +136,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="flex items-center gap-4 flex-1 min-w-0">
                 <SidebarTrigger className="hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-all rounded-lg p-2 shrink-0" />
                 <Separator orientation="vertical" className="h-6 bg-gradient-to-b from-transparent via-border to-transparent" />
-
-                {/* Breadcrumbs */}
                 <Breadcrumb className="flex-1 min-w-0">
                   <BreadcrumbList className="flex items-center gap-2 overflow-x-auto">
                     <BreadcrumbItem>
@@ -231,16 +172,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   </BreadcrumbList>
                 </Breadcrumb>
               </div>
-
               {/* Right Section */}
               <div className="flex items-center gap-2">
-                {/* Search Bar with Results */}
                 <div className="relative" ref={searchRef}>
                   <Search className="absolute left-3 h-4 w-4 text-muted-foreground pointer-events-none top-1/2 -translate-y-1/2" />
                   <Input
                     placeholder="Search pages..."
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={e => setQuery(e.target.value)}
                     onFocus={() => {
                       if (query.trim() && filteredResults.length > 0) {
                         setShowSearchResults(true);
@@ -248,8 +187,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     }}
                     className="pl-9 pr-4 w-64 h-9 bg-white/50 dark:bg-slate-800/50 border-white/20 dark:border-slate-700/50 focus:bg-white dark:focus:bg-slate-800 transition-all"
                   />
-
-                  {/* Search Results Dropdown */}
                   <AnimatePresence>
                     {showSearchResults && filteredResults.length > 0 && (
                       <motion.div
@@ -260,7 +197,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                         className="absolute left-0 w-full top-full mt-2 z-50 rounded-lg bg-white dark:bg-slate-800 border border-border shadow-2xl overflow-hidden"
                       >
                         <div className="py-2">
-                          {filteredResults.map((item) => (
+                          {filteredResults.map(item => (
                             <button
                               key={item.href}
                               type="button"
@@ -283,7 +220,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     )}
                   </AnimatePresence>
                 </div>
-
                 {/* Profile Dropdown */}
                 <div className="relative" ref={profileMenuRef}>
                   <Button
@@ -310,8 +246,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     </div>
                     <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
                   </Button>
-
-                  {/* Profile Menu */}
                   <AnimatePresence>
                     {showProfileMenu && (
                       <motion.div
@@ -352,8 +286,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
             </div>
           </motion.header>
-
-          {/* Main Content - Scrollable */}
           <main className="flex-1 overflow-y-auto overflow-x-hidden">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -363,8 +295,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             >
               {children}
             </motion.div>
-
-            {/* Footer */}
             <motion.footer
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

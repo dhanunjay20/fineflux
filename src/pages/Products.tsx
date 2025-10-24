@@ -8,19 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  Plus, Edit2, Trash2, Box, Archive, Layers, PackageCheck, Database, X, CalendarDays,
-  Fuel, Droplets, Zap
+  Plus, Edit2, Trash2, Box, Archive, Layers, PackageCheck, Database, X, CalendarDays, Fuel, Droplets, Zap
 } from 'lucide-react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { useToast } from '@/components/ui/use-toast';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
@@ -40,6 +29,7 @@ const EMPTY_FORM = {
   metric: 'Liters',
   status: 'true',
   lastUpdated: '',
+  empId: ''
 };
 
 function formatDateTime(val?: string) {
@@ -52,6 +42,7 @@ function formatDateTime(val?: string) {
 
 export default function Products() {
   const orgId = localStorage.getItem('organizationId') || 'ORG-DEV-001';
+  const empId = localStorage.getItem('empId') || 'EMP-AUTH-001';
   const { toast } = useToast();
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -61,8 +52,7 @@ export default function Products() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name?: string } | null>(null);
 
   useEffect(() => {
-    if (modalOpen) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = '';
+    document.body.style.overflow = modalOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [modalOpen]);
 
@@ -96,54 +86,37 @@ export default function Products() {
   const createMutation = useMutation({
     mutationFn: async (body: any) => {
       const dto = {
+        ...body,
         organizationId: orgId,
-        productName: body.productName,
         price: body.price ? Number(body.price) : undefined,
         tankCapacity: body.tankCapacity ? Number(body.tankCapacity) : undefined,
-        description: body.description,
-        supplier: body.supplier,
         currentLevel: body.currentLevel ? Number(body.currentLevel) : undefined,
-        metric: body.metric,
         status: body.status === "true",
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
+        empId
       };
       const url = `${API_BASE}/api/organizations/${orgId}/products`;
       return (await axios.post(url, dto)).data;
     },
-    onSuccess: () => {
-      refetch();
-      closeModal();
-      toast({ title: "Product added successfully!" });
-    },
-    onError: () => {
-      toast({ title: "Failed to add product", variant: "destructive" });
-    }
+    onSuccess: () => { refetch(); closeModal(); toast({ title: "Product added successfully!" }); },
+    onError: () => { toast({ title: "Failed to add product", variant: "destructive" }); }
   });
 
   const updateMutation = useMutation({
     mutationFn: async (body: any) => {
       const dto = {
-        productName: body.productName,
+        ...body,
         price: body.price ? Number(body.price) : undefined,
         tankCapacity: body.tankCapacity ? Number(body.tankCapacity) : undefined,
-        description: body.description,
-        supplier: body.supplier,
         currentLevel: body.currentLevel ? Number(body.currentLevel) : undefined,
-        metric: body.metric,
         status: body.status === "true",
         lastUpdated: new Date().toISOString()
       };
       const url = `${API_BASE}/api/organizations/${orgId}/products/${body.id}`;
       return (await axios.put(url, dto)).data;
     },
-    onSuccess: () => {
-      refetch();
-      closeModal();
-      toast({ title: "Product updated successfully!" });
-    },
-    onError: () => {
-      toast({ title: "Failed to update product", variant: "destructive" });
-    }
+    onSuccess: () => { refetch(); closeModal(); toast({ title: "Product updated successfully!" }); },
+    onError: () => { toast({ title: "Failed to update product", variant: "destructive" }); }
   });
 
   const deleteMutation = useMutation({
@@ -151,31 +124,17 @@ export default function Products() {
       const url = `${API_BASE}/api/organizations/${orgId}/products/${id}`;
       return (await axios.delete(url)).data;
     },
-    onSuccess: () => {
-      refetch();
-      setDeleteTarget(null);
-      setConfirmOpen(false);
-      toast({ title: "Product deleted successfully!" });
-    },
-    onError: () => {
-      toast({ title: "Failed to delete product", variant: "destructive" });
-    }
+    onSuccess: () => { refetch(); setDeleteTarget(null); setConfirmOpen(false); toast({ title: "Product deleted successfully!" }); },
+    onError: () => { toast({ title: "Failed to delete product", variant: "destructive" }); }
   });
 
   function closeModal() {
     setModalOpen(false);
-    setTimeout(() => {
-      setForm({ ...EMPTY_FORM });
-      setEditId(null);
-    }, 200);
+    setTimeout(() => { setForm({ ...EMPTY_FORM }); setEditId(null); }, 200);
   }
-
   function openCreateModal() {
-    setEditId(null);
-    setForm({ ...EMPTY_FORM });
-    setModalOpen(true);
+    setEditId(null); setForm({ ...EMPTY_FORM }); setModalOpen(true);
   }
-
   function openEditModal(prod: any) {
     setEditId(prod.id);
     setForm({
@@ -188,59 +147,46 @@ export default function Products() {
       currentLevel: prod.currentLevel !== undefined && prod.currentLevel !== null ? String(prod.currentLevel) : '',
       metric: prod.metric ?? 'Liters',
       status: prod.status ? "true" : "false",
-      lastUpdated: prod.lastUpdated || ''
+      lastUpdated: prod.lastUpdated || '',
+      empId: prod.empId || empId
     });
     setModalOpen(true);
   }
-
+  function preventWheel(e: React.WheelEvent<HTMLInputElement>) {
+    e.target instanceof HTMLInputElement && e.target.blur();
+  }
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm(f => ({ ...f, [name]: value }));
   };
-
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.productName) {
-      toast({ title: "Please select a product name", variant: "destructive" });
-      return;
-    }
-    if (!form.price || Number(form.price) <= 0) {
-      toast({ title: "Please enter a valid price", variant: "destructive" });
-      return;
-    }
-    if (
-      form.tankCapacity !== "" &&
-      form.currentLevel !== "" &&
-      parseFloat(form.currentLevel) > parseFloat(form.tankCapacity)
-    ) {
-      toast({
-        title: "Invalid stock level",
-        description: "Current level cannot exceed tank capacity",
-        variant: "destructive"
-      });
-      return;
+    if (!form.productName) { toast({ title: "Please select a product name", variant: "destructive" }); return; }
+    const nameExists = products.some(
+      (p: any) =>
+        p.productName?.toLowerCase() === form.productName.trim().toLowerCase() &&
+        (!editId || p.id !== editId)
+    );
+    if (nameExists) { toast({ title: "Product already exists", variant: "destructive" }); return; }
+    if (!form.price || Number(form.price) <= 0) { toast({ title: "Please enter a valid price", variant: "destructive" }); return; }
+    if (form.tankCapacity !== "" && form.currentLevel !== "" && parseFloat(form.currentLevel) > parseFloat(form.tankCapacity)) {
+      toast({ title: "Invalid stock level", description: "Current level cannot exceed tank capacity", variant: "destructive" }); return;
     }
     if (editId) updateMutation.mutate({ ...form, id: editId });
     else createMutation.mutate(form);
   };
-
   const getProductIcon = (productName: string) => {
     switch (productName) {
       case 'Petrol':
-      case 'Premium Petrol':
-        return <Fuel className="h-4 w-4 sm:h-5 sm:w-5" />;
-      case 'Diesel':
-        return <Droplets className="h-4 w-4 sm:h-5 sm:w-5" />;
-      case 'CNG':
-        return <Zap className="h-4 w-4 sm:h-5 sm:w-5" />;
-      default:
-        return <Box className="h-4 w-4 sm:h-5 sm:w-5" />;
+      case 'Premium Petrol': return <Fuel className="h-4 w-4 sm:h-5 sm:w-5" />;
+      case 'Diesel': return <Droplets className="h-4 w-4 sm:h-5 sm:w-5" />;
+      case 'CNG': return <Zap className="h-4 w-4 sm:h-5 sm:w-5" />;
+      default: return <Box className="h-4 w-4 sm:h-5 sm:w-5" />;
     }
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Products</h1>
@@ -251,8 +197,6 @@ export default function Products() {
           Add New Product
         </Button>
       </div>
-
-      {/* Stats Cards - ORIGINAL DESIGN */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map(stat => {
           const Icon = stat.icon;
@@ -273,8 +217,6 @@ export default function Products() {
           )
         })}
       </div>
-
-      {/* Products List - RESPONSIVE */}
       <Card className="card-gradient border-border/50 shadow-sm">
         <CardHeader className="border-b border-border/50 bg-muted/30">
           <CardTitle className="flex items-center gap-2 text-xl">
@@ -309,21 +251,17 @@ export default function Products() {
                 const fillPercentage = prod.tankCapacity > 0
                   ? ((prod.currentLevel / prod.tankCapacity) * 100).toFixed(0)
                   : '0';
-
                 return (
                   <div
                     key={prod.id || prod._id}
                     className="group p-3 sm:p-5 rounded-xl border border-border/50 bg-card hover:shadow-md hover:border-primary/30 transition-all duration-300"
                   >
                     <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-                      {/* Icon */}
                       <div className="flex sm:block">
                         <div className="p-3 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 group-hover:scale-110 transition-transform duration-300">
                           {getProductIcon(prod.productName)}
                         </div>
                       </div>
-
-                      {/* Content */}
                       <div className="flex-1 space-y-2 min-w-0">
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                           <h3 className="text-base sm:text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
@@ -339,13 +277,9 @@ export default function Products() {
                             {prod.metric || "L"}
                           </span>
                         </div>
-
                         {prod.description && (
-                          <p className="text-sm text-muted-foreground">
-                            {prod.description}
-                          </p>
+                          <p className="text-sm text-muted-foreground">{prod.description}</p>
                         )}
-
                         <div className="flex flex-wrap gap-4 text-sm">
                           <div className="flex items-center gap-1.5">
                             <span className="text-muted-foreground">Supplier:</span>
@@ -357,8 +291,11 @@ export default function Products() {
                               {prod.tankCapacity?.toLocaleString('en-IN') || '—'} {prod.metric || 'L'}
                             </span>
                           </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-muted-foreground">Created By:</span>
+                            <span className="font-medium">{prod.empId || "—"}</span>
+                          </div>
                         </div>
-
                         {prod.tankCapacity > 0 && (
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between text-xs">
@@ -368,25 +305,19 @@ export default function Products() {
                             <div className="h-2 bg-muted rounded-full overflow-hidden">
                               <div
                                 className={`h-full rounded-full transition-all duration-500 ${Number(fillPercentage) > 70 ? 'bg-green-500' :
-                                  Number(fillPercentage) > 40 ? 'bg-yellow-500' :
-                                    'bg-red-500'
-                                  }`}
-                                style={{ width: `${fillPercentage}%` }}
-                              />
+                                  Number(fillPercentage) > 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                style={{ width: `${fillPercentage}%` }} />
                             </div>
                             <p className="text-xs text-muted-foreground">
                               {(prod.currentLevel || 0).toLocaleString('en-IN')} / {prod.tankCapacity.toLocaleString('en-IN')} {prod.metric || 'L'}
                             </p>
                           </div>
                         )}
-
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1">
                           <CalendarDays className="h-3 w-3" />
                           {formatDateTime(prod.lastUpdated)}
                         </div>
                       </div>
-
-                      {/* Price and Actions */}
                       <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-3 min-w-[140px] border-t sm:border-t-0 sm:border-l border-border/30 pt-3 sm:pt-0 sm:pl-4">
                         <div className="text-left sm:text-right">
                           <div className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
@@ -394,7 +325,6 @@ export default function Products() {
                           </div>
                           <div className="text-xs text-muted-foreground">per Liter</div>
                         </div>
-
                         <div className="flex gap-2">
                           <Button
                             size="icon"
@@ -419,262 +349,227 @@ export default function Products() {
                       </div>
                     </div>
                   </div>
-                );
+                )
               })}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Add/Edit Modal - FULLY RESPONSIVE */}
-      {/* Add/Edit Modal - FULLY RESPONSIVE WITH FIXED FOOTER */}
-      <div
-        className={
-          "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
-          (modalOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
-        }
-        style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
-        onClick={closeModal}
-      >
+      {/* Add/Edit Modal */}
+      {modalOpen && (
         <div
-          className={
-            "relative bg-background shadow-2xl rounded-xl sm:rounded-2xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col border border-border/50 transition-all duration-300 " +
-            (modalOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0')
-          }
-          onClick={(e) => e.stopPropagation()}
+          className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md"
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={closeModal}
         >
-          <style>{`
-      .modal-scroll { 
-        scrollbar-width: thin; 
-        scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent; 
-      } 
-      .modal-scroll::-webkit-scrollbar { width: 6px; } 
-      .modal-scroll::-webkit-scrollbar-track { background: transparent; } 
-      .modal-scroll::-webkit-scrollbar-thumb { 
-        background: hsl(var(--muted-foreground) / 0.3); 
-        border-radius: 3px; 
-      }
-      .modal-scroll::-webkit-scrollbar-thumb:hover {
-        background: hsl(var(--muted-foreground) / 0.5);
-      }
-    `}</style>
-
-          {/* Header - Fixed */}
-          <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border/50 bg-gradient-to-r from-primary/5 to-accent/5 shrink-0">
-            <div>
-              <h2 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                {editId ? 'Edit Product' : 'Add New Product'}
-              </h2>
-              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-                {editId ? 'Update product information' : 'Create a new product entry'}
-              </p>
+          <div
+            className="relative bg-background shadow-2xl rounded-xl sm:rounded-2xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col border border-border/50"
+            onClick={e => e.stopPropagation()}
+            style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border/50 bg-gradient-to-r from-primary/5 to-accent/5">
+              <div>
+                <h2 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                  {editId ? 'Edit Product' : 'Add New Product'}
+                </h2>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                  {editId ? 'Update product information' : 'Create a new product entry'}
+                </p>
+              </div>
+              <button type="button"
+                onClick={closeModal}
+                className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition-all duration-200 hover:rotate-90"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4 sm:h-5 sm:w-5" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={closeModal}
-              className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition-all duration-200 hover:rotate-90"
-              aria-label="Close"
+            {/* Full form, scrolls ONLY this area if needed */}
+            <form
+              onSubmit={handleFormSubmit}
+              className="flex-1 overflow-y-auto p-4 sm:p-6"
+              style={{ minHeight: 0 }}
             >
-              <X className="h-4 w-4 sm:h-5 sm:w-5" />
-            </button>
-          </div>
-
-          {/* Scrollable Content */}
-          <div className="modal-scroll flex-1 overflow-y-auto">
-            <div className="flex flex-col gap-4 sm:gap-5 p-4 sm:p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+              <div className="flex flex-col gap-4 sm:gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-1">
+                      Product Name <span className="text-red-600">*</span>
+                    </Label>
+                    <Select
+                      value={form.productName}
+                      onValueChange={(value) => setForm(f => ({ ...f, productName: value }))}
+                    >
+                      <SelectTrigger className="w-full h-10 sm:h-11 border-border/50 focus:border-primary transition-colors">
+                        <SelectValue placeholder="Select Product" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[10000]">
+                        {PRODUCT_OPTIONS.map(opt => (
+                          <SelectItem key={opt} value={opt}>
+                            <div className="flex items-center gap-2">
+                              {getProductIcon(opt)}
+                              {opt}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-1">
+                      Price (₹ per Liter) <span className="text-red-600">*</span>
+                    </Label>
+                    <Input
+                      name="price"
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      value={form.price}
+                      min="0"
+                      required
+                      onChange={handleFormChange}
+                      onWheel={preventWheel}
+                      className="h-10 sm:h-11 border-border/50 focus:border-primary transition-colors"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Tank Capacity (L)</Label>
+                    <Input
+                      name="tankCapacity"
+                      type="number"
+                      inputMode="decimal"
+                      step="1"
+                      value={form.tankCapacity}
+                      min="0"
+                      onChange={handleFormChange}
+                      onWheel={preventWheel}
+                      className="h-10 sm:h-11 border-border/50 focus:border-primary transition-colors"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Current Level (L)</Label>
+                    <Input
+                      name="currentLevel"
+                      type="number"
+                      inputMode="decimal"
+                      step="1"
+                      value={form.currentLevel}
+                      min="0"
+                      max={form.tankCapacity !== "" ? form.tankCapacity : undefined}
+                      onChange={handleFormChange}
+                      onWheel={preventWheel}
+                      className="h-10 sm:h-11 border-border/50 focus:border-primary transition-colors"
+                      placeholder="0"
+                      disabled={!!editId}
+                    />
+                    {form.tankCapacity !== "" && form.currentLevel !== "" && parseFloat(form.currentLevel) > parseFloat(form.tankCapacity) && (
+                      <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                        <span className="h-1 w-1 rounded-full bg-destructive"></span>
+                        Current Level cannot exceed Tank Capacity
+                      </p>
+                    )}
+                  </div>
+                </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Product Name *</Label>
+                  <Label className="text-sm font-medium">Supplier</Label>
                   <Select
-                    value={form.productName}
-                    onValueChange={(value) => setForm(f => ({ ...f, productName: value }))}
+                    value={form.supplier}
+                    onValueChange={(value) => setForm(f => ({ ...f, supplier: value }))}
                   >
                     <SelectTrigger className="w-full h-10 sm:h-11 border-border/50 focus:border-primary transition-colors">
-                      <SelectValue placeholder="Select Product" />
+                      <SelectValue placeholder="Select Supplier" />
                     </SelectTrigger>
-                    <SelectContent className="z-[10000]">
-                      {PRODUCT_OPTIONS.map(opt => (
-                        <SelectItem key={opt} value={opt}>
-                          <div className="flex items-center gap-2">
-                            {getProductIcon(opt)}
-                            {opt}
-                          </div>
-                        </SelectItem>
+                    <SelectContent className='z-[10000]'>
+                      {SUPPLIER_OPTIONS.map(opt => (
+                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Price (₹ per Liter) *</Label>
+                  <Label className="text-sm font-medium">Description</Label>
                   <Input
-                    name="price"
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    value={form.price}
-                    min="0"
-                    required
+                    name="description"
+                    value={form.description}
                     onChange={handleFormChange}
                     className="h-10 sm:h-11 border-border/50 focus:border-primary transition-colors"
-                    placeholder="0.00"
+                    placeholder="Add product description..."
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Metric</Label>
+                    <Select
+                      value={form.metric}
+                      onValueChange={(value) => setForm(f => ({ ...f, metric: value }))}
+                    >
+                      <SelectTrigger className="w-full h-10 sm:h-11 border-border/50 focus:border-primary transition-colors">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="z-[10000]">
+                        <SelectItem value="Liters">Liters</SelectItem>
+                        <SelectItem value="Gallons">Gallons</SelectItem>
+                        <SelectItem value="Kiloliters">Kiloliters</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Status</Label>
+                    <Select
+                      value={form.status}
+                      onValueChange={(value) => setForm(f => ({ ...f, status: value }))}
+                    >
+                      <SelectTrigger className="w-full h-10 sm:h-11 border-border/50 focus:border-primary transition-colors">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="z-[10000]">
+                        <SelectItem value="true">Active</SelectItem>
+                        <SelectItem value="false">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {form.lastUpdated && (
+                  <div className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-lg bg-muted/50 border border-border/30">
+                    <CalendarDays className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Created: {formatDateTime(form.lastUpdated)}</span>
+                  </div>
+                )}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Tank Capacity (L)</Label>
-                  <Input
-                    name="tankCapacity"
-                    type="number"
-                    inputMode="decimal"
-                    step="1"
-                    value={form.tankCapacity}
-                    min="0"
-                    onChange={handleFormChange}
-                    className="h-10 sm:h-11 border-border/50 focus:border-primary transition-colors"
-                    placeholder="0"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Current Level (L)</Label>
-                  <Input
-                    name="currentLevel"
-                    type="number"
-                    inputMode="decimal"
-                    step="1"
-                    value={form.currentLevel}
-                    min="0"
-                    max={form.tankCapacity !== "" ? form.tankCapacity : undefined}
-                    onChange={handleFormChange}
-                    className="h-10 sm:h-11 border-border/50 focus:border-primary transition-colors"
-                    placeholder="0"
-                  />
-                  {form.tankCapacity !== "" && form.currentLevel !== "" && parseFloat(form.currentLevel) > parseFloat(form.tankCapacity) && (
-                    <p className="text-xs text-destructive flex items-center gap-1 mt-1">
-                      <span className="h-1 w-1 rounded-full bg-destructive"></span>
-                      Current Level cannot exceed Tank Capacity
-                    </p>
-                  )}
+                  <Label className="text-sm font-medium">Created By (Emp ID)</Label>
+                  <Input value={form.empId || empId} readOnly className="bg-muted cursor-not-allowed" />
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Supplier</Label>
-                <Select
-                  value={form.supplier}
-                  onValueChange={(value) => setForm(f => ({ ...f, supplier: value }))}
-                >
-                  <SelectTrigger className="w-full h-10 sm:h-11 border-border/50 focus:border-primary transition-colors">
-                    <SelectValue placeholder="Select Supplier" />
-                  </SelectTrigger>
-                  <SelectContent className='z-[10000]'>
-                    {SUPPLIER_OPTIONS.map(opt => (
-                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Description</Label>
-                <Input
-                  name="description"
-                  value={form.description}
-                  onChange={handleFormChange}
-                  className="h-10 sm:h-11 border-border/50 focus:border-primary transition-colors"
-                  placeholder="Add product description..."
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Metric</Label>
-                  <Select
-                    value={form.metric}
-                    onValueChange={(value) => setForm(f => ({ ...f, metric: value }))}
-                  >
-                    <SelectTrigger className="w-full h-10 sm:h-11 border-border/50 focus:border-primary transition-colors">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="z-[10000]">
-                      <SelectItem value="Liters">Liters</SelectItem>
-                      <SelectItem value="Gallons">Gallons</SelectItem>
-                      <SelectItem value="Kiloliters">Kiloliters</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Status</Label>
-                  <Select
-                    value={form.status}
-                    onValueChange={(value) => setForm(f => ({ ...f, status: value }))}
-                  >
-                    <SelectTrigger className="w-full h-10 sm:h-11 border-border/50 focus:border-primary transition-colors">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="z-[10000]">
-                      <SelectItem value="true">Active</SelectItem>
-                      <SelectItem value="false">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {form.lastUpdated && (
-                <div className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-lg bg-muted/50 border border-border/30">
-                  <CalendarDays className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">
-                    Created: {formatDateTime(form.lastUpdated)}
-                  </span>
-                </div>
-              )}
+            </form>
+            {/* True fixed non-scrolling footer */}
+            <div className="w-full flex flex-col sm:flex-row gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 border-t border-border/50 bg-muted/20 rounded-b-xl">
+              <Button type="button" variant="outline" onClick={closeModal}
+                className="flex-1 h-10 sm:h-11 border-border/50 hover:bg-muted order-2 sm:order-1">Cancel</Button>
+              <Button type="submit" form="product-form"
+                className="flex-1 h-10 sm:h-11 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all duration-200 shadow-md hover:shadow-lg order-1 sm:order-2"
+                disabled={updateMutation.isPending || createMutation.isPending}>
+                {editId ? (updateMutation.isPending ? "Updating..." : "Update Product") : (createMutation.isPending ? "Adding..." : "Add Product")}
+              </Button>
             </div>
           </div>
-
-          {/* Footer - Fixed */}
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 border-t border-border/50 bg-muted/20 shrink-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={closeModal}
-              className="flex-1 h-10 sm:h-11 border-border/50 hover:bg-muted order-2 sm:order-1"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              onClick={handleFormSubmit}
-              className="flex-1 h-10 sm:h-11 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all duration-200 shadow-md hover:shadow-lg order-1 sm:order-2"
-              disabled={updateMutation.isPending || createMutation.isPending}
-            >
-              {editId
-                ? (updateMutation.isPending ? "Updating..." : "Update Product")
-                : (createMutation.isPending ? "Adding..." : "Add Product")
-              }
-            </Button>
-          </div>
         </div>
-      </div>
+      )}
 
-      {/* Delete Confirmation Dialog */}
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Confirmation Modal */}
       {confirmOpen && (
         <div
-          className={
-            "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
-            (confirmOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
-          }
+          className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 opacity-100"
           style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
           onClick={() => setConfirmOpen(false)}
         >
-          <div
-            className="relative bg-background shadow-2xl rounded-xl sm:rounded-2xl border border-border/50 max-w-[90vw] sm:max-w-md w-full p-6 transition-all duration-300"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="relative bg-background shadow-2xl rounded-xl sm:rounded-2xl border border-border/50 max-w-[90vw] sm:max-w-md w-full p-6 transition-all duration-300"
+            onClick={(e) => e.stopPropagation()}>
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="p-3 rounded-full bg-destructive/10">
@@ -682,36 +577,18 @@ export default function Products() {
                 </div>
                 <h3 className="text-xl font-bold">Delete Product?</h3>
               </div>
-
               <p className="text-base text-muted-foreground">
                 {`This action cannot be undone.${deleteTarget?.name ? ` "${deleteTarget.name}" will be permanently removed from your inventory.` : ''}`}
               </p>
-
               <div className="flex flex-col sm:flex-row gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setDeleteTarget(null);
-                    setConfirmOpen(false);
-                  }}
-                  className="flex-1 border-border/50 h-10 sm:h-11"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-lg h-10 sm:h-11"
-                  onClick={() => {
-                    if (deleteTarget?.id) deleteMutation.mutate(deleteTarget.id);
-                  }}
-                >
-                  Delete Product
-                </Button>
+                <Button variant="outline" onClick={() => { setDeleteTarget(null); setConfirmOpen(false); }} className="flex-1 border-border/50 h-10 sm:h-11">Cancel</Button>
+                <Button className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-lg h-10 sm:h-11"
+                  onClick={() => { if (deleteTarget?.id) deleteMutation.mutate(deleteTarget.id); }}>Delete Product</Button>
               </div>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }

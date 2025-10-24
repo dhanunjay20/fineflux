@@ -20,9 +20,9 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-643072210
 const CLOUDINARY_UPLOAD_URL = import.meta.env.VITE_CLOUDINARY_UPLOAD_URL || 'https://api.cloudinary.com/v1_1/dosyyvmtb/auto/upload';
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_PROFILE_UPLOAD_PRESET || 'Profile_Pictures';
 
-
 // LocalStorage key for profile image
-const PROFILE_URL_KEY = "profileImageUrl";
+const PROFILE_URL_KEY = 'profileImageUrl';
+
 
 
 type AddressDTO = { line1?: string; line2?: string; city?: string; state?: string; postalCode?: string; country?: string };

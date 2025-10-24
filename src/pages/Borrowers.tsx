@@ -758,45 +758,6 @@ export default function Borrowers() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Transaction Type</Label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Button 
-                      type="button" 
-                      variant={transactionForm.transactionAmount >= 0 ? 'default' : 'outline'} 
-                      className="h-20 flex-col gap-2" 
-                      onClick={() => {
-                        const currentBalance = Number(selectedCustomer?.amountBorrowed || 0);
-                        if (currentBalance <= 0) {
-                          toast({
-                            title: 'Cannot Record Payment',
-                            description: 'This customer has no outstanding balance. Payment cannot be recorded.',
-                            variant: 'destructive'
-                          });
-                          return;
-                        }
-                        setTransactionForm((prev) => ({ ...prev, transactionAmount: Math.abs(prev.transactionAmount) }));
-                      }}
-                      disabled={Number(selectedCustomer?.amountBorrowed || 0) <= 0}
-                    >
-                      <TrendingUp className="h-6 w-6" />
-                      Payment Received
-                      {Number(selectedCustomer?.amountBorrowed || 0) <= 0 && (
-                        <span className="text-xs">(No Balance)</span>
-                      )}
-                    </Button>
-                    <Button 
-                      type="button" 
-                      variant={transactionForm.transactionAmount < 0 ? 'default' : 'outline'} 
-                      className="h-20 flex-col gap-2" 
-                      onClick={() => setTransactionForm((prev) => ({ ...prev, transactionAmount: -Math.abs(prev.transactionAmount) }))}
-                    >
-                      <TrendingDown className="h-6 w-6" />
-                      Extra Borrowed
-                    </Button>
-                  </div>
-                </div>
-
                 {Number(selectedCustomer?.amountBorrowed || 0) <= 0 && (
                   <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
                     <div className="flex items-start gap-3">
@@ -839,6 +800,44 @@ export default function Borrowers() {
                       <span className="text-success">Payment (−₹{Math.abs(transactionForm.transactionAmount).toLocaleString()})</span>
                     )}
                   </p>
+                </div>
+                                <div className="space-y-2">
+                  <Label>Transaction Type</Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Button 
+                      type="button" 
+                      variant={transactionForm.transactionAmount >= 0 ? 'default' : 'outline'} 
+                      className="h-20 flex-col gap-2" 
+                      onClick={() => {
+                        const currentBalance = Number(selectedCustomer?.amountBorrowed || 0);
+                        if (currentBalance <= 0) {
+                          toast({
+                            title: 'Cannot Record Payment',
+                            description: 'This customer has no outstanding balance. Payment cannot be recorded.',
+                            variant: 'destructive'
+                          });
+                          return;
+                        }
+                        setTransactionForm((prev) => ({ ...prev, transactionAmount: Math.abs(prev.transactionAmount) }));
+                      }}
+                      disabled={Number(selectedCustomer?.amountBorrowed || 0) <= 0}
+                    >
+                      <TrendingUp className="h-6 w-6" />
+                      Payment Received
+                      {Number(selectedCustomer?.amountBorrowed || 0) <= 0 && (
+                        <span className="text-xs">(No Balance)</span>
+                      )}
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant={transactionForm.transactionAmount < 0 ? 'default' : 'outline'} 
+                      className="h-20 flex-col gap-2" 
+                      onClick={() => setTransactionForm((prev) => ({ ...prev, transactionAmount: -Math.abs(prev.transactionAmount) }))}
+                    >
+                      <TrendingDown className="h-6 w-6" />
+                      Extra Borrowed
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Notes</Label>
