@@ -37,6 +37,7 @@ import DailyDuties from "./pages/DailyDuties";
 import SpecialDutiesHistory from "./pages/SpecialDutiesHistory";
 import DailyDutiesHistory from "./pages/DailyDutiesHistory";
 import { useProfileImageSync } from "@/hooks/useProfileImageSync";
+import StockRegisterPage from "./pages/StockRegisterPage";
 
 const queryClient = new QueryClient();
 
@@ -103,6 +104,18 @@ const App: React.FC = () => {
                   </ProtectedRoute>
                 }
               />
+            
+              <Route
+                path="/stock-register"
+                element={
+                  <ProtectedRoute requiredRoles={["owner", "manager"]}>
+                    <DashboardLayout>
+                      <StockRegisterPage />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+                
               <Route
                 path="/documents"
                 element={
