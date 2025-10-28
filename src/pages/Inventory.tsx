@@ -19,6 +19,7 @@ import {
   Fuel, Plus, TrendingUp, AlertTriangle, RefreshCw, BarChart3, Calendar, X, Download, Eye, History, PackageOpen, Trash2, User
 } from "lucide-react";
 
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
 const LOW_STOCK_PHONE = "9640206605";
 
@@ -82,6 +83,32 @@ export default function Inventory() {
       return Array.isArray(res.data) ? res.data : [];
     }
   });
+
+  
+const [empId, setEmpId] = useState('');
+
+useEffect(() => {
+  const storedEmpId = localStorage.getItem('empId');
+  if (storedEmpId) {
+    setEmpId(storedEmpId);
+  } else {
+    const token = localStorage.getItem('token');
+    if (token) {
+      axios
+        .get(`${API_BASE}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        .then((res) => {
+          if (res.data.empId) {
+            setEmpId(res.data.empId);
+            localStorage.setItem('empId', res.data.empId);
+          }
+        })
+        .catch((err) => console.error('Failed to fetch empId:', err));
+    }
+  }
+}, []);
+
 
   const { inventories, isLoadingInventories, refetchInventories } = useLatestInventories(orgId, products);
 
@@ -509,6 +536,18 @@ export default function Inventory() {
 
             <form className="space-y-6" onSubmit={handleAddStock}>
               <div className="space-y-3">
+
+                <Label className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <User className="h-4 w-4 text-blue-600" />
+                  Employee ID
+                </Label>
+                  <Input
+                    value= {empId || ""}
+                    readOnly
+                    disabled
+                    className="w-full h-12 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border-2 border-blue-200/50 dark:border-blue-800/50 rounded-xl shadow-sm text-gray-900 dark:text-gray-100 cursor-not-allowed"
+                    placeholder="Employee ID"
+                  />
                 <Label className="text-sm font-bold text-foreground flex items-center gap-2">
                   <Fuel className="h-4 w-4 text-blue-600" />
                   Select Tank
@@ -620,6 +659,14 @@ export default function Inventory() {
                 </div>
               </div>
 
+              <Input
+                    value= {empId || ""}
+                    readOnly
+                    disabled
+                    className="w-full h-12 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border-2 border-blue-200/50 dark:border-blue-800/50 rounded-xl shadow-sm text-gray-900 dark:text-gray-100 cursor-not-allowed"
+                    placeholder="Employee ID"
+                  />
+
               {/* Amount to Add */}
               <div className="space-y-3">
                 <Label className="text-sm font-bold text-foreground flex items-center gap-2">
@@ -642,7 +689,7 @@ export default function Inventory() {
                 <p className="text-sm font-medium text-muted-foreground mb-2">New Total After Update</p>
                 <div className="flex items-end gap-2">
                   <p className="text-4xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                    {Number(stockModal.currentLevel || 0) + (Number(stockValue) || 0)}
+                    {(Number(stockModal.currentLevel || 0) + (Number(stockValue) || 0)).toFixed(3)}
                   </p>
                   <p className="text-lg font-bold text-muted-foreground pb-1">Liters</p>
                 </div>

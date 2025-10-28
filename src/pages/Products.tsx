@@ -357,6 +357,12 @@ export default function Products() {
                               {prod.tankCapacity?.toLocaleString('en-IN') || '—'} {prod.metric || 'L'}
                             </span>
                           </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-muted-foreground">Employee ID:</span>
+                            <span className="font-medium">
+                              {prod.empId?.toLocaleString('en-IN') || '—'}
+                            </span>
+                          </div>
                         </div>
 
                         {prod.tankCapacity > 0 && (

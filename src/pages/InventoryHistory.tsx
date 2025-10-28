@@ -360,6 +360,11 @@ export default function InventoryHistory() {
               </div>
 
               <div className="space-y-1">
+                <span className="text-sm text-muted-foreground">Employee ID</span>
+                <div className="font-mono text-sm bg-muted p-2 rounded">{selectedLog.empId || "—"}</div>
+              </div>
+
+              <div className="space-y-1">
                 <span className="text-sm text-muted-foreground">Inventory ID</span>
                 <div className="font-mono text-sm bg-muted p-2 rounded">{selectedLog.inventoryId || "—"}</div>
               </div>

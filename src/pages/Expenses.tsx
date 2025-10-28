@@ -446,6 +446,22 @@ export default function Expenses() {
             <form className="space-y-4" onSubmit={handleCreateExpense}>
 
               <div className="space-y-2">
+                <Label htmlFor="cat">Employee</Label>
+                <Select value={expenseCat} onValueChange={(value) => setExpenseCat(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Employee" />
+                  </SelectTrigger>
+                  <SelectContent className='z-[10000]'>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.categoryName}>
+                        {c.categoryName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="date">Expense Date</Label>
                 <Input
                   id="date" type="date"
@@ -454,6 +470,8 @@ export default function Expenses() {
                   required
                 />
               </div>
+
+
 
               <div className="space-y-2">
                 <Label htmlFor="cat">Category</Label>

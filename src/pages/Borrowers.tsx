@@ -680,7 +680,7 @@ export default function Borrowers() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Status <span className="text-red-500">*</span></Label>
-                    <Select value={form.status} onValueChange={(value) => updateField('status')(value as any)} required>
+                    <Select value={form.status} onValueChange={(value) => updateField('status')(value as any)} required>  
                       <SelectTrigger className="w-full"><SelectValue placeholder="Select status" /></SelectTrigger>
                       <SelectContent className='z-[10000]'>
                         <SelectItem value="PENDING"><div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-yellow-500" /><span>PENDING</span></div></SelectItem>
@@ -692,7 +692,7 @@ export default function Borrowers() {
                   </div>
                   <div className="space-y-2">
                     <Label>Phone Number <span className="text-red-500">*</span></Label>
-                    <Input type="tel" value={form.phoneNumber} onChange={(e) => updateField('phoneNumber')(e.target.value)} placeholder="+91 90000 00000" pattern="^\+?[0-9]{7,15}$" required />
+                    <Input type="tel" value={form.phoneNumber} onChange={(e) => updateField('phoneNumber')(e.target.value)} placeholder="9123456780" pattern="^\+?[0-9]{10}$" maxLength={10} required />
                   </div>
                   <div className="space-y-2">
                     <Label>Email</Label>
@@ -894,7 +894,8 @@ export default function Borrowers() {
                                 <p className="text-sm text-muted-foreground">{new Date(transaction.transactionDate).toLocaleString()}</p>
                                 {transaction.notes && (<p className="text-sm text-muted-foreground italic">{transaction.notes}</p>)}
                               </div>
-                            </div>
+
+                              </div>
                             <div className="text-right">
                               <p className={`font-semibold ${isPayment ? 'text-success' : 'text-warning'}`}>
                                 {isPayment ? "−" : "+"}₹{absAmt.toLocaleString()}
@@ -1152,7 +1153,7 @@ function BorrowerRow({ c, onHistory, onTransaction, onEdit, onDelete }: { c: Cus
           </div>
           {c.notes && (
             <div className="text-sm text-muted-foreground">
-              note: {c.notes}
+              Note: {c.notes}
             </div>
           )}
           <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">

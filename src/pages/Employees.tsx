@@ -347,8 +347,8 @@ export default function Employees() {
       <Card className="card-gradient">
         <CardContent className="p-6">
           <div className="flex gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <div className="flex-1">
+              <Search className="absolute left-1 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search employees..."
                 className="pl-10"
@@ -356,10 +356,9 @@ export default function Employees() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <Button variant="outline">
-              <Filter className="mr-2 h-4 w-4" />
-              Filter
-            </Button>
+            {/* <Button variant="outline">
+              Search
+            </Button> */}
           </div>
         </CardContent>
       </Card>
