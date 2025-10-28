@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Fuel, Plus, TrendingUp, AlertTriangle, RefreshCw, BarChart3, Calendar, X, Download, Eye, History, PackageOpen, Trash2,
+  Fuel, Plus, TrendingUp, AlertTriangle, RefreshCw, BarChart3, Calendar, X, Download, Eye, History, PackageOpen, Trash2, User
 } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
@@ -129,10 +129,11 @@ export default function Inventory() {
     });
   }, [lowStockTanks.map(t => t.productId).join(",")]);
 
+
   const putStockMutation = useMutation<
     { productId: string; amount: number },
     unknown,
-    { productId: string; amount: number }
+    { productId: string; amount: number}
   >({
     mutationFn: async ({ productId, amount }) => {
       const tank = tankList.find((inv: any) => inv.productId === productId) || {};
@@ -140,7 +141,6 @@ export default function Inventory() {
         currentLevel: Number(amount),
         totalCapacity: tank.totalCapacity,
         stockValue: tank.stockValue,
-        empId: tank.empId,
         metric: tank.metric,
         status: tank.status ?? true,
         tankCapacity: tank.tankCapacity,
@@ -173,6 +173,7 @@ export default function Inventory() {
     (sum, tank) => sum + (Number(tank.currentLevel || 0) * Number(tank.price || 0)),
     0
   );
+
 
   const stats = [
     {
@@ -234,11 +235,14 @@ export default function Inventory() {
   const handleAddStock = (e) => {
     e.preventDefault();
     if (!addProductId || !addValue || isNaN(Number(addValue))) return;
-    putStockMutation.mutate({ productId: addProductId, amount: Number(addValue) });
+    putStockMutation.mutate({
+      productId: addProductId, amount: Number(addValue),
+    });
   };
 
   const handleStockUpdate = (e) => {
     e.preventDefault();
+    
     if (!stockModal || !stockValue || isNaN(Number(stockValue))) return;
     putStockMutation.mutate({ productId: stockModal.productId, amount: Number(stockValue) });
   };
@@ -605,14 +609,18 @@ export default function Inventory() {
             </div>
 
             <form className="space-y-6" onSubmit={handleStockUpdate}>
+              {/* Current Stock Level */}
               <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-blue-200/50 dark:border-blue-800/50">
                 <p className="text-sm font-medium text-muted-foreground mb-2">Current Stock Level</p>
                 <div className="flex items-end gap-2">
-                  <p className="text-4xl font-black text-foreground">{Number(stockModal.currentLevel || 0).toLocaleString()}</p>
+                  <p className="text-4xl font-black text-foreground">
+                    {Number(stockModal.currentLevel || 0).toLocaleString()}
+                  </p>
                   <p className="text-lg font-bold text-muted-foreground pb-1">Liters</p>
                 </div>
               </div>
 
+              {/* Amount to Add */}
               <div className="space-y-3">
                 <Label className="text-sm font-bold text-foreground flex items-center gap-2">
                   <Plus className="h-4 w-4 text-green-600" />
@@ -629,6 +637,7 @@ export default function Inventory() {
                 />
               </div>
 
+              {/* New Total After Update */}
               <div className="p-6 rounded-2xl bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-200/50 dark:border-green-800/50">
                 <p className="text-sm font-medium text-muted-foreground mb-2">New Total After Update</p>
                 <div className="flex items-end gap-2">
@@ -639,6 +648,7 @@ export default function Inventory() {
                 </div>
               </div>
 
+              {/* Submit Button */}
               <Button
                 type="submit"
                 className="w-full h-12 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 hover:from-green-700 hover:via-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl shadow-lg shadow-green-500/30 hover:shadow-xl hover:shadow-green-500/40 transition-all"
@@ -647,6 +657,7 @@ export default function Inventory() {
                 {putStockMutation.isPending ? "Updating..." : "Confirm Update"}
               </Button>
             </form>
+
           </div>
         </div>
       )}

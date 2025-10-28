@@ -113,7 +113,7 @@ export default function Expenses() {
       change: 'Per expense',
       icon: DollarSign,
       color: 'text-accent',
-      bgColor: 'bg-accent-soft',
+      bgColor: 'bg-accent-soft',  
     }
   ];
 
@@ -444,23 +444,17 @@ export default function Expenses() {
             </button>
             <h3 className="text-2xl font-bold mb-6">Add Expense</h3>
             <form className="space-y-4" onSubmit={handleCreateExpense}>
+
               <div className="space-y-2">
-                <Label htmlFor="desc">Description</Label>
+                <Label htmlFor="date">Expense Date</Label>
                 <Input
-                  id="desc" value={expenseDesc}
-                  onChange={e => setExpenseDesc(e.target.value)}
-                  required autoFocus
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="amount">Amount</Label>
-                <Input
-                  id="amount" type="number" min={1} step="0.01"
-                  value={expenseAmount}
-                  onChange={e => setExpenseAmount(e.target.value)}
+                  id="date" type="date"
+                  value={expenseDate}
+                  onChange={e => setExpenseDate(e.target.value)}
                   required
                 />
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="cat">Category</Label>
                 <Select value={expenseCat} onValueChange={(value) => setExpenseCat(value)}>
@@ -476,15 +470,28 @@ export default function Expenses() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="date">Expense Date</Label>
+
+               <div className="space-y-2">
+                <Label htmlFor="amount">Amount</Label>
                 <Input
-                  id="date" type="date"
-                  value={expenseDate}
-                  onChange={e => setExpenseDate(e.target.value)}
+                  id="amount" type="number" min={1} step="0.01"
+                  value={expenseAmount}
+                  onChange={e => setExpenseAmount(e.target.value)}
                   required
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="desc">Description</Label>
+                <Input
+                  id="desc" value={expenseDesc}
+                  onChange={e => setExpenseDesc(e.target.value)}
+                  required autoFocus
+                />
+              </div>
+
+              
+
               {expenseError && <div className="text-sm text-red-600">{expenseError}</div>}
               <div className="flex justify-end gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={closeExpenseModal}>Cancel</Button>

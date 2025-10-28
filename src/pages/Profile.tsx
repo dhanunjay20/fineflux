@@ -349,7 +349,7 @@ export default function Profile() {
                       <Edit3 className="h-4 w-4 mr-2" />
                       Edit Profile
                     </Button>
-                    <Button onClick={() => setPwdDialogOpen(true)} variant="outline" className="w-full sm:w-auto border-slate-300">
+                    <Button onClick={() => setPwdDialogOpen(true)} variant="outline" className="w-full sm:w-auto border-slate-300 whitespace-normal break-words max-w-[150px]">
                       <Lock className="h-4 w-4 mr-2" />
                       Change Password
                     </Button>

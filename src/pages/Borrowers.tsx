@@ -1150,6 +1150,11 @@ function BorrowerRow({ c, onHistory, onTransaction, onEdit, onDelete }: { c: Cus
             <div className="flex items-center gap-1"><Phone className="h-3 w-3" />{c.phoneNumber || '—'}</div>
             <div className="flex items-center gap-1"><Mail className="h-3 w-3" />{c.email || '—'}</div>
           </div>
+          {c.notes && (
+            <div className="text-sm text-muted-foreground">
+              note: {c.notes}
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
             <span>Borrow: {formatDate(c.borrowDate)}</span>
             <span>Due: {formatDate(c.dueDate)}</span>
