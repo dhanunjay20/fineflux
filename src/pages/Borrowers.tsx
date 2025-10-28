@@ -562,7 +562,7 @@ export default function Borrowers() {
   const fetchHistory = async (custId: string, page: number = 0) => {
     setHistoryLoading(true);
     try {
-      const url = `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/history?custId=${encodeURIComponent(custId)}&page=${page}&size=50`;
+      const url = `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/history/cust/${encodeURIComponent(custId)}?page=${page}&size=50`;
       const res = await axios.get(url, { timeout: 20000 });
       setHistoryData(res.data);
     } catch (err: any) {
@@ -575,6 +575,12 @@ export default function Borrowers() {
       setHistoryLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (historyOpen && selectedCustomer?.custId) {
+      fetchHistory(selectedCustomer.custId, historyPage);
+    }
+  }, [historyOpen, historyPage, selectedCustomer]);
 
   const handleOpenHistory = (customer: Customer) => {
     setSelectedCustomer(customer);
