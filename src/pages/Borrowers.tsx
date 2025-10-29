@@ -698,7 +698,7 @@ export default function Borrowers() {
                   </div>
                   <div className="space-y-2">
                     <Label>Phone Number <span className="text-red-500">*</span></Label>
-                    <Input type="tel" value={form.phoneNumber} onChange={(e) => updateField('phoneNumber')(e.target.value)} placeholder="9123456780" pattern="^\+?[0-9]{10}$" maxLength={10} required />
+                    <Input type="tel" value={form.phoneNumber} onChange={(e) => updateField('phoneNumber')(e.target.value)} placeholder="9123456780" pattern="^\+?[0-9]{10}$" minLength={10} maxLength={10} required />
                   </div>
                   <div className="space-y-2">
                     <Label>Email</Label>

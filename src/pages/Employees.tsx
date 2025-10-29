@@ -544,7 +544,7 @@ export default function Employees() {
                       <Label>Phone</Label>
                       <div className="relative">
                         <Phone className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} className="pl-9" />
+                        <Input value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} className="pl-9 " minLength={10} maxLength={10} />
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -729,7 +729,7 @@ export default function Employees() {
                       <Label>Contact Phone</Label>
                       <Input
                         value={form.emergencyContact.phone}
-                        onChange={(e) => setForm({ ...form, emergencyContact: { ...form.emergencyContact, phone: e.target.value } })}
+                        onChange={(e) => setForm({ ...form, emergencyContact: { ...form.emergencyContact, phone: e.target.value } })} minLength={10} maxLength={10}
                       />
                     </div>
                     <div className="space-y-2">

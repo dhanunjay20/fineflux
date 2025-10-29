@@ -138,12 +138,12 @@ export default function Profile() {
     localStorage.removeItem('organizationId');
     localStorage.removeItem('empId');
     localStorage.removeItem('authToken'); // if you have one
-    
+
     // You can also clear everything with: localStorage.clear();
-    
+
     // Show success message
     toast({ title: 'Logged out successfully' });
-    
+
     // Redirect to login page
     window.location.href = '/login';
   };
@@ -424,8 +424,19 @@ export default function Profile() {
                           </select>
                         ) : (
                           <Input
+                            type={field.id === 'phoneNumber' ? 'tel' : 'text'}
                             value={field.formValue || ''}
-                            onChange={e => handleChange(field.id as any, e.target.value)}
+                            onChange={e => {
+                              if (field.id === 'phoneNumber') {
+                                const value = e.target.value.replace(/\D/g, ''); // allow only digits
+                                if (value.length <= 10) handleChange(field.id as any, value);
+                              } else {
+                                handleChange(field.id as any, e.target.value);
+                              }
+                            }}
+                            maxLength={field.id === 'phoneNumber' ? 10 : undefined}
+                            minLength={field.id === 'phoneNumber' ? 10 : undefined}
+                            pattern={field.id === 'phoneNumber' ? '[0-9]{10}' : undefined}
                             className="h-11 border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                           />
                         )}
