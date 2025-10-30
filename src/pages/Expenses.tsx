@@ -68,6 +68,54 @@ export default function Expenses() {
 
   const [refreshToken, setRefreshToken] = useState(0);
 
+    // ======== FILTER STATES & LOGIC ========
+  const [filters, setFilters] = useState({
+    employeeName: "",
+    categoryName: "",
+    from: "",
+    to: "",
+  });
+  const [employeeNames, setEmployeeNames] = useState<string[]>([]);
+
+  // Fetch all employee names once
+  useEffect(() => {
+    axios
+      .get(`${API_BASE}/api/organizations/${orgId}/expenses/search/employee/all`)
+      .then((res) => setEmployeeNames(res.data))
+      .catch((err) => console.error("Error fetching employee names:", err));
+  }, [orgId]);
+
+  // Apply filters
+  const applyFilters = async () => {
+    try {
+      let url = `${API_BASE}/api/organizations/${orgId}/expenses`;
+
+      if (filters.employeeName) {
+        url = `${API_BASE}/api/organizations/${orgId}/expenses/search/employee?employeeName=${encodeURIComponent(filters.employeeName)}`;
+      } else if (filters.categoryName) {
+        url = `${API_BASE}/api/organizations/${orgId}/expenses/search/category?categoryName=${encodeURIComponent(filters.categoryName)}`;
+      } else if (filters.from && filters.to) {
+        url = `${API_BASE}/api/organizations/${orgId}/expenses/search/date/range?from=${filters.from}&to=${filters.to}`;
+      }
+
+      const res = await axios.get(url);
+      setExpenses(res.data);
+    } catch (err) {
+      console.error("Error applying filters:", err);
+    }
+  };
+
+  const clearFilters = async () => {
+    setFilters({ employeeName: "", categoryName: "", from: "", to: "" });
+    try {
+      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/expenses`);
+      setExpenses(res.data);
+    } catch (err) {
+      console.error("Error clearing filters:", err);
+    }
+  };
+
+
   useEffect(() => {
     axios.get(`${API_BASE}/api/organizations/${orgId}/expenses`)
       .then(res => setExpenses(res.data))
@@ -90,6 +138,22 @@ export default function Expenses() {
     };
   });
 
+  const [selectedEmployee, setSelectedEmployee] = useState("");
+  const [employees, setEmployees] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchEmployees = async () => {
+    try {
+      const url = `${API_BASE}/api/organizations/${orgId}/expenses/search/employee/all`;
+      const res = await axios.get(url);
+      console.log("✅ Employees fetched:", res.data);
+      setEmployees(res.data || []);
+    } catch (err) {
+      console.error("❌ Error fetching employees:", err);
+    }
+  };
+  if (orgId) fetchEmployees();
+}, [orgId]);
   const stats = [
     {
       title: 'Total Expenses',
@@ -210,7 +274,8 @@ export default function Expenses() {
         categoryName: expenseCat,
         expenseDate: expenseDate,
         organizationId: orgId,
-        empId: empId
+        empId: empId,
+        requestedBy: selectedEmployee || empId,
       });
       setRefreshToken(v => v + 1);
       toast({ title: "Success", description: "Expense created.", variant: "default" });
@@ -306,36 +371,73 @@ export default function Expenses() {
         })}
       </div>
 
-      <Card className="card-gradient">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingDown className="h-5 w-5" />
-            Expense Categories
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {categoryStats.map(category => (
-              <div key={category.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                <div className="flex items-center gap-3">
-                  <Badge className="bg-primary-soft text-primary">{category.categoryName}</Badge>
-                  <span className="text-sm">{category.count} expenses</span>
-                  <span className="text-sm font-semibold text-foreground">₹{category.total.toLocaleString()}</span>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => openEditCategoryModal(category)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setDeleteCategoryConfirmId(category.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-            {!categories.length && <p className="text-muted-foreground">No categories found.</p>}
+      
+
+      {/* ======== FILTER BAR ======== */}
+      <div className="flex flex-wrap gap-4 items-end bg-white p-4 rounded-xl shadow-sm mb-4">
+        <div>
+          <Label>Employee</Label>
+          <Select
+            value={filters.employeeName}
+            onValueChange={(val) =>
+              setFilters({ ...filters, employeeName: val, categoryName: "", from: "", to: "" })
+            }
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select Employee" />
+            </SelectTrigger>
+            <SelectContent>
+              {employeeNames.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label>Category</Label>
+          <Input
+            placeholder="Enter category"
+            className="w-[180px]"
+            value={filters.categoryName}
+            onChange={(e) =>
+              setFilters({ ...filters, categoryName: e.target.value, employeeName: "", from: "", to: "" })
+            }
+          />
+        </div>
+
+        <div>
+          <Label>Date Range</Label>
+          <div className="flex gap-2">
+            <Input
+              type="date"
+              className="w-[140px]"
+              value={filters.from}
+              onChange={(e) =>
+                setFilters({ ...filters, from: e.target.value, employeeName: "", categoryName: "" })
+              }
+            />
+            <Input
+              type="date"
+              className="w-[140px]"
+              value={filters.to}
+              onChange={(e) =>
+                setFilters({ ...filters, to: e.target.value, employeeName: "", categoryName: "" })
+              }
+            />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        <div className="flex gap-2">
+          <Button onClick={applyFilters}>Apply</Button>
+          <Button variant="outline" onClick={clearFilters}>
+            Clear
+          </Button>
+        </div>
+      </div>
+
 
       <Card className="card-gradient">
         <CardHeader>
@@ -378,6 +480,37 @@ export default function Expenses() {
               </div>
             ))}
             {!expenses.length && <p className="text-muted-foreground">No expenses found.</p>}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="card-gradient">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingDown className="h-5 w-5" />
+            Expense Categories
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {categoryStats.map(category => (
+              <div key={category.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                <div className="flex items-center gap-3">
+                  <Badge className="bg-primary-soft text-primary">{category.categoryName}</Badge>
+                  <span className="text-sm">{category.count} expenses</span>
+                  <span className="text-sm font-semibold text-foreground">₹{category.total.toLocaleString()}</span>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => openEditCategoryModal(category)}>
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setDeleteCategoryConfirmId(category.id)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {!categories.length && <p className="text-muted-foreground">No categories found.</p>}
           </div>
         </CardContent>
       </Card>
@@ -445,21 +578,21 @@ export default function Expenses() {
             <h3 className="text-2xl font-bold mb-6">Add Expense</h3>
             <form className="space-y-4" onSubmit={handleCreateExpense}>
 
-              <div className="space-y-2">
-                <Label htmlFor="cat">Employee</Label>
-                <Select value={expenseCat} onValueChange={(value) => setExpenseCat(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Employee" />
-                  </SelectTrigger>
-                  <SelectContent className='z-[10000]'>
-                    {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.categoryName}>
-                        {c.categoryName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="employee">Employee</Label>
+              <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Employee" />
+                </SelectTrigger>
+                <SelectContent className="z-[10000]">
+                  {employees.map((emp, index) => (
+                    <SelectItem key={index} value={emp}>
+                      {emp}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
               <div className="space-y-2">
                 <Label htmlFor="date">Expense Date</Label>
@@ -470,8 +603,6 @@ export default function Expenses() {
                   required
                 />
               </div>
-
-
 
               <div className="space-y-2">
                 <Label htmlFor="cat">Category</Label>

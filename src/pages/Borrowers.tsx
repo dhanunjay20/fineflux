@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useNavigate } from 'react-router-dom';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Users, Plus, Search, IndianRupee, Calendar, Phone, Mail, TrendingUp,
   TrendingDown, AlertTriangle, Clock, History as HistoryIcon,
-  CreditCard, ArrowUpDown, Trash2, X, Loader2, Edit, Filter, CalendarDays
+  CreditCard, ArrowUpDown, Trash2, X, Loader2, Edit, Filter, CalendarDays, History  
 } from 'lucide-react';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -119,6 +120,7 @@ export default function Borrowers() {
   const { toast } = useToast();
   const [orgId, setOrgId] = useState('');
   const [empId, setEmpId] = useState('');
+  const navigate = useNavigate()
 
   useEffect(() => {
     setOrgId(localStorage.getItem('organizationId') || '');
@@ -176,6 +178,8 @@ export default function Borrowers() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingBorrower, setDeletingBorrower] = useState<Customer | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  
 
   useEffect(() => {
     if (open || historyOpen || transactionOpen || deleteOpen) {
@@ -943,6 +947,10 @@ export default function Borrowers() {
           <p className="text-muted-foreground">Track loans and manage customer credit</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate("/borrower-history")}>
+            <History className="h-4 w-4 mr-2" />
+            History
+          </Button>
           <Button variant="outline" onClick={() => refetch()} disabled={isFetching || !orgId}>{isFetching ? 'Refreshing...' : 'Refresh'}</Button>
           <Button className="btn-gradient-primary" onClick={() => { setEditMode(false); setEditingCustomer(null); setOpen(true); }} disabled={!orgId}><Plus className="mr-2 h-4 w-4" />Add Borrower</Button>
         </div>
@@ -1085,27 +1093,8 @@ export default function Borrowers() {
               </div>
             </CardContent>
           </Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
 
-          {/* ========== BORROWER LIST ========== */}
-          <Card className="card-gradient">
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <CardTitle>Borrower Accounts</CardTitle>
-                <div className="relative w-full sm:w-72">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Search borrowers..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {groupByStatus.OVERDUE.length > 0 && (<Section title="Overdue" icon={<AlertTriangle className="h-4 w-4 text-destructive" />}>{groupByStatus.OVERDUE.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onDelete={handlePromptDelete} />))}</Section>)}
-              {groupByStatus.PENDING.length > 0 && (<Section title="Pending" icon={<Clock className="h-4 w-4 text-warning" />}>{groupByStatus.PENDING.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onDelete={handlePromptDelete} />))}</Section>)}
-              {groupByStatus.PARTIAL.length > 0 && (<Section title="Partial" icon={<TrendingUp className="h-4 w-4 text-accent" />}>{groupByStatus.PARTIAL.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onDelete={handlePromptDelete} />))}</Section>)}
-              {groupByStatus.PAID.length > 0 && (<Section title="Paid" icon={<TrendingUp className="h-4 w-4 text-success" />}>{groupByStatus.PAID.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onDelete={handlePromptDelete} />))}</Section>)}
-              {groupByStatus.OTHER.length > 0 && (<Section title="Other" icon={<Users className="h-4 w-4 text-muted-foreground" />}>{groupByStatus.OTHER.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onDelete={handlePromptDelete} />))}</Section>)}
-              {filtered.length === 0 && (<div className="text-sm text-muted-foreground">No borrowers match the current filter.</div>)}
-            </CardContent>
-          </Card>
 
           {/* ========== RECENT EVENTS ========== */}
           <Card className="card-gradient">
@@ -1126,6 +1115,27 @@ export default function Borrowers() {
                   <div className="text-sm text-muted-foreground">No recent borrow events available.</div>
                 )}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* ========== BORROWER LIST ========== */}
+          <Card className="card-gradient">
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <CardTitle>Borrower Accounts</CardTitle>
+                <div className="relative w-full sm:w-72">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="Search borrowers..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {groupByStatus.OVERDUE.length > 0 && (<Section title="Overdue" icon={<AlertTriangle className="h-4 w-4 text-destructive" />}>{groupByStatus.OVERDUE.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onDelete={handlePromptDelete} />))}</Section>)}
+              {groupByStatus.PENDING.length > 0 && (<Section title="Pending" icon={<Clock className="h-4 w-4 text-warning" />}>{groupByStatus.PENDING.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onDelete={handlePromptDelete} />))}</Section>)}
+              {groupByStatus.PARTIAL.length > 0 && (<Section title="Partial" icon={<TrendingUp className="h-4 w-4 text-accent" />}>{groupByStatus.PARTIAL.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onDelete={handlePromptDelete} />))}</Section>)}
+              {groupByStatus.PAID.length > 0 && (<Section title="Paid" icon={<TrendingUp className="h-4 w-4 text-success" />}>{groupByStatus.PAID.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onDelete={handlePromptDelete} />))}</Section>)}
+              {groupByStatus.OTHER.length > 0 && (<Section title="Other" icon={<Users className="h-4 w-4 text-muted-foreground" />}>{groupByStatus.OTHER.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onDelete={handlePromptDelete} />))}</Section>)}
+              {filtered.length === 0 && (<div className="text-sm text-muted-foreground">No borrowers match the current filter.</div>)}
             </CardContent>
           </Card>
         </>

@@ -200,10 +200,14 @@ export default function Products() {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.productName) {
-      toast({ title: "Please select a product name", variant: "destructive" });
-      return;
-    }
+    if (!form.productName) { toast({ title: "Please select a product name", variant: "destructive" }); return; }
+    const nameExists = products.some(
+      (p: any) =>
+        p.productName?.toLowerCase() === form.productName.trim().toLowerCase() &&
+        (!editId || p.id !== editId)
+    );
+    if (nameExists) { toast({ title: "Product already exists", variant: "destructive" }); return; }
+
     if (!form.price || Number(form.price) <= 0) {
       toast({ title: "Please enter a valid price", variant: "destructive" });
       return;

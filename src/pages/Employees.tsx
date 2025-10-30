@@ -348,7 +348,7 @@ export default function Employees() {
         <CardContent className="p-6">
           <div className="flex gap-4">
             <div className="flex-1">
-              <Search className="absolute left-1 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-[4.2rem] top-[30.6%] h-4 w-4 transform -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search employees..."
                 className="pl-10"

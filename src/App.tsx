@@ -37,6 +37,7 @@ import SpecialDuties from "./pages/SpecialDuties";
 import DailyDuties from "./pages/DailyDuties";
 import SpecialDutiesHistory from "./pages/SpecialDutiesHistory";
 import DailyDutiesHistory from "./pages/DailyDutiesHistory";
+import BorrowerHistory from "@/pages/BorrowerHistory";
 
 const queryClient = new QueryClient();
 
@@ -126,6 +127,19 @@ const App: React.FC = () => (
                 </ProtectedRoute>
               }
             />
+
+            
+            <Route
+              path="/borrower-history"
+              element={
+                <ProtectedRoute requiredRoles={["owner", "manager"]}>
+                  <DashboardLayout>
+                    <BorrowerHistory />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+
 
             <Route
               path="/employee-duty-info"
