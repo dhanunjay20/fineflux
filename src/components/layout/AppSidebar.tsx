@@ -37,6 +37,7 @@ const navigationItems: {
   { title: 'Special Duties', icon: Sparkles, href: '/special-duties', roles: ['employee'] },
   { title: 'Pump Duty', icon: BarChart3, href: '/daily-duties', roles: ['employee'] },
   { title: 'My Profile', icon: Users, href: '/profile', roles: ['employee', 'manager', 'owner'] },
+  { title: 'Stock Register', icon: Fuel, href: '/stock-register', roles: ['owner', 'manager'] },
   { title: 'Settings', icon: Settings, href: '/settings', roles: ['owner', 'manager'] },
 ];
 
