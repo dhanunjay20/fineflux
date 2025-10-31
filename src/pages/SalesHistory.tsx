@@ -340,7 +340,7 @@ const SaleRecordCard = ({ record, index }: { record: SaleRecord; index: number }
             <div className="flex items-center gap-1.5">
               <Fuel className="h-4 w-4 text-purple-600" />
               <span className="text-xs text-muted-foreground">Gun</span>
-              <span className="text-sm font-semibold">{record.guns}</span>
+              <span className="text-sm font-semibold capitalize">{record.guns}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <AlertCircle className="h-4 w-4 text-amber-600" />

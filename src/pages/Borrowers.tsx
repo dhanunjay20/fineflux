@@ -129,11 +129,11 @@ export default function Borrowers() {
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
-  
+
   const [open, setOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
-  
+
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState<CustomerCreateRequest>({
     organizationId: orgId,
@@ -189,7 +189,7 @@ export default function Borrowers() {
   const getDateFilterUrl = () => {
     if (!orgId) return null;
     const base = `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers`;
-    
+
     switch (dateFilter) {
       case 'today':
         return `${base}/filter/today`;
@@ -211,25 +211,25 @@ export default function Borrowers() {
   const fetchCustomers = async (): Promise<Customer[]> => {
     const url = getDateFilterUrl();
     if (!url) return [];
-    
+
     console.log('🔍 Fetching customers from:', url);
-    
+
     try {
       const res = await axios.get(url, { timeout: 20000 });
       const data = res.data;
-      
+
       console.log('✅ API Response:', data);
-      
+
       if (data && typeof data === 'object' && 'content' in data && Array.isArray(data.content)) {
         console.log(`📊 Found ${data.content.length} customers in paginated response`);
         return data.content;
       }
-      
+
       if (Array.isArray(data)) {
         console.log(`📊 Found ${data.length} customers in array response`);
         return data;
       }
-      
+
       const candidates = ['data', 'items', 'result', 'results', 'records', 'rows'];
       for (const key of candidates) {
         if (Array.isArray((data as any)?.[key])) {
@@ -237,13 +237,13 @@ export default function Borrowers() {
           return (data as any)[key];
         }
       }
-      
+
       const firstArray = Object.values(data || {}).find((v) => Array.isArray(v)) as Customer[] | undefined;
       if (Array.isArray(firstArray)) {
         console.log(`📊 Found ${firstArray.length} customers in nested array`);
         return firstArray;
       }
-      
+
       console.warn('⚠️ No array found in response, returning empty array');
       return [];
     } catch (err: any) {
@@ -349,7 +349,7 @@ export default function Borrowers() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const payload: CustomerCreateRequest = editMode && editingCustomer ? {
       ...form,
       custId: editingCustomer.custId || form.custId,
@@ -364,7 +364,7 @@ export default function Borrowers() {
     };
 
     if (!payload.customerName.trim() || !payload.customerVehicleNum.trim() || !payload.empId.trim() ||
-        !payload.borrowDate || !payload.dueDate || !payload.phoneNumber.trim()) {
+      !payload.borrowDate || !payload.dueDate || !payload.phoneNumber.trim()) {
       toast({
         title: 'Validation error',
         description: 'All required fields must be filled.',
@@ -507,7 +507,7 @@ export default function Borrowers() {
 
   const onTransactionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!transactionForm.custId || transactionForm.transactionAmount === 0) {
       toast({
         title: 'Validation error',
@@ -647,14 +647,14 @@ export default function Borrowers() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Amount Borrowed <span className="text-red-500">*</span></Label>
-                    <Input 
-                      type="number" 
-                      min="0.01" 
-                      step="0.01" 
-                      value={form.amountBorrowed} 
-                      onChange={(e) => updateField('amountBorrowed')(Number(e.target.value))} 
-                      placeholder="0.00" 
-                      required 
+                    <Input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={form.amountBorrowed}
+                      onChange={(e) => updateField('amountBorrowed')(Number(e.target.value))}
+                      placeholder="0.00"
+                      required
                       readOnly={editMode}
                       disabled={editMode}
                       className={editMode ? "bg-muted/50 cursor-not-allowed text-muted-foreground" : ""}
@@ -692,7 +692,14 @@ export default function Borrowers() {
                   </div>
                   <div className="space-y-2">
                     <Label>Phone Number <span className="text-red-500">*</span></Label>
-                    <Input type="tel" value={form.phoneNumber} onChange={(e) => updateField('phoneNumber')(e.target.value)} placeholder="+91 90000 00000" pattern="^\+?[0-9]{7,15}$" required />
+                    <Input
+                      type="tel"
+                      value={form.phoneNumber}
+                      onChange={(e) => updateField('phoneNumber')(e.target.value)}
+                      placeholder="9000000000"
+                      pattern="^\d{10}$"
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Email</Label>
@@ -750,7 +757,7 @@ export default function Borrowers() {
                   <Label>Customer ID *</Label>
                   <Input value={transactionForm.custId} readOnly disabled className="bg-muted/50 cursor-not-allowed" required />
                 </div>
-                
+
                 <div className="p-4 rounded-lg bg-muted/30 border border-border">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-muted-foreground">Current Outstanding Balance:</span>
@@ -775,21 +782,21 @@ export default function Borrowers() {
                 <div className="space-y-2">
                   <Label>Amount *</Label>
                   <div className="relative">
-                    <Input 
-                      type="number" 
-                      min="0.01" 
-                      step="0.01" 
-                      value={Math.abs(transactionForm.transactionAmount)} 
+                    <Input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={Math.abs(transactionForm.transactionAmount)}
                       onChange={(e) => {
                         const absValue = Math.abs(Number(e.target.value));
-                        setTransactionForm((prev) => ({ 
-                          ...prev, 
-                          transactionAmount: prev.transactionAmount < 0 ? -absValue : absValue 
+                        setTransactionForm((prev) => ({
+                          ...prev,
+                          transactionAmount: prev.transactionAmount < 0 ? -absValue : absValue
                         }));
-                      }} 
-                      placeholder="0.00" 
-                      required 
-                      className="pl-8" 
+                      }}
+                      placeholder="0.00"
+                      required
+                      className="pl-8"
                     />
                     <IndianRupee className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   </div>
@@ -801,13 +808,13 @@ export default function Borrowers() {
                     )}
                   </p>
                 </div>
-                                <div className="space-y-2">
+                <div className="space-y-2">
                   <Label>Transaction Type</Label>
                   <div className="grid grid-cols-2 gap-4">
-                    <Button 
-                      type="button" 
-                      variant={transactionForm.transactionAmount >= 0 ? 'default' : 'outline'} 
-                      className="h-20 flex-col gap-2" 
+                    <Button
+                      type="button"
+                      variant={transactionForm.transactionAmount >= 0 ? 'default' : 'outline'}
+                      className="h-20 flex-col gap-2"
                       onClick={() => {
                         const currentBalance = Number(selectedCustomer?.amountBorrowed || 0);
                         if (currentBalance <= 0) {
@@ -828,10 +835,10 @@ export default function Borrowers() {
                         <span className="text-xs">(No Balance)</span>
                       )}
                     </Button>
-                    <Button 
-                      type="button" 
-                      variant={transactionForm.transactionAmount < 0 ? 'default' : 'outline'} 
-                      className="h-20 flex-col gap-2" 
+                    <Button
+                      type="button"
+                      variant={transactionForm.transactionAmount < 0 ? 'default' : 'outline'}
+                      className="h-20 flex-col gap-2"
                       onClick={() => setTransactionForm((prev) => ({ ...prev, transactionAmount: -Math.abs(prev.transactionAmount) }))}
                     >
                       <TrendingDown className="h-6 w-6" />
@@ -841,11 +848,11 @@ export default function Borrowers() {
                 </div>
                 <div className="space-y-2">
                   <Label>Notes</Label>
-                  <textarea 
-                    value={transactionForm.notes || ''} 
-                    onChange={(e) => setTransactionForm((prev) => ({ ...prev, notes: e.target.value }))} 
-                    placeholder="Optional notes" 
-                    className="min-h-[80px] w-full rounded-md border border-border bg-background p-2" 
+                  <textarea
+                    value={transactionForm.notes || ''}
+                    onChange={(e) => setTransactionForm((prev) => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Optional notes"
+                    className="min-h-[80px] w-full rounded-md border border-border bg-background p-2"
                   />
                 </div>
               </div>
@@ -976,53 +983,53 @@ export default function Borrowers() {
             <CardContent>
               <div className="flex flex-col gap-4">
                 <div className="flex gap-2 flex-wrap">
-                  <Button 
-                    variant={dateFilter === 'all' ? 'default' : 'outline'} 
+                  <Button
+                    variant={dateFilter === 'all' ? 'default' : 'outline'}
                     onClick={() => {
                       setDateFilter('all');
                       setCustomStartDate('');
                       setCustomEndDate('');
-                    }} 
+                    }}
                     size="sm"
                   >
                     All
                   </Button>
-                  <Button 
-                    variant={dateFilter === 'today' ? 'default' : 'outline'} 
+                  <Button
+                    variant={dateFilter === 'today' ? 'default' : 'outline'}
                     onClick={() => {
                       setDateFilter('today');
                       setCustomStartDate('');
                       setCustomEndDate('');
-                    }} 
+                    }}
                     size="sm"
                   >
                     <CalendarDays className="h-4 w-4 mr-1" />Today
                   </Button>
-                  <Button 
-                    variant={dateFilter === 'week' ? 'default' : 'outline'} 
+                  <Button
+                    variant={dateFilter === 'week' ? 'default' : 'outline'}
                     onClick={() => {
                       setDateFilter('week');
                       setCustomStartDate('');
                       setCustomEndDate('');
-                    }} 
+                    }}
                     size="sm"
                   >
                     This Week
                   </Button>
-                  <Button 
-                    variant={dateFilter === 'month' ? 'default' : 'outline'} 
+                  <Button
+                    variant={dateFilter === 'month' ? 'default' : 'outline'}
                     onClick={() => {
                       setDateFilter('month');
                       setCustomStartDate('');
                       setCustomEndDate('');
-                    }} 
+                    }}
                     size="sm"
                   >
                     This Month
                   </Button>
-                  <Button 
-                    variant={dateFilter === 'custom' ? 'default' : 'outline'} 
-                    onClick={() => setDateFilter('custom')} 
+                  <Button
+                    variant={dateFilter === 'custom' ? 'default' : 'outline'}
+                    onClick={() => setDateFilter('custom')}
                     size="sm"
                   >
                     Custom Range
@@ -1030,22 +1037,22 @@ export default function Borrowers() {
                 </div>
                 {dateFilter === 'custom' && (
                   <div className="flex gap-2 flex-wrap items-center">
-                    <Input 
-                      type="date" 
-                      value={customStartDate} 
-                      onChange={(e) => setCustomStartDate(e.target.value)} 
-                      className="w-40" 
-                      placeholder="Start Date" 
+                    <Input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="w-40"
+                      placeholder="Start Date"
                     />
                     <span className="text-muted-foreground">to</span>
-                    <Input 
-                      type="date" 
-                      value={customEndDate} 
-                      onChange={(e) => setCustomEndDate(e.target.value)} 
-                      className="w-40" 
-                      placeholder="End Date" 
+                    <Input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="w-40"
+                      placeholder="End Date"
                     />
-                    <Button 
+                    <Button
                       onClick={() => {
                         if (customStartDate && customEndDate) {
                           refetch();
@@ -1056,8 +1063,8 @@ export default function Borrowers() {
                             variant: 'destructive'
                           });
                         }
-                      }} 
-                      size="sm" 
+                      }}
+                      size="sm"
                       disabled={!customStartDate || !customEndDate}
                     >
                       Apply

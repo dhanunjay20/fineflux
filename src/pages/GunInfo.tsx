@@ -14,7 +14,16 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-643072210
 const GUNS_PER_PAGE = 4;
 const ALL_GUN_OPTIONS = Array.from({ length: 20 }, (_, i) => `G${i + 1}`);
 
-export default function GunInfo() {
+const getUsedGunNames = (guns, productName, ignoreId) =>
+  guns
+    .filter(
+      (g) =>
+        g.productName === productName &&
+        (!ignoreId || (g.id || g._id) !== ignoreId)
+    )
+    .map((g) => g.guns);
+
+const GunInfo = () => {
   const orgId = localStorage.getItem("organizationId") || "ORG-DEV-001";
   const empId = localStorage.getItem("empId") || "";
   const queryClient = useQueryClient();
@@ -56,7 +65,32 @@ export default function GunInfo() {
     },
   });
 
-  const visibleGunOptions = useMemo(() => ALL_GUN_OPTIONS.slice(0, gunDropdownLimit), [gunDropdownLimit]);
+  // Gun name filtering logic for "Add" and "Edit" with memoized arrow functions
+  const usedGunNamesAdd = useMemo(
+    () => getUsedGunNames(guns, addForm.productName, undefined),
+    [guns, addForm.productName]
+  );
+  const availableGunNamesAdd = useMemo(
+    () => ALL_GUN_OPTIONS.filter((g) => !usedGunNamesAdd.includes(g)),
+    [usedGunNamesAdd]
+  );
+  const visibleGunOptionsAdd = useMemo(
+    () => availableGunNamesAdd.slice(0, gunDropdownLimit),
+    [availableGunNamesAdd, gunDropdownLimit]
+  );
+  const usedGunNamesEdit = useMemo(
+    () => getUsedGunNames(guns, editForm.productName, editId),
+    [guns, editForm.productName, editId]
+  );
+  const availableGunNamesEdit = useMemo(
+    () => ALL_GUN_OPTIONS.filter((g) => !usedGunNamesEdit.includes(g)),
+    [usedGunNamesEdit]
+  );
+  const visibleGunOptionsEdit = useMemo(
+    () => availableGunNamesEdit.slice(0, gunDropdownLimit),
+    [availableGunNamesEdit, gunDropdownLimit]
+  );
+
   const handleGunDropdownExpansion = () => {
     if (gunDropdownLimit === 4) setGunDropdownLimit(10);
     else if (gunDropdownLimit === 10) setGunDropdownLimit(20);
@@ -66,10 +100,11 @@ export default function GunInfo() {
   const filteredGuns = useMemo(() => {
     if (!searchQuery.trim()) return guns;
     const q = searchQuery.toLowerCase();
-    return guns.filter((gun: any) =>
-      gun.guns?.toLowerCase().includes(q) ||
-      gun.productName?.toLowerCase().includes(q) ||
-      gun.serialNumber?.toLowerCase().includes(q)
+    return guns.filter(
+      (gun: any) =>
+        gun.guns?.toLowerCase().includes(q) ||
+        gun.productName?.toLowerCase().includes(q) ||
+        gun.serialNumber?.toLowerCase().includes(q)
     );
   }, [guns, searchQuery]);
 
@@ -79,13 +114,16 @@ export default function GunInfo() {
     if (filteredGuns.length === 0 && currentPage !== 1) setCurrentPage(1);
   }, [filteredGuns.length, totalPages, currentPage]);
 
-  const pagedGuns = filteredGuns.slice((currentPage - 1) * GUNS_PER_PAGE, currentPage * GUNS_PER_PAGE);
+  const pagedGuns = filteredGuns.slice(
+    (currentPage - 1) * GUNS_PER_PAGE,
+    currentPage * GUNS_PER_PAGE
+  );
 
   const statCards = useMemo(() => {
     const totalProducts = products.length;
     const totalGuns = guns.length;
     const totalReading = guns.reduce((sum: number, g: any) => sum + (g.currentReading || 0), 0);
-    const avgReading = totalGuns ? (totalReading / totalGuns) : 0;
+    const avgReading = totalGuns ? totalReading / totalGuns : 0;
     return [
       { title: "Total Products", value: totalProducts, change: "Available fuel types", icon: Box, bg: "bg-primary-soft", color: "text-primary" },
       { title: "Active Guns", value: totalGuns, change: "Registered dispensers", icon: Fuel, bg: "bg-success-soft", color: "text-success" },
@@ -94,18 +132,20 @@ export default function GunInfo() {
     ];
   }, [products, guns]);
 
-  // Add Gun Mutation
+  // Add, Edit, Delete Mutations remain unchanged
   const createMutation = useMutation({
     mutationFn: async (payload: typeof addForm) => {
       const url = `${API_BASE}/api/organizations/${orgId}/guninfo`;
-      return (await axios.post(url, {
-        organizationId: orgId,
-        empId,
-        productName: payload.productName,
-        guns: payload.guns,
-        serialNumber: payload.serialNumber,
-        currentReading: Number(payload.currentReading),
-      })).data;
+      return (
+        await axios.post(url, {
+          organizationId: orgId,
+          empId,
+          productName: payload.productName,
+          guns: payload.guns,
+          serialNumber: payload.serialNumber,
+          currentReading: Number(payload.currentReading),
+        })
+      ).data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guninfo", orgId] });
@@ -117,18 +157,19 @@ export default function GunInfo() {
     },
   });
 
-  // Edit Gun Mutation
   const updateMutation = useMutation({
     mutationFn: async (payload: typeof editForm & { id: string }) => {
       const url = `${API_BASE}/api/organizations/${orgId}/guninfo/${payload.id}`;
-      return (await axios.put(url, {
-        empId,
-        productName: payload.productName,
-        guns: payload.guns,
-        serialNumber: payload.serialNumber,
-        currentReading: Number(payload.currentReading),
-        organizationId: orgId,
-      })).data;
+      return (
+        await axios.put(url, {
+          empId,
+          productName: payload.productName,
+          guns: payload.guns,
+          serialNumber: payload.serialNumber,
+          currentReading: Number(payload.currentReading),
+          organizationId: orgId,
+        })
+      ).data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guninfo", orgId] });
@@ -142,7 +183,6 @@ export default function GunInfo() {
     },
   });
 
-  // Delete Gun Mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const url = `${API_BASE}/api/organizations/${orgId}/guninfo/${id}`;
@@ -237,7 +277,7 @@ export default function GunInfo() {
         })}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Always show Add Gun Form (inline, not modal) */}
+        {/* Add Gun Form */}
         <div className="lg:col-span-1">
           <Card className="sticky top-6">
             <CardHeader>
@@ -249,11 +289,15 @@ export default function GunInfo() {
             <CardContent>
               <form className="space-y-4" onSubmit={handleAddSubmit}>
                 <div className="space-y-2">
-                  <Label htmlFor="empId" className="text-xs uppercase text-muted-foreground">Employee ID</Label>
+                  <Label htmlFor="empId" className="text-xs uppercase text-muted-foreground">
+                    Employee ID
+                  </Label>
                   <Input id="empId" name="empId" value={empId} readOnly disabled className="bg-muted/50" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="productName" className="text-xs uppercase text-muted-foreground">Product Name *</Label>
+                  <Label htmlFor="productName" className="text-xs uppercase text-muted-foreground">
+                    Product Name *
+                  </Label>
                   <Select
                     value={addForm.productName}
                     onValueChange={(value) => setAddForm((prev) => ({ ...prev, productName: value }))}
@@ -262,7 +306,7 @@ export default function GunInfo() {
                     <SelectTrigger>
                       <SelectValue placeholder="Select Product" />
                     </SelectTrigger>
-                    <SelectContent className='z-[10000]'>
+                    <SelectContent className="z-[10000]">
                       {products.map((p: any) => (
                         <SelectItem key={p.productName} value={p.productName}>
                           {p.productName}
@@ -272,7 +316,9 @@ export default function GunInfo() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="guns" className="text-xs uppercase text-muted-foreground">Gun Name/Number *</Label>
+                  <Label htmlFor="guns" className="text-xs uppercase text-muted-foreground">
+                    Gun Name/Number *
+                  </Label>
                   <Select
                     value={addForm.guns}
                     onValueChange={(value) => setAddForm((prev) => ({ ...prev, guns: value }))}
@@ -283,7 +329,7 @@ export default function GunInfo() {
                     </SelectTrigger>
                     <SelectContent className="z-[10000]">
                       <div className="max-h-[240px] overflow-y-auto">
-                        {visibleGunOptions.map((gunName) => (
+                        {visibleGunOptionsAdd.map((gunName) => (
                           <SelectItem key={gunName} value={gunName}>
                             {gunName}
                           </SelectItem>
@@ -295,11 +341,11 @@ export default function GunInfo() {
                           variant="ghost"
                           size="sm"
                           className="w-full justify-center text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/50 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-                          onMouseDown={e => {
+                          onMouseDown={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
                           }}
-                          onClick={e => {
+                          onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             handleGunDropdownExpansion();
@@ -313,7 +359,7 @@ export default function GunInfo() {
                           ) : (
                             <>
                               <ChevronDown className="h-3 w-3 mr-1.5" />
-                              <span>Show More ({gunDropdownLimit === 4 ? '10' : '20'} guns)</span>
+                              <span>Show More ({gunDropdownLimit === 4 ? "10" : "20"} guns)</span>
                             </>
                           )}
                         </Button>
@@ -322,7 +368,9 @@ export default function GunInfo() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="serialNumber" className="text-xs uppercase text-muted-foreground">Serial Number *</Label>
+                  <Label htmlFor="serialNumber" className="text-xs uppercase text-muted-foreground">
+                    Serial Number *
+                  </Label>
                   <Input
                     id="serialNumber"
                     name="serialNumber"
@@ -334,7 +382,9 @@ export default function GunInfo() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="currentReading" className="text-xs uppercase text-muted-foreground">Current Reading (Liters) *</Label>
+                  <Label htmlFor="currentReading" className="text-xs uppercase text-muted-foreground">
+                    Current Reading (Liters) *
+                  </Label>
                   <Input
                     id="currentReading"
                     name="currentReading"
@@ -361,19 +411,17 @@ export default function GunInfo() {
             </CardContent>
           </Card>
         </div>
-        {/* Right: List all Gun cards, search, edit modal triggers */}
+        {/* Gun list and Edit modal */}
         <div className="lg:col-span-2">
-          {/* ... Gun list UI (unchanged)... */}
-          {/* -- REPLACE your card list block above with the code from previous answer (no change) -- */}
           {editModalOpen && (
             <div
               className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md"
-              style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+              style={{ margin: 0, padding: "1rem", minHeight: "100vh", minWidth: "100vw" }}
               onClick={handleCancelEdit}
             >
               <div
                 className="relative bg-background shadow-2xl rounded-xl sm:rounded-2xl w-full max-w-lg max-h-[95vh] flex flex-col border border-border/50 animate-fade-in"
-                onClick={e => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
                 style={{ maxHeight: "90vh", display: "flex", flexDirection: "column" }}
               >
                 <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border/50 bg-gradient-to-r from-primary/5 to-accent/5">
@@ -385,7 +433,8 @@ export default function GunInfo() {
                       Update dispenser/gun details
                     </p>
                   </div>
-                  <button type="button"
+                  <button
+                    type="button"
                     onClick={handleCancelEdit}
                     className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition-all duration-200 hover:rotate-90"
                     aria-label="Close"
@@ -395,20 +444,24 @@ export default function GunInfo() {
                 </div>
                 <form className="space-y-4 p-5" onSubmit={handleEditSubmit}>
                   <div className="space-y-2">
-                    <Label htmlFor="empId" className="text-xs uppercase text-muted-foreground">Employee ID</Label>
+                    <Label htmlFor="empId" className="text-xs uppercase text-muted-foreground">
+                      Employee ID
+                    </Label>
                     <Input id="empId" name="empId" value={empId} readOnly disabled className="bg-muted/50" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="productName" className="text-xs uppercase text-muted-foreground">Product Name *</Label>
+                    <Label htmlFor="productName" className="text-xs uppercase text-muted-foreground">
+                      Product Name *
+                    </Label>
                     <Select
                       value={editForm.productName}
-                      onValueChange={value => setEditForm((prev) => ({ ...prev, productName: value }))}
+                      onValueChange={(value) => setEditForm((prev) => ({ ...prev, productName: value }))}
                       disabled={updateMutation.isPending}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select Product" />
                       </SelectTrigger>
-                      <SelectContent className='z-[10000]'>
+                      <SelectContent className="z-[10000]">
                         {products.map((p: any) => (
                           <SelectItem key={p.productName} value={p.productName}>
                             {p.productName}
@@ -418,10 +471,12 @@ export default function GunInfo() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="guns" className="text-xs uppercase text-muted-foreground">Gun Name/Number *</Label>
+                    <Label htmlFor="guns" className="text-xs uppercase text-muted-foreground">
+                      Gun Name/Number *
+                    </Label>
                     <Select
                       value={editForm.guns}
-                      onValueChange={value => setEditForm((prev) => ({ ...prev, guns: value }))}
+                      onValueChange={(value) => setEditForm((prev) => ({ ...prev, guns: value }))}
                       disabled={updateMutation.isPending}
                     >
                       <SelectTrigger>
@@ -429,7 +484,7 @@ export default function GunInfo() {
                       </SelectTrigger>
                       <SelectContent className="z-[10000]">
                         <div className="max-h-[240px] overflow-y-auto">
-                          {visibleGunOptions.map((gunName) => (
+                          {visibleGunOptionsEdit.map((gunName) => (
                             <SelectItem key={gunName} value={gunName}>
                               {gunName}
                             </SelectItem>
@@ -441,11 +496,11 @@ export default function GunInfo() {
                             variant="ghost"
                             size="sm"
                             className="w-full justify-center text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/50 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-                            onMouseDown={e => {
+                            onMouseDown={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
                             }}
-                            onClick={e => {
+                            onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
                               handleGunDropdownExpansion();
@@ -459,7 +514,7 @@ export default function GunInfo() {
                             ) : (
                               <>
                                 <ChevronDown className="h-3 w-3 mr-1.5" />
-                                <span>Show More ({gunDropdownLimit === 4 ? '10' : '20'} guns)</span>
+                                <span>Show More ({gunDropdownLimit === 4 ? "10" : "20"} guns)</span>
                               </>
                             )}
                           </Button>
@@ -468,7 +523,9 @@ export default function GunInfo() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="serialNumber" className="text-xs uppercase text-muted-foreground">Serial Number *</Label>
+                    <Label htmlFor="serialNumber" className="text-xs uppercase text-muted-foreground">
+                      Serial Number *
+                    </Label>
                     <Input
                       id="serialNumber"
                       name="serialNumber"
@@ -480,7 +537,9 @@ export default function GunInfo() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="currentReading" className="text-xs uppercase text-muted-foreground">Current Reading (Liters) *</Label>
+                    <Label htmlFor="currentReading" className="text-xs uppercase text-muted-foreground">
+                      Current Reading (Liters) *
+                    </Label>
                     <Input
                       id="currentReading"
                       name="currentReading"
@@ -577,7 +636,6 @@ export default function GunInfo() {
                               <Badge variant="outline" className="font-medium">
                                 {gun.productName}
                               </Badge>
-                              {/* Employee ID */}
                               <span className="ml-2 text-xs px-2 py-1 bg-muted rounded">
                                 <b>EmpID:</b> {gun.empId || "—"}
                               </span>
@@ -603,7 +661,8 @@ export default function GunInfo() {
                                     Current Reading
                                   </p>
                                   <p className="font-bold text-lg text-success">
-                                    {gun.currentReading.toLocaleString()} <span className="text-sm font-normal">L</span>
+                                    {gun.currentReading.toLocaleString()}{" "}
+                                    <span className="text-sm font-normal">L</span>
                                   </p>
                                 </div>
                               </div>
@@ -637,9 +696,19 @@ export default function GunInfo() {
                   {filteredGuns.length > GUNS_PER_PAGE && (
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6 pt-4 border-t border-border">
                       <div className="text-sm text-muted-foreground">
-                        Showing <span className="font-semibold text-foreground">{(currentPage - 1) * GUNS_PER_PAGE + 1}</span> to{" "}
-                        <span className="font-semibold text-foreground">{Math.min(currentPage * GUNS_PER_PAGE, filteredGuns.length)}</span> of{" "}
-                        <span className="font-semibold text-foreground">{filteredGuns.length}</span> guns
+                        Showing{" "}
+                        <span className="font-semibold text-foreground">
+                          {(currentPage - 1) * GUNS_PER_PAGE + 1}
+                        </span>{" "}
+                        to{" "}
+                        <span className="font-semibold text-foreground">
+                          {Math.min(currentPage * GUNS_PER_PAGE, filteredGuns.length)}
+                        </span>{" "}
+                        of{" "}
+                        <span className="font-semibold text-foreground">
+                          {filteredGuns.length}
+                        </span>{" "}
+                        guns
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
@@ -694,4 +763,6 @@ export default function GunInfo() {
       </div>
     </div>
   );
-}
+};
+
+export default GunInfo;

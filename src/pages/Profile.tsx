@@ -497,7 +497,7 @@ export default function Profile() {
       </div>
 
       {/* EDIT MODAL and PASSWORD MODAL - next block */}
-      
+
 
       {/* EDIT MODAL */}
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
@@ -534,7 +534,14 @@ export default function Profile() {
                   <Input type="email" value={form.emailId || ""} onChange={e => handleChange("emailId", e.target.value)} />
                 </div>
                 <div><Label>Phone Number</Label>
-                  <Input value={form.phoneNumber || ""} onChange={e => handleChange("phoneNumber", e.target.value)} />
+                  <Input
+                    type="tel"
+                    value={form.phoneNumber || ""}
+                    onChange={e => handleChange("phoneNumber", e.target.value)}
+                    pattern="^\d{10}$"
+                    placeholder="Enter 10 digit phone number"
+                    required
+                  />
                 </div>
                 <div>
                   <Label>Department</Label>

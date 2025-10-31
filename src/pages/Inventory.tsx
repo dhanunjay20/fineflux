@@ -103,7 +103,6 @@ export default function Inventory() {
       Number(tank.tankCapacity) > 0 &&
       (100 * (Number(tank.currentLevel) / Number(tank.tankCapacity))) < 20
   );
-
   useEffect(() => {
     lowStockTanks.forEach(async (tank) => {
       const key = String(tank.productId || tank.productName);
@@ -347,7 +346,7 @@ export default function Inventory() {
           <RefreshCw className="animate-spin h-8 w-8 mr-2" />
           <span className="text-lg">Loading tanks ...</span>
         </div>
-      ) : activeTanks.length === 0 ? (
+      ) : tankList.length === 0 ? (
         <div className="py-20 flex justify-center items-center flex-col opacity-60">
           <PackageOpen size={56} className="mb-2" />
           <div className="font-semibold text-xl">No tank inventories found</div>
@@ -356,13 +355,26 @@ export default function Inventory() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {tankList.map((tank, idx) => {
-            if (!tank || (!tank.status && tank.status !== undefined)) return null;
+            if (!tank) return null;
+            // Normalize status: true/"true"/1 is active; everything else is inactive
+            const isActive =
+              tank.status === true ||
+              tank.status === "true" ||
+              tank.status === 1 ||
+              tank.status === "1";
             const capacity = Number(tank.tankCapacity || 0);
             const currentStock = Number(tank.currentLevel || 0);
             const percentage = getStockPercentage(currentStock, capacity);
             const status = getStockStatus(percentage);
+
             return (
-              <Card key={tank.inventoryId || tank.productId || tank.productName || idx} className="card-gradient hover-lift">
+              <Card
+                key={tank.inventoryId || tank.productId || tank.productName || idx}
+                className={
+                  "card-gradient hover-lift " +
+                  (!isActive ? "bg-gradient-to-br from-red-100 to-gray-200 dark:from-red-900 dark:to-gray-800 opacity-60" : "")
+                }
+              >
                 <CardHeader>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
@@ -370,9 +382,12 @@ export default function Inventory() {
                       <CardTitle className="text-lg">{tank.productName || "—"}</CardTitle>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={status.variant} className={percentage < 20 ? "animate-pulse" : ""}>
-                        {percentage < 20 && <AlertTriangle className="mr-1 h-3 w-3" />}
-                        {status.label}
+                      <Badge
+                        variant={isActive ? status.variant : "secondary"}
+                        className={!isActive ? "bg-red-200/90 text-red-700" : percentage < 20 ? "animate-pulse" : ""}
+                      >
+                        {!isActive ? "Inactive" : (percentage < 20 && <AlertTriangle className="mr-1 h-3 w-3" />)}
+                        {!isActive ? "" : status.label}
                       </Badge>
                       <Button
                         variant="ghost"
@@ -409,7 +424,7 @@ export default function Inventory() {
                     </div>
                     <div>
                       <p className="text-muted-foreground">Status</p>
-                      <p className="font-medium text-foreground">{tank.status ? "Active" : "Inactive"}</p>
+                      <p className={"font-medium " + (!isActive ? "text-red-700" : "text-foreground")}>{isActive ? "Active" : "Inactive"}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Last Refill</p>
@@ -417,11 +432,19 @@ export default function Inventory() {
                     </div>
                   </div>
                   <div className="flex gap-2 pt-2">
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => openStockModal(tank)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => openStockModal(tank)}
+                      disabled={!isActive}
+                      title={!isActive ? "Cannot update: Tank is inactive" : "Update Stock"}
+                    >
                       <TrendingUp className="mr-2 h-4 w-4" />
                       Update Stock
                     </Button>
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => openRefillModal(tank)}>
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => openRefillModal(tank)} disabled={!isActive}
+                      title={!isActive ? "Cannot Schedule Refill: Tank is inactive" : "Schedule Refill"}>
                       <Calendar className="mr-2 h-4 w-4" />
                       Schedule Refill
                     </Button>
@@ -514,7 +537,7 @@ export default function Inventory() {
                     <SelectValue placeholder="Choose a tank..." />
                   </SelectTrigger>
                   <SelectContent className="z-[10000] max-h-[300px] rounded-xl border-2">
-                    {products.map((prod) => (
+                    {products.filter(prod => prod.active === true || prod.status === true).map((prod) => (
                       <SelectItem key={prod.id} value={prod.id} className="cursor-pointer rounded-lg my-1">
                         <div className="flex items-center gap-3 py-1">
                           <div className="p-2 rounded-lg bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30">
@@ -650,6 +673,7 @@ export default function Inventory() {
           </div>
         </div>
       )}
+
       {/* ULTRA MODERN Refill Schedule Modal */}
       {refillModal && (
         <div

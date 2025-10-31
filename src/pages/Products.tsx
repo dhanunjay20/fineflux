@@ -270,7 +270,7 @@ export default function Products() {
                           </h3>
                           <Badge
                             variant={prod.status ? "default" : "secondary"}
-                            className={prod.status ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20" : ""}
+                            className={prod.status ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20" : "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20"}
                           >
                             {prod.status ? "Active" : "Inactive"}
                           </Badge>
@@ -395,6 +395,10 @@ export default function Products() {
               id="product-form"
             >
               <div className="flex flex-col gap-4 sm:gap-5">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Created By (Emp ID)</Label>
+                  <Input value={form.empId || empId} readOnly className="bg-muted cursor-not-allowed" />
+                </div>
                 {/* Product Name & Price */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
                   <div className="space-y-2">
@@ -553,11 +557,6 @@ export default function Products() {
                     <span className="text-xs text-muted-foreground">Created: {formatDateTime(form.lastUpdated)}</span>
                   </div>
                 )}
-                {/* Created By */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Created By (Emp ID)</Label>
-                  <Input value={form.empId || empId} readOnly className="bg-muted cursor-not-allowed" />
-                </div>
               </div>
             </form>
             {/* Modal Footer */}

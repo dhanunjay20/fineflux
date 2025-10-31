@@ -9,13 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { useNavigate } from "react-router-dom";
 import { Separator } from "@/components/ui/separator";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Select,
   SelectTrigger,
@@ -44,6 +38,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Layers,
+  Trash2,
+  X,
 } from "lucide-react";
 import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone";
@@ -134,6 +130,7 @@ export default function Sales() {
   const submittingRef = useRef(false);
   const isBatchRef = useRef(false);
 
+
   const [batchCollectionForm, setBatchCollectionForm] = useState({
     totalCash: "",
     totalUPI: "",
@@ -145,6 +142,13 @@ export default function Sales() {
     queryFn: async () =>
       (await axios.get(`${API_BASE}/api/organizations/${orgId}/products`)).data || [],
   });
+
+  const productsActive = useMemo(
+    () => products.filter((p: any) => p.status === true),
+    [products]
+  );
+
+
 
   const { data: guns = [] } = useQuery({
     queryKey: ["guninfo", orgId],
@@ -173,7 +177,7 @@ export default function Sales() {
   useEffect(() => {
     let openingStock = "";
     let price = "";
-    
+
     if (form.gun) {
       const gunObj = guns.find(
         (g: any) => g.guns === form.gun && (!form.fuel || g.productName === form.fuel)
@@ -217,6 +221,21 @@ export default function Sales() {
     }));
   }, [form.closingStock, form.openingStock, form.price, form.testingTotal]);
 
+
+  const [deleteSaleId, setDeleteSaleId] = useState<string | null>(null);
+  const deleteSaleMutation = useMutation({
+    mutationFn: async (saleId: string) => {
+      await axios.delete(`${API_BASE}/api/organizations/${orgId}/sales/${saleId}`);
+      return { success: true };
+    },
+    onSuccess: () => {
+      setDeleteSaleId(null);
+      queryClient.invalidateQueries({ queryKey: ["sales", orgId] });
+      toast({ title: "Deleted", description: "Sale entry deleted.", variant: "default" });
+    },
+  });
+
+
   // Calculate short collections
   useEffect(() => {
     if (saleMode === "batch") {
@@ -242,7 +261,7 @@ export default function Sales() {
   const saleCollectionMutation = useMutation({
     mutationFn: async (input: FormState) => {
       const now = new Date();
-      
+
       const saleDTO = {
         organizationId: orgId,
         empId,
@@ -256,7 +275,7 @@ export default function Sales() {
         salesInRupees: Number(input.salesInRupees) || 0,
         dateTime: now.toISOString(),
       };
-      
+
       const collectionDTO = {
         organizationId: orgId,
         empId,
@@ -268,27 +287,27 @@ export default function Sales() {
         phonePay: Number(input.phonePay) || 0,
         creditCard: Number(input.creditCard) || 0,
       };
-      
+
       console.log("📤 Sending Sale DTO:", saleDTO);
       console.log("📤 Sending Collection DTO:", collectionDTO);
-      
+
       try {
         const saleResponse = await axios.post(
-          `${API_BASE}/api/organizations/${orgId}/sales`, 
+          `${API_BASE}/api/organizations/${orgId}/sales`,
           saleDTO
         );
         console.log("✅ Sale created:", saleResponse.data);
-        
+
         const collectionResponse = await axios.post(
-          `${API_BASE}/api/organizations/${orgId}/collections`, 
+          `${API_BASE}/api/organizations/${orgId}/collections`,
           collectionDTO
         );
         console.log("✅ Collection created:", collectionResponse.data);
-        
+
         return { success: true };
       } catch (error: any) {
         console.error("❌ Sale/Collection Error:", error);
-        
+
         let errorMessage = "Failed to record sale or collection";
         if (error.response?.data?.message) {
           errorMessage = error.response.data.message;
@@ -297,7 +316,7 @@ export default function Sales() {
         } else if (error.message) {
           errorMessage = error.message;
         }
-        
+
         throw new Error(errorMessage);
       }
     },
@@ -305,52 +324,52 @@ export default function Sales() {
       queryClient.invalidateQueries({ queryKey: ["sales", orgId] });
       queryClient.invalidateQueries({ queryKey: ["collections", orgId] });
       queryClient.invalidateQueries({ queryKey: ["guninfo", orgId] });
-      
+
       if (!isBatchRef.current) {
         setForm(initialFormState);
-        toast({ 
-          title: "✅ Success", 
-          description: "Sale & Collection recorded successfully!", 
-          variant: "default" 
+        toast({
+          title: "✅ Success",
+          description: "Sale & Collection recorded successfully!",
+          variant: "default"
         });
       }
     },
     onError: (error: any) => {
       console.error("❌ Mutation Error:", error);
-      toast({ 
-        title: "❌ Failed", 
-        description: error.message || "Please check backend logs for details.", 
-        variant: "destructive" 
+      toast({
+        title: "❌ Failed",
+        description: error.message || "Please check backend logs for details.",
+        variant: "destructive"
       });
     },
   });
 
   function isFormValid(f: FormState, skipCollectionCheck: boolean = false) {
     const { fuel, price, gun, openingStock, closingStock, testingTotal, saleLiters, shortCollections } = f;
-    
+
     if (!fuel || !gun || price === "") {
       toast({ title: "Please select product and gun.", variant: "destructive" });
       return false;
     }
-    
+
     if (openingStock === "" || closingStock === "") {
       toast({ title: "Please fill closing stock.", variant: "destructive" });
       return false;
     }
-    
+
     const openNum = Number(openingStock), closeNum = Number(closingStock), testingNum = Number(testingTotal) || 0;
-    
+
     if (isNaN(openNum) || isNaN(closeNum) || closeNum <= openNum) {
       toast({ title: "Closing stock must be greater than opening stock.", variant: "destructive" });
       return false;
     }
-    
+
     const gross = closeNum - openNum;
     if (testingNum < 0 || testingNum > gross) {
       toast({ title: "Testing liters must be between 0 and gross liters.", variant: "destructive" });
       return false;
     }
-    
+
     const net = gross - testingNum;
     if (net <= 0) {
       toast({ title: "Net sale liters must be positive.", variant: "destructive" });
@@ -361,9 +380,9 @@ export default function Sales() {
       toast({ title: "Sale liters not computed.", variant: "destructive" });
       return false;
     }
-    
+
     if (skipCollectionCheck) return true;
-    
+
     const short = Number(shortCollections) || 0;
     if (short > 10) {
       toast({ title: "Short collection too high!", description: `Short collection is ₹${short.toFixed(2)}. It must be ₹10 or less.`, variant: "destructive" });
@@ -386,7 +405,7 @@ export default function Sales() {
     }
     submittingRef.current = true;
     isBatchRef.current = false;
-    
+
     try {
       await saleCollectionMutation.mutateAsync(form);
     } catch (error) {
@@ -424,26 +443,26 @@ export default function Sales() {
 
   const handleBatchSubmit = async () => {
     if (saleEntries.length === 0) return;
-    
+
     const totalCash = Number(batchCollectionForm.totalCash) || 0;
     const totalUPI = Number(batchCollectionForm.totalUPI) || 0;
     const totalCard = Number(batchCollectionForm.totalCard) || 0;
     const totalReceived = totalCash + totalUPI + totalCard;
     const totalExpected = saleEntries.reduce((sum, e) => sum + Number(e.salesInRupees || 0), 0);
     const short = Math.max(0, totalExpected - totalReceived);
-    
+
     if (short > 10) {
-      toast({ 
-        title: "Short collection too high!", 
-        description: `Total short is ₹${short.toFixed(2)}. Maximum allowed is ₹10.`, 
-        variant: "destructive" 
+      toast({
+        title: "Short collection too high!",
+        description: `Total short is ₹${short.toFixed(2)}. Maximum allowed is ₹10.`,
+        variant: "destructive"
       });
       return;
     }
-    
+
     setIsSubmittingBatch(true);
     isBatchRef.current = true;
-    
+
     try {
       const entriesWithCollections = saleEntries.map((entry) => {
         const proportion = Number(entry.salesInRupees) / totalExpected;
@@ -454,11 +473,11 @@ export default function Sales() {
           creditCard: (totalCard * proportion).toFixed(2),
         };
       });
-      
+
       for (const entry of entriesWithCollections) {
         await saleCollectionMutation.mutateAsync(entry);
       }
-      
+
       setSaleEntries([]);
       setShowSummaryPopup(false);
       setBatchCollectionForm({ totalCash: "", totalUPI: "", totalCard: "" });
@@ -559,7 +578,7 @@ export default function Sales() {
   const tz = "Asia/Kolkata";
   const start = dayjs().tz(tz).startOf("day");
   const end = dayjs().tz(tz).endOf("day");
-  
+
   const isWithin = (iso?: string) => {
     if (!iso) return false;
     const d = dayjs(iso).tz(tz);
@@ -610,14 +629,14 @@ export default function Sales() {
               Sales Batch Summary - Enter Total Collections
             </DialogTitle>
           </DialogHeader>
-          
+
           <div className="flex-1 overflow-y-auto space-y-6 pr-2">
             <div>
               <h4 className="font-semibold mb-3 flex items-center gap-2">
                 <List className="h-4 w-4" />
                 Total Entries: {saleEntries.length}
               </h4>
-              
+
               <div className="space-y-2">
                 <h5 className="font-semibold text-sm text-muted-foreground">Product-wise Sale (Net Liters)</h5>
                 {Object.entries(summary.productWise).length === 0 && (
@@ -647,7 +666,7 @@ export default function Sales() {
                 <Wallet className="h-5 w-5 text-primary" />
                 Enter Total Collections Received
               </h4>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
@@ -663,7 +682,7 @@ export default function Sales() {
                     placeholder="0.00"
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Smartphone className="h-4 w-4 text-indigo-600" />
@@ -678,7 +697,7 @@ export default function Sales() {
                     placeholder="0.00"
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <CreditCard className="h-4 w-4 text-blue-600" />
@@ -707,7 +726,7 @@ export default function Sales() {
                   </span>
                 </div>
               </div>
-              
+
               {summary.short > 10 && (
                 <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
                   <AlertCircle className="h-4 w-4 shrink-0" />
@@ -724,16 +743,16 @@ export default function Sales() {
           </div>
 
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button 
-              variant="secondary" 
-              onClick={() => setShowSummaryPopup(false)} 
+            <Button
+              variant="secondary"
+              onClick={() => setShowSummaryPopup(false)}
               disabled={isSubmittingBatch}
               className="w-full sm:w-auto"
             >
               Back
             </Button>
-            <Button 
-              onClick={handleBatchSubmit} 
+            <Button
+              onClick={handleBatchSubmit}
               disabled={saleEntries.length === 0 || isSubmittingBatch || summary.short > 10}
               className="w-full sm:w-auto"
             >
@@ -896,35 +915,33 @@ export default function Sales() {
       <div className="w-full flex flex-col sm:flex-row items-stretch gap-4 mb-6">
         <Button
           variant={saleMode === "single" ? "default" : "outline"}
-          className={`flex-1 flex items-center justify-center gap-3 h-20 font-bold text-lg shadow-lg transition-all duration-300 ${
-            saleMode === "single" 
-              ? "bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white scale-105" 
-              : "hover:scale-105"
-          }`}
-          onClick={() => { 
-            setSaleMode("single"); 
-            setForm(initialFormState); 
-            setSaleEntries([]); 
+          className={`flex-1 flex items-center justify-center gap-3 h-20 font-bold text-lg shadow-lg transition-all duration-300 ${saleMode === "single"
+            ? "bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white scale-105"
+            : "hover:scale-105"
+            }`}
+          onClick={() => {
+            setSaleMode("single");
+            setForm(initialFormState);
+            setSaleEntries([]);
           }}
         >
-          <Plus className="h-7 w-7" /> 
+          <Plus className="h-7 w-7" />
           <div className="flex flex-col items-start">
             <span>Single Sale</span>
             <span className="text-sm font-normal opacity-80">With Collections</span>
           </div>
         </Button>
-        
+
         <Button
           variant={saleMode === "batch" ? "default" : "outline"}
-          className={`flex-1 flex items-center justify-center gap-3 h-20 font-bold text-lg shadow-lg transition-all duration-300 ${
-            saleMode === "batch" 
-              ? "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white scale-105" 
-              : "hover:scale-105"
-          }`}
-          onClick={() => { 
-            setSaleMode("batch"); 
-            setForm(initialFormState); 
-            setSaleEntries([]); 
+          className={`flex-1 flex items-center justify-center gap-3 h-20 font-bold text-lg shadow-lg transition-all duration-300 ${saleMode === "batch"
+            ? "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white scale-105"
+            : "hover:scale-105"
+            }`}
+          onClick={() => {
+            setSaleMode("batch");
+            setForm(initialFormState);
+            setSaleEntries([]);
           }}
         >
           <Layers className="h-7 w-7" />
@@ -959,7 +976,7 @@ export default function Sales() {
         <form onSubmit={handleSubmit} autoComplete="off">
           <CardContent className="p-6">
             <div className="space-y-6">
-              
+
               {/* Employee ID */}
               <div className="space-y-2">
                 <Label htmlFor="empId" className="text-sm font-semibold flex items-center gap-2">
@@ -981,13 +998,12 @@ export default function Sales() {
                       <SelectValue placeholder="Select Fuel" />
                     </SelectTrigger>
                     <SelectContent className='z-[10000]'>
-                      {products.map((p: any) => (
+                      {productsActive.map((p: any) => (
                         <SelectItem key={p.productName} value={p.productName}>{p.productName}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="gun" className="text-sm font-semibold flex items-center gap-2">
                     <Fuel className="h-4 w-4 text-orange-600" />
@@ -1054,7 +1070,7 @@ export default function Sales() {
               {saleMode === "single" && (
                 <>
                   <Separator className="my-4" />
-                  
+
                   <div className="rounded-xl bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 p-5 border border-purple-200/50 dark:border-purple-800/50 shadow-sm">
                     <h3 className="text-sm font-bold mb-4 flex items-center gap-2 text-purple-900 dark:text-purple-100">
                       <div className="p-1.5 rounded-lg bg-purple-500/10">
@@ -1062,7 +1078,7 @@ export default function Sales() {
                       </div>
                       Collection Details
                     </h3>
-                    
+
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="cashReceived" className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
@@ -1071,21 +1087,21 @@ export default function Sales() {
                         </Label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-semibold">₹</span>
-                          <Input 
-                            id="cashReceived" 
-                            name="cashReceived" 
-                            type="number" 
-                            min="0" 
-                            step="0.01" 
-                            placeholder="0.00" 
-                            value={form.cashReceived} 
-                            onChange={handleFormChange} 
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()} 
+                          <Input
+                            id="cashReceived"
+                            name="cashReceived"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={form.cashReceived}
+                            onChange={handleFormChange}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="pl-7 font-medium"
                           />
                         </div>
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Label htmlFor="phonePay" className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
                           <Smartphone className="h-3.5 w-3.5 text-indigo-600" />
@@ -1093,21 +1109,21 @@ export default function Sales() {
                         </Label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-semibold">₹</span>
-                          <Input 
-                            id="phonePay" 
-                            name="phonePay" 
-                            type="number" 
-                            min="0" 
-                            step="0.01" 
-                            placeholder="0.00" 
-                            value={form.phonePay} 
-                            onChange={handleFormChange} 
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()} 
+                          <Input
+                            id="phonePay"
+                            name="phonePay"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={form.phonePay}
+                            onChange={handleFormChange}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="pl-7 font-medium"
                           />
                         </div>
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Label htmlFor="creditCard" className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
                           <CreditCard className="h-3.5 w-3.5 text-blue-600" />
@@ -1115,38 +1131,38 @@ export default function Sales() {
                         </Label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-semibold">₹</span>
-                          <Input 
-                            id="creditCard" 
-                            name="creditCard" 
-                            type="number" 
-                            min="0" 
-                            step="0.01" 
-                            placeholder="0.00" 
-                            value={form.creditCard} 
-                            onChange={handleFormChange} 
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()} 
+                          <Input
+                            id="creditCard"
+                            name="creditCard"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={form.creditCard}
+                            onChange={handleFormChange}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="pl-7 font-medium"
                           />
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="mt-4 pt-4 border-t border-purple-200/50 dark:border-purple-800/50">
                       <Label htmlFor="shortCollections" className="text-xs font-semibold flex items-center gap-1.5 mb-2 text-foreground">
                         <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
                         Short Collection
                       </Label>
-                      <Input 
-                        id="shortCollections" 
-                        name="shortCollections" 
-                        type="number" 
-                        min="0" 
-                        step="0.01" 
-                        value={form.shortCollections} 
-                        readOnly 
-                        disabled 
-                        className="bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 font-bold text-base border-amber-200 dark:border-amber-800" 
-                        onWheel={(e) => (e.target as HTMLInputElement).blur()} 
+                      <Input
+                        id="shortCollections"
+                        name="shortCollections"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.shortCollections}
+                        readOnly
+                        disabled
+                        className="bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 font-bold text-base border-amber-200 dark:border-amber-800"
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
                       />
                       {Number(form.shortCollections) > 0 && (
                         <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5 flex items-center gap-1">
@@ -1188,9 +1204,9 @@ export default function Sales() {
           <div className="px-6 py-4 bg-muted/20 border-t border-border">
             <div className="flex flex-col sm:flex-row gap-3">
               {saleMode === "single" && (
-                <Button 
-                  type="submit" 
-                  className="w-full h-12 font-semibold shadow-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white" 
+                <Button
+                  type="submit"
+                  className="w-full h-12 font-semibold shadow-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
                   disabled={saleCollectionMutation.isPending || submittingRef.current}
                 >
                   {saleCollectionMutation.isPending ? (
@@ -1209,20 +1225,20 @@ export default function Sales() {
 
               {saleMode === "batch" && (
                 <>
-                  <Button 
+                  <Button
                     type="button"
-                    variant="default" 
-                    className="flex-1 h-12 font-semibold" 
-                    onClick={handleAddAnotherSale} 
+                    variant="default"
+                    className="flex-1 h-12 font-semibold"
+                    onClick={handleAddAnotherSale}
                     disabled={isSubmittingBatch}
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Sale to Batch
                   </Button>
-                  <Button 
+                  <Button
                     type="button"
-                    className="flex-1 h-12 font-semibold shadow-lg bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white" 
-                    onClick={handleShowBatchSummary} 
+                    className="flex-1 h-12 font-semibold shadow-lg bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white"
+                    onClick={handleShowBatchSummary}
                     disabled={(saleEntries.length === 0 && !form.fuel) || isSubmittingBatch}
                   >
                     <FileText className="mr-2 h-4 w-4" />
@@ -1309,6 +1325,18 @@ export default function Sales() {
                         <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                           ₹{(sale.salesInRupees || 0).toLocaleString()}
                         </p>
+                        {/* Delete button only for latest sale */}
+                        {index === 0 && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Delete Sale"
+                            onClick={() => setDeleteSaleId(sale.id)}
+                            className="bg-red-100 text-destructive mt-1 hover:bg-red-200"
+                          >
+                            <Trash2 className="h-5 w-5" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1329,8 +1357,44 @@ export default function Sales() {
               </div>
             )}
           </CardContent>
+
+          {/* Delete Dialog for latest sale */}
+          {deleteSaleId && (
+            <div
+              className={
+                "fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300 " +
+                (deleteSaleId ? 'opacity-100' : 'opacity-0 pointer-events-none')
+              }
+              style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+              onClick={() => setDeleteSaleId(null)}
+            >
+
+              <div
+                className="bg-gradient-to-br from-white/95 via-slate-50/90 to-red-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-red-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button type="button" className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm" onClick={() => setDeleteSaleId(null)}>
+                  <X className="h-5 w-5" />
+                </button>
+                <div className="mb-4 flex items-center gap-3">
+                  <Trash2 className="w-8 h-8 text-destructive" />
+                  <h2 className="font-bold text-2xl">Delete Sale</h2>
+                </div>
+                <p className="mb-6 text-muted-foreground">
+                  Are you sure you want to delete this sale record? <b>This action cannot be undone</b>.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <Button variant="outline" onClick={() => setDeleteSaleId(null)} className="h-11">Cancel</Button>
+                  <Button variant="destructive" onClick={() => deleteSaleId && deleteSaleMutation.mutate(deleteSaleId)} disabled={deleteSaleMutation.isPending} className="h-11">
+                    {deleteSaleMutation.isPending ? "Deleting..." : "Delete"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </Card>
       </div>
+
 
       {/* Fuel-wise Sales Breakdown */}
       <Card className="overflow-hidden border-0 shadow-xl bg-gradient-to-br from-background via-muted/5 to-background">
