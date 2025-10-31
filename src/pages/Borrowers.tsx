@@ -212,42 +212,34 @@ export default function Borrowers() {
     const url = getDateFilterUrl();
     if (!url) return [];
 
-    console.log('🔍 Fetching customers from:', url);
-
     try {
       const res = await axios.get(url, { timeout: 20000 });
       const data = res.data;
 
-      console.log('✅ API Response:', data);
 
       if (data && typeof data === 'object' && 'content' in data && Array.isArray(data.content)) {
-        console.log(`📊 Found ${data.content.length} customers in paginated response`);
         return data.content;
       }
 
       if (Array.isArray(data)) {
-        console.log(`📊 Found ${data.length} customers in array response`);
         return data;
       }
 
       const candidates = ['data', 'items', 'result', 'results', 'records', 'rows'];
       for (const key of candidates) {
         if (Array.isArray((data as any)?.[key])) {
-          console.log(`📊 Found ${(data as any)[key].length} customers in '${key}' field`);
           return (data as any)[key];
         }
       }
 
       const firstArray = Object.values(data || {}).find((v) => Array.isArray(v)) as Customer[] | undefined;
       if (Array.isArray(firstArray)) {
-        console.log(`📊 Found ${firstArray.length} customers in nested array`);
         return firstArray;
       }
 
       console.warn('⚠️ No array found in response, returning empty array');
       return [];
     } catch (err: any) {
-      console.error('❌ Error fetching customers:', err);
       toast({
         title: 'Error',
         description: err?.response?.data?.message || err?.message || 'Failed to fetch customers',
@@ -562,7 +554,7 @@ export default function Borrowers() {
   const fetchHistory = async (custId: string, page: number = 0) => {
     setHistoryLoading(true);
     try {
-      const url = `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/history?custId=${encodeURIComponent(custId)}&page=${page}&size=50`;
+      const url = `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/history/cust/${encodeURIComponent(custId)}?page=${page}&size=50`;
       const res = await axios.get(url, { timeout: 20000 });
       setHistoryData(res.data);
     } catch (err: any) {
@@ -1148,8 +1140,27 @@ function BorrowerRow({ c, onHistory, onTransaction, onEdit, onDelete }: { c: Cus
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold text-foreground">{c.customerName}</h3>
-            <Badge className="bg-muted text-foreground">{(c.status || 'N/A').toUpperCase()}</Badge>
-            {c.amountBorrowed && Number(c.amountBorrowed) > 0 && (<Badge className="bg-accent-soft text-accent">₹{Number(c.amountBorrowed).toLocaleString()}</Badge>)}
+            <Badge
+              className={
+                "text-foreground " +
+                (c.status === "PENDING"
+                  ? "bg-yellow-100 text-yellow-800 border-yellow-300"
+                  : c.status === "PARTIAL"
+                    ? "bg-blue-100 text-blue-800 border-blue-300"
+                    : c.status === "PAID"
+                      ? "bg-green-100 text-green-800 border-green-300"
+                      : c.status === "OVERDUE"
+                        ? "bg-red-100 text-red-800 border-red-300"
+                        : "bg-muted")
+              }
+            >
+              {(c.status || "N/A").toUpperCase()}
+            </Badge>
+            {c.amountBorrowed && Number(c.amountBorrowed) > 0 && (
+              <Badge className="bg-accent-soft text-accent">
+                ₹{Number(c.amountBorrowed).toLocaleString()}
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">{c.customerVehicleNum ? `Vehicle: ${c.customerVehicleNum}` : 'Vehicle: —'}{c.custId && <span className="ml-2 text-xs">ID: {c.custId}</span>}</p>
           <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
