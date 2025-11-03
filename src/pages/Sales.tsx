@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { useNavigate } from "react-router-dom";
 import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import {
   Select,
   SelectTrigger,
@@ -784,6 +784,9 @@ export default function Sales() {
               <Fuel className="h-5 w-5" />
               Sales Batch Summary - Enter Total Collections
             </DialogTitle>
+            <DialogDescription>
+              Review product-wise sales and enter the total payment collections received
+            </DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto space-y-6 pr-2">
@@ -954,6 +957,9 @@ export default function Sales() {
         <DialogContent className="max-w-lg w-[96vw]">
           <DialogHeader>
             <DialogTitle>Download DSR Report</DialogTitle>
+            <DialogDescription>
+              Select a date range to download Daily Sales Register report
+            </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 mb-2">
             {["today", "week", "month"].map((p) => (

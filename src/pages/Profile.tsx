@@ -12,7 +12,7 @@ import {
   AlertCircle, CheckCircle2, Home, UserCircle, LogOut
 } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -505,7 +505,9 @@ export default function Profile() {
           <form onSubmit={e => { e.preventDefault(); handleSave(); }}>
             <DialogHeader className="space-y-1 px-8 pt-8 pb-2 text-center">
               <DialogTitle className="text-2xl font-black text-blue-700 tracking-tight mb-1">Edit Profile</DialogTitle>
-              <p className="text-base text-slate-500 mb-2">Edit only fields you want to update.</p>
+              <DialogDescription className="text-base text-slate-500 mb-2">
+                Edit only fields you want to update.
+              </DialogDescription>
             </DialogHeader>
             <div className="max-h-[60vh] overflow-y-auto px-8 pt-2 pb-1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -641,6 +643,9 @@ export default function Profile() {
               <Lock className="h-5 w-5 text-blue-600" />
               Change Password
             </DialogTitle>
+            <DialogDescription>
+              Enter your current password and choose a new password
+            </DialogDescription>
           </DialogHeader>
           <form className="space-y-4 pt-4" onSubmit={handlePwdChange}>
             <div className="space-y-2">
