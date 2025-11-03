@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Select,
   SelectContent,
@@ -16,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Fuel, Plus, TrendingUp, AlertTriangle, RefreshCw, BarChart3, Calendar, X, Download, Eye, History, PackageOpen, Trash2,
+  Fuel, Plus, TrendingUp, AlertTriangle, RefreshCw, BarChart3, Calendar, X, Download, Eye, History, PackageOpen, Trash2, Loader2,
 } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
@@ -56,8 +57,10 @@ function useLatestInventories(orgId, products) {
 
 export default function Inventory() {
   const orgId = localStorage.getItem("organizationId") || "ORG-DEV-001";
+  const empId = localStorage.getItem("empId");
   const sentAlertRef = useRef<Set<string>>(new Set());
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const [stockModal, setStockModal] = useState<null | any>(null);
   const [stockValue, setStockValue] = useState("");
@@ -156,11 +159,30 @@ export default function Inventory() {
   });
 
   const deleteInventoryMutation = useMutation({
-    mutationFn: async (inventoryId) => {
+    mutationFn: async (inventoryId: string) => {
       const url = `${API_BASE}/api/organizations/${orgId}/inventories/${inventoryId}`;
-      await axios.delete(url);
+      await axios.delete(url, {
+        headers: {
+          "X-Employee-Id": empId || "",
+        },
+      });
     },
-    onSuccess: () => { refetchAll(); setDeleteModal(null); }
+    onSuccess: () => {
+      refetchAll();
+      setDeleteModal(null);
+      toast({
+        title: "✅ Deleted",
+        description: "Inventory deleted successfully.",
+        variant: "default",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "❌ Delete Failed",
+        description: error?.response?.data?.message || error?.message || "Failed to delete inventory.",
+        variant: "destructive",
+      });
+    },
   });
 
   const refetchAll = useCallback(() => {
@@ -272,9 +294,6 @@ export default function Inventory() {
     link.click();
     window.URL.revokeObjectURL(url);
   };
-  function closeModal(event: React.MouseEvent<HTMLDivElement, MouseEvent>): void {
-    throw new Error("Function not implemented.");
-  }
 
   return (
     <div className="space-y-6 -mt-6 animate-fade-in">
@@ -389,15 +408,17 @@ export default function Inventory() {
                         {!isActive ? "Inactive" : (percentage < 20 && <AlertTriangle className="mr-1 h-3 w-3" />)}
                         {!isActive ? "" : status.label}
                       </Badge>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="hover:bg-destructive/20"
-                        title="Delete Inventory"
-                        onClick={() => setDeleteModal(tank)}
-                      >
-                        <Trash2 className="h-5 w-5 text-destructive" />
-                      </Button>
+                      {isActive && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="hover:bg-destructive/20"
+                          title="Delete Inventory"
+                          onClick={() => setDeleteModal(tank)}
+                        >
+                          <Trash2 className="h-5 w-5 text-destructive" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -501,7 +522,7 @@ export default function Inventory() {
             (addModal ? 'opacity-100' : 'opacity-0 pointer-events-none')
           }
           style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
-          onClick={closeModal}
+          onClick={() => setAddModal(false)}
         >
 
           <div
@@ -602,7 +623,7 @@ export default function Inventory() {
             (stockModal ? 'opacity-100' : 'opacity-0 pointer-events-none')
           }
           style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
-          onClick={closeModal}
+          onClick={() => setStockModal(null)}
         >
 
           <div
@@ -682,7 +703,7 @@ export default function Inventory() {
             (refillModal ? 'opacity-100' : 'opacity-0 pointer-events-none')
           }
           style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
-          onClick={closeModal}
+          onClick={() => setRefillModal(null)}
         >
 
           <div
@@ -739,7 +760,7 @@ export default function Inventory() {
             (reportModal ? 'opacity-100' : 'opacity-0 pointer-events-none')
           }
           style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
-          onClick={closeModal}
+          onClick={() => { setReportModal(false); setReportProductId(""); setReportProduct(null); }}
         >
           <div
             className="bg-gradient-to-br from-white/95 via-violet-50/90 to-indigo-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-indigo-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-lg my-auto animate-slide-up"
@@ -814,7 +835,7 @@ export default function Inventory() {
             (lowStockModal ? 'opacity-100' : 'opacity-0 pointer-events-none')
           }
           style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
-          onClick={closeModal}
+          onClick={() => setLowStockModal(false)}
         >
 
           <div
@@ -873,7 +894,7 @@ export default function Inventory() {
             (deleteModal ? 'opacity-100' : 'opacity-0 pointer-events-none')
           }
           style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
-          onClick={closeModal}
+          onClick={() => setDeleteModal(null)}
         >
 
           <div
@@ -883,17 +904,51 @@ export default function Inventory() {
             <button type="button" className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm" onClick={() => setDeleteModal(null)}>
               <X className="h-5 w-5" />
             </button>
-            <div className="mb-4 flex items-center gap-3">
-              <Trash2 className="w-8 h-8 text-destructive" />
-              <h2 className="font-bold text-2xl">Delete Inventory</h2>
+            <div className="mb-6 flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-gradient-to-br from-red-500 to-pink-600 shadow-lg shadow-red-500/30">
+                <Trash2 className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h2 className="font-bold text-2xl text-foreground">Delete Inventory</h2>
+                <p className="text-sm text-muted-foreground">This action is permanent</p>
+              </div>
             </div>
-            <p className="mb-6 text-muted-foreground">
-              Are you sure you want to delete inventory for <b>{deleteModal.productName}</b>? This will remove <b>all data</b> for this tank from the system but will not delete the product definition.
-            </p>
+            
+            <div className="mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border-2 border-red-200/50 dark:border-red-800/50">
+              <p className="text-sm text-muted-foreground">
+                Are you sure you want to delete inventory for <b>{deleteModal.productName}</b>?
+              </p>
+              <p className="text-sm font-bold text-destructive mt-2">
+                ⚠️ This will remove all tank data from the system (product definition will remain).
+              </p>
+            </div>
+            
             <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setDeleteModal(null)} className="h-11">Cancel</Button>
-              <Button variant="destructive" onClick={() => deleteInventoryMutation.mutate(deleteModal.inventoryId)} disabled={deleteInventoryMutation.isPending} className="h-11">
-                {deleteInventoryMutation.isPending ? "Deleting..." : "Delete"}
+              <Button 
+                variant="outline" 
+                onClick={() => setDeleteModal(null)} 
+                className="h-11 px-6"
+                disabled={deleteInventoryMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={() => deleteInventoryMutation.mutate(deleteModal._id || deleteModal.inventoryId)} 
+                disabled={deleteInventoryMutation.isPending} 
+                className="h-11 px-6 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700"
+              >
+                {deleteInventoryMutation.isPending ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Deleting...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Trash2 className="h-4 w-4" />
+                    <span>Delete Inventory</span>
+                  </div>
+                )}
               </Button>
             </div>
           </div>

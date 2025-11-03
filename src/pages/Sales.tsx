@@ -48,6 +48,7 @@ import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useAuth } from "@/contexts/AuthContext";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -108,8 +109,16 @@ function entryKey(e: FormState) {
 }
 
 export default function Sales() {
+  const { user } = useAuth();
   const orgId = localStorage.getItem("organizationId");
   const empId = localStorage.getItem("empId");
+  
+  // Use role from AuthContext for proper role-based access control
+  const userRole = (user?.role || "").toLowerCase();
+  const isEmployee = userRole === "employee";
+  const isOwner = userRole === "owner";
+  const isManager = userRole === "manager";
+  
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -156,6 +165,28 @@ export default function Sales() {
       (await axios.get(`${API_BASE}/api/organizations/${orgId}/guninfo`)).data || [],
   });
 
+  // Fetch employee duties to filter guns for employees
+  const { data: employeeDuties = [] } = useQuery({
+    queryKey: ["employee-duties", orgId, empId],
+    queryFn: async () => {
+      if (!isEmployee) return [];
+      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/duties?empId=${empId}`);
+      return res.data || [];
+    },
+    enabled: isEmployee,
+  });
+
+  // Filter guns based on employee duties (Point 9)
+  const availableGunsForEmployee = useMemo(() => {
+    if (!isEmployee) return guns;
+    
+    const assignedGunNames = employeeDuties
+      .filter((d: any) => d.status === "active" || d.status === "assigned")
+      .map((d: any) => d.gunName || d.guns);
+    
+    return guns.filter((g: any) => assignedGunNames.includes(g.guns));
+  }, [isEmployee, guns, employeeDuties]);
+
   const { data: sales = [], isLoading } = useQuery({
     queryKey: ["sales", orgId],
     queryFn: async () =>
@@ -169,8 +200,8 @@ export default function Sales() {
   });
 
   const filteredGuns = useMemo(
-    () => (!form.fuel ? [] : guns.filter((g: any) => g.productName === form.fuel)),
-    [form.fuel, guns]
+    () => (!form.fuel ? [] : availableGunsForEmployee.filter((g: any) => g.productName === form.fuel)),
+    [form.fuel, availableGunsForEmployee]
   );
 
   // Auto-fill opening stock and price
@@ -179,7 +210,7 @@ export default function Sales() {
     let price = "";
 
     if (form.gun) {
-      const gunObj = guns.find(
+      const gunObj = availableGunsForEmployee.find(
         (g: any) => g.guns === form.gun && (!form.fuel || g.productName === form.fuel)
       );
       if (gunObj && typeof gunObj.currentReading !== "undefined")
@@ -203,7 +234,7 @@ export default function Sales() {
       testingTotal: "",
       gun: filteredGuns.some((g: any) => g.guns === prev.gun) ? prev.gun : "",
     }));
-  }, [form.gun, form.fuel, guns, products, filteredGuns]);
+  }, [form.gun, form.fuel, availableGunsForEmployee, products, filteredGuns]);
 
   // Calculate sale liters and amount
   useEffect(() => {
@@ -211,6 +242,29 @@ export default function Sales() {
     const close = Number(form.closingStock) || 0;
     const testing = Number(form.testingTotal) || 0;
     const pricePerLiter = Number(form.price) || 0;
+    
+    // Validate closing stock doesn't exceed tank capacity in real-time
+    if (close > 0 && form.fuel) {
+      // Get tank capacity from products API based on selected fuel
+      const selectedProduct = products.find((p: any) => p.productName === form.fuel);
+      const tankCapacity = selectedProduct?.tankCapacity || Infinity;
+      
+      if (tankCapacity !== Infinity && close > tankCapacity) {
+        setValidationError({
+          title: "Tank Capacity Exceeded",
+          message: `Closing stock (${close.toLocaleString()}L) cannot exceed the tank capacity of ${tankCapacity.toLocaleString()}L for ${form.fuel}. Please reduce the closing stock value to proceed.`
+        });
+        // Don't calculate sales if validation fails
+        return;
+      } else {
+        // Clear validation error if closing stock is now valid
+        setValidationError(null);
+      }
+    } else {
+      // Clear validation error if fields are empty
+      setValidationError(null);
+    }
+    
     const grossSale = close > open ? close - open : 0;
     const netSale = Math.max(0, grossSale - testing);
     const salesAmount = Math.round(netSale * pricePerLiter * 100) / 100;
@@ -219,19 +273,32 @@ export default function Sales() {
       saleLiters: netSale > 0 ? netSale.toFixed(3) : "",
       salesInRupees: salesAmount > 0 ? salesAmount.toFixed(2) : "",
     }));
-  }, [form.closingStock, form.openingStock, form.price, form.testingTotal]);
+  }, [form.closingStock, form.openingStock, form.price, form.testingTotal, form.fuel, products]);
 
 
   const [deleteSaleId, setDeleteSaleId] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<{ title: string; message: string } | null>(null);
   const deleteSaleMutation = useMutation({
     mutationFn: async (saleId: string) => {
-      await axios.delete(`${API_BASE}/api/organizations/${orgId}/sales/${saleId}`);
-      return { success: true };
+      const url = `${API_BASE}/api/organizations/${orgId}/sales/${saleId}`;
+      await axios.delete(url, {
+        headers: {
+          "X-Employee-Id": empId || "",
+        },
+      });
     },
     onSuccess: () => {
       setDeleteSaleId(null);
       queryClient.invalidateQueries({ queryKey: ["sales", orgId] });
-      toast({ title: "Deleted", description: "Sale entry deleted.", variant: "default" });
+      toast({ title: "Deleted", description: "Sale entry deleted.", variant: "success" });
+    },
+    onError: (error: any) => {
+      console.error("❌ Delete Sale Error:", error);
+      toast({
+        title: "Delete Failed",
+        description: error?.response?.data?.message || "Failed to delete sale entry.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -308,16 +375,25 @@ export default function Sales() {
       } catch (error: any) {
         console.error("❌ Sale/Collection Error:", error);
 
-        let errorMessage = "Failed to record sale or collection";
-        if (error.response?.data?.message) {
-          errorMessage = error.response.data.message;
-        } else if (error.response?.data?.error) {
-          errorMessage = error.response.data.error;
-        } else if (error.message) {
-          errorMessage = error.message;
+        let errorMessage = "Unable to process your sale request. Please check all fields and try again.";
+        let errorTitle = "Sale Recording Failed";
+        
+        // Simple error handling with our own messages
+        if (error.response?.status === 500) {
+          errorTitle = "Server Error";
+          errorMessage = "An error occurred while saving your sale. Please verify all information is correct and try again.";
+        } else if (error.response?.status === 400) {
+          errorTitle = "Invalid Data";
+          errorMessage = "Please check that all required fields are filled correctly and try again.";
+        } else if (error.response?.status === 404) {
+          errorTitle = "Not Found";
+          errorMessage = "Required resource not found. Please refresh the page and try again.";
+        } else if (error.message === "Network Error") {
+          errorTitle = "Network Error";
+          errorMessage = "Cannot connect to the server. Please check your internet connection.";
         }
 
-        throw new Error(errorMessage);
+        throw new Error(`${errorTitle}|${errorMessage}`);
       }
     },
     onSuccess: () => {
@@ -336,9 +412,22 @@ export default function Sales() {
     },
     onError: (error: any) => {
       console.error("❌ Mutation Error:", error);
+      
+      // Parse enhanced error message
+      let title = "Failed to Record Sale";
+      let description = "Please check your input and try again.";
+      
+      if (error.message && error.message.includes("|")) {
+        const [errorTitle, errorMessage] = error.message.split("|");
+        title = errorTitle;
+        description = errorMessage;
+      } else if (error.message) {
+        description = error.message;
+      }
+      
       toast({
-        title: "❌ Failed",
-        description: error.message || "Please check backend logs for details.",
+        title,
+        description,
         variant: "destructive"
       });
     },
@@ -348,36 +437,65 @@ export default function Sales() {
     const { fuel, price, gun, openingStock, closingStock, testingTotal, saleLiters, shortCollections } = f;
 
     if (!fuel || !gun || price === "") {
-      toast({ title: "Please select product and gun.", variant: "destructive" });
+      setValidationError({
+        title: "Missing Information",
+        message: "Please select product and gun before proceeding."
+      });
       return false;
     }
 
     if (openingStock === "" || closingStock === "") {
-      toast({ title: "Please fill closing stock.", variant: "destructive" });
+      setValidationError({
+        title: "Missing Stock Information",
+        message: "Please fill in the closing stock value."
+      });
       return false;
     }
 
     const openNum = Number(openingStock), closeNum = Number(closingStock), testingNum = Number(testingTotal) || 0;
 
     if (isNaN(openNum) || isNaN(closeNum) || closeNum <= openNum) {
-      toast({ title: "Closing stock must be greater than opening stock.", variant: "destructive" });
+      setValidationError({
+        title: "Invalid Closing Stock",
+        message: "Closing stock must be greater than opening stock."
+      });
+      return false;
+    }
+
+    // Validate closing stock doesn't exceed tank capacity
+    const selectedProduct = products.find((p: any) => p.productName === fuel);
+    const tankCapacity = selectedProduct?.tankCapacity || Infinity;
+    
+    if (tankCapacity !== Infinity && closeNum > tankCapacity) {
+      setValidationError({
+        title: "Tank Capacity Exceeded",
+        message: `Closing stock (${closeNum.toLocaleString()}L) cannot exceed the tank capacity of ${tankCapacity.toLocaleString()}L for ${fuel}. Please enter a valid closing stock value.`
+      });
       return false;
     }
 
     const gross = closeNum - openNum;
     if (testingNum < 0 || testingNum > gross) {
-      toast({ title: "Testing liters must be between 0 and gross liters.", variant: "destructive" });
+      setValidationError({
+        title: "Invalid Testing Value",
+        message: "Testing liters must be between 0 and gross liters."
+      });
       return false;
     }
 
     const net = gross - testingNum;
-    if (net <= 0) {
-      toast({ title: "Net sale liters must be positive.", variant: "destructive" });
-      return false;
+    
+    // Point 8: Allow net sale 0 when testing data is entered (no business day)
+    if (net === 0 && testingNum > 0) {
+      // Valid case: testing only, no actual sales
+      return skipCollectionCheck ? true : true;
     }
-
-    if (!saleLiters) {
-      toast({ title: "Sale liters not computed.", variant: "destructive" });
+    
+    if (net < 0) {
+      setValidationError({
+        title: "Invalid Net Sale",
+        message: "Net sale liters cannot be negative."
+      });
       return false;
     }
 
@@ -385,11 +503,17 @@ export default function Sales() {
 
     const short = Number(shortCollections) || 0;
     if (short > 10) {
-      toast({ title: "Short collection too high!", description: `Short collection is ₹${short.toFixed(2)}. It must be ₹10 or less.`, variant: "destructive" });
+      setValidationError({
+        title: "Short Collection Too High",
+        message: `Short collection is ₹${short.toFixed(2)}. Maximum allowed is ₹10.`
+      });
       return false;
     }
     if (short < 0) {
-      toast({ title: "Short collection can't be negative.", variant: "destructive" });
+      setValidationError({
+        title: "Invalid Short Collection",
+        message: "Short collection cannot be negative."
+      });
       return false;
     }
     return true;
@@ -419,6 +543,19 @@ export default function Sales() {
     if (!isFormValid(form, true)) return;
     const key = entryKey(form);
     const existingKeys = new Set(saleEntries.map(entryKey));
+    
+    // Point 7: Check for duplicate gun in batch sales
+    const isDuplicateGun = saleEntries.some((entry) => entry.gun === form.gun);
+    
+    if (isDuplicateGun) {
+      toast({ 
+        title: "Duplicate Gun Blocked", 
+        description: `Gun "${form.gun}" has already been added to this batch. Same gun cannot be entered twice.`, 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
     if (existingKeys.has(key)) {
       toast({ title: "Duplicate sale blocked", description: "This entry already exists in the batch.", variant: "destructive" });
       return;
@@ -431,6 +568,20 @@ export default function Sales() {
     if (form.fuel && isFormValid(form, true)) {
       const key = entryKey(form);
       const existingKeys = new Set(saleEntries.map(entryKey));
+      
+      // Point 7: Check for duplicate gun
+      const isDuplicateGun = saleEntries.some((entry) => entry.gun === form.gun);
+      
+      if (isDuplicateGun) {
+        toast({ 
+          title: "Duplicate Gun Blocked", 
+          description: `Gun "${form.gun}" has already been added to this batch. Same gun cannot be entered twice.`, 
+          variant: "destructive" 
+        });
+        setShowSummaryPopup(true);
+        return;
+      }
+      
       if (!existingKeys.has(key)) {
         setSaleEntries((prev) => [...prev, { ...form, cashReceived: "", phonePay: "", creditCard: "", shortCollections: "" }]);
       }
@@ -481,7 +632,7 @@ export default function Sales() {
       setSaleEntries([]);
       setShowSummaryPopup(false);
       setBatchCollectionForm({ totalCash: "", totalUPI: "", totalCard: "" });
-      toast({ title: `${saleEntries.length} sales recorded successfully!`, variant: "default" });
+      toast({ title: `${saleEntries.length} sales recorded successfully!`, variant: "success" });
     } catch (e) {
       toast({ title: "Batch submit failed", variant: "destructive" });
     } finally {
@@ -601,7 +752,11 @@ export default function Sales() {
     todaySalesRaw.forEach((sale: any) => {
       expected += Number(sale.salesInRupees) || 0;
     });
-    return { cash, upi, card, short, received, expected };
+    
+    // Point 6: Calculate excess collections (only for owner)
+    const excess = Math.max(0, received - expected);
+    
+    return { cash, upi, card, short, received, expected, excess };
   }, [todaysCollections, todaySalesRaw]);
 
   const summary = useMemo(() => {
@@ -773,6 +928,24 @@ export default function Sales() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes slide-up {
+          from {
+            opacity: 0;
+            transform: translateY(30px) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        
+        .animate-slide-up {
+          animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+      `}</style>
+
       {renderBatchSummaryDialog()}
 
       {/* DSR Dialog */}
@@ -826,22 +999,26 @@ export default function Sales() {
           <h1 className="text-3xl font-bold text-foreground">Sales & Collections</h1>
           <p className="text-muted-foreground">Record sales and track daily collections</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={openDsrDialog}><FileText className="mr-2 h-4 w-4" />Generate DSR</Button>
-          <Button variant="secondary" onClick={() => navigate("/sales-history")}><List className="mr-2 h-4 w-4" />View Sales History</Button>
-        </div>
+        {/* Point 2: Hide DSR and Sales History buttons for employees */}
+        {!isEmployee && (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={openDsrDialog}><FileText className="mr-2 h-4 w-4" />Generate DSR</Button>
+            <Button variant="secondary" onClick={() => navigate("/sales-history")}><List className="mr-2 h-4 w-4" />View Sales History</Button>
+          </div>
+        )}
       </div>
 
-      {/* Collections Overview */}
-      <Card className="overflow-hidden border-0 shadow-xl bg-gradient-to-br from-background via-muted/5 to-background">
-        <CardHeader className="border-b bg-gradient-to-r from-primary/5 to-accent/5">
-          <CardTitle className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10"><Banknote className="h-5 w-5 text-primary" /></div>
-            Collections Overview
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Point 1: Collections Overview - Hidden for employees */}
+      {!isEmployee && (
+        <Card className="overflow-hidden border-0 shadow-xl bg-gradient-to-br from-background via-muted/5 to-background">
+          <CardHeader className="border-b bg-gradient-to-r from-primary/5 to-accent/5">
+            <CardTitle className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10"><Banknote className="h-5 w-5 text-primary" /></div>
+              Collections Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 p-6 text-white shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16" />
               <div className="relative z-10">
@@ -908,9 +1085,25 @@ export default function Sales() {
                 <p className="text-3xl font-bold tracking-tight">{RUPEE}{collectionSummary.received.toLocaleString()}</p>
               </div>
             </div>
+            
+            {/* Point 6: Excess Collections Card - Only visible to Owner */}
+            {isOwner && collectionSummary.excess > 0 && (
+              <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 p-6 text-white shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16" />
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between mb-3">
+                    <Target className="h-8 w-8 opacity-90" />
+                    <Badge variant="secondary" className="bg-white/20 text-white border-0">Excess</Badge>
+                  </div>
+                  <p className="text-sm opacity-90 mb-1">Excess Collections</p>
+                  <p className="text-3xl font-bold tracking-tight">{RUPEE}{collectionSummary.excess.toLocaleString()}</p>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
+      )}
       {/* SALE MODE SWITCHER - ONLY 2 BUTTONS */}
       <div className="w-full flex flex-col sm:flex-row items-stretch gap-4 mb-6">
         <Button
@@ -1206,13 +1399,18 @@ export default function Sales() {
               {saleMode === "single" && (
                 <Button
                   type="submit"
-                  className="w-full h-12 font-semibold shadow-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
-                  disabled={saleCollectionMutation.isPending || submittingRef.current}
+                  className="w-full h-12 font-semibold shadow-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={saleCollectionMutation.isPending || submittingRef.current || validationError !== null}
                 >
                   {saleCollectionMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Recording...
+                    </>
+                  ) : validationError ? (
+                    <>
+                      <AlertCircle className="mr-2 h-4 w-4" />
+                      Fix Validation Error
                     </>
                   ) : (
                     <>
@@ -1228,12 +1426,21 @@ export default function Sales() {
                   <Button
                     type="button"
                     variant="default"
-                    className="flex-1 h-12 font-semibold"
+                    className="flex-1 h-12 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={handleAddAnotherSale}
-                    disabled={isSubmittingBatch}
+                    disabled={isSubmittingBatch || validationError !== null}
                   >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Sale to Batch
+                    {validationError ? (
+                      <>
+                        <AlertCircle className="mr-2 h-4 w-4" />
+                        Fix Validation Error
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Sale to Batch
+                      </>
+                    )}
                   </Button>
                   <Button
                     type="button"
@@ -1251,19 +1458,20 @@ export default function Sales() {
         </form>
       </Card>
 
-      {/* TODAY'S SALES */}
-      <div className="w-full mt-10">
-        <Card className="overflow-hidden border-0 shadow-xl bg-gradient-to-br from-background via-muted/5 to-background">
-          <CardHeader className="border-b bg-gradient-to-r from-blue-500/5 to-indigo-500/5">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-500/10"><Clock className="h-5 w-5 text-blue-600" /></div>
-                Today's Sales
-                <Badge variant="secondary" className="ml-2">{todaySalesRaw.length} {todaySalesRaw.length === 1 ? 'Entry' : 'Entries'}</Badge>
-              </CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="p-6">
+      {/* Point 1: TODAY'S SALES - Hidden for employees */}
+      {!isEmployee && (
+        <div className="w-full mt-10">
+          <Card className="overflow-hidden border-0 shadow-xl bg-gradient-to-br from-background via-muted/5 to-background">
+            <CardHeader className="border-b bg-gradient-to-r from-blue-500/5 to-indigo-500/5">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-blue-500/10"><Clock className="h-5 w-5 text-blue-600" /></div>
+                  Today's Sales
+                  <Badge variant="secondary" className="ml-2">{todaySalesRaw.length} {todaySalesRaw.length === 1 ? 'Entry' : 'Entries'}</Badge>
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
             <div className="space-y-3">
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-12">
@@ -1280,7 +1488,7 @@ export default function Sales() {
                 </div>
               ) : (
                 todaySales.map((sale: any, index: number) => (
-                  <div key={sale.id || `${sale.productName}-${sale.guns}-${index}`} className="group relative overflow-hidden rounded-xl border border-border/50 bg-gradient-to-br from-background to-muted/20 p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:border-primary/50">
+                  <div key={sale._id || sale.id || `${sale.productName}-${sale.guns}-${index}`} className="group relative overflow-hidden rounded-xl border border-border/50 bg-gradient-to-br from-background to-muted/20 p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:border-primary/50">
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-600" />
                     <div className="flex items-center justify-between gap-4 ml-3">
                       <div className="flex items-center gap-4 flex-1">
@@ -1325,13 +1533,13 @@ export default function Sales() {
                         <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                           ₹{(sale.salesInRupees || 0).toLocaleString()}
                         </p>
-                        {/* Delete button only for latest sale */}
-                        {index === 0 && (
+                        {/* Point 3: Delete button only for latest sale and hidden for employees */}
+                        {index === 0 && !isEmployee && (
                           <Button
                             variant="ghost"
                             size="icon"
                             title="Delete Sale"
-                            onClick={() => setDeleteSaleId(sale.id)}
+                            onClick={() => setDeleteSaleId(sale._id || sale.id)}
                             className="bg-red-100 text-destructive mt-1 hover:bg-red-200"
                           >
                             <Trash2 className="h-5 w-5" />
@@ -1368,25 +1576,63 @@ export default function Sales() {
               style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
               onClick={() => setDeleteSaleId(null)}
             >
-
               <div
                 className="bg-gradient-to-br from-white/95 via-slate-50/90 to-red-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-red-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
                 onClick={(e) => e.stopPropagation()}
               >
-                <button type="button" className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm" onClick={() => setDeleteSaleId(null)}>
+                <button 
+                  type="button" 
+                  className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm" 
+                  onClick={() => setDeleteSaleId(null)}
+                >
                   <X className="h-5 w-5" />
                 </button>
-                <div className="mb-4 flex items-center gap-3">
-                  <Trash2 className="w-8 h-8 text-destructive" />
-                  <h2 className="font-bold text-2xl">Delete Sale</h2>
+                
+                <div className="mb-6 flex items-center gap-3">
+                  <div className="p-3 rounded-2xl bg-gradient-to-br from-red-500 to-pink-600 shadow-lg shadow-red-500/30">
+                    <Trash2 className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-2xl text-foreground">Delete Sale Record</h2>
+                    <p className="text-sm text-muted-foreground">This action is permanent</p>
+                  </div>
                 </div>
-                <p className="mb-6 text-muted-foreground">
-                  Are you sure you want to delete this sale record? <b>This action cannot be undone</b>.
-                </p>
+                
+                <div className="mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border-2 border-red-200/50 dark:border-red-800/50">
+                  <p className="text-sm text-muted-foreground">
+                    Are you sure you want to delete this sale record? 
+                  </p>
+                  <p className="text-sm font-bold text-destructive mt-2">
+                    ⚠️ This action cannot be undone and will permanently remove the sale data.
+                  </p>
+                </div>
+                
                 <div className="flex justify-end gap-3">
-                  <Button variant="outline" onClick={() => setDeleteSaleId(null)} className="h-11">Cancel</Button>
-                  <Button variant="destructive" onClick={() => deleteSaleId && deleteSaleMutation.mutate(deleteSaleId)} disabled={deleteSaleMutation.isPending} className="h-11">
-                    {deleteSaleMutation.isPending ? "Deleting..." : "Delete"}
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setDeleteSaleId(null)} 
+                    className="h-11 px-6"
+                    disabled={deleteSaleMutation.isPending}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => deleteSaleId && deleteSaleMutation.mutate(deleteSaleId)} 
+                    disabled={deleteSaleMutation.isPending} 
+                    className="h-11 px-6 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700"
+                  >
+                    {deleteSaleMutation.isPending ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Deleting...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Trash2 className="h-4 w-4" />
+                        <span>Delete Sale</span>
+                      </div>
+                    )}
                   </Button>
                 </div>
               </div>
@@ -1394,19 +1640,76 @@ export default function Sales() {
           )}
         </Card>
       </div>
+      )}
 
-
-      {/* Fuel-wise Sales Breakdown */}
-      <Card className="overflow-hidden border-0 shadow-xl bg-gradient-to-br from-background via-muted/5 to-background">
-        <CardHeader className="border-b bg-gradient-to-r from-accent/5 to-primary/5">
-          <CardTitle className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-accent/10">
-              <Fuel className="h-5 w-5 text-accent" />
+      {/* Validation Error Dialog */}
+      {validationError && (
+        <div
+          className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300"
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={() => {
+            setValidationError(null);
+            setForm(initialFormState);
+          }}
+        >
+          <div
+            className="bg-gradient-to-br from-white/95 via-slate-50/90 to-amber-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-amber-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              type="button" 
+              className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-amber-100 dark:hover:bg-amber-900/30 text-muted-foreground hover:text-amber-600 p-2 transition-all backdrop-blur-sm" 
+              onClick={() => {
+                setValidationError(null);
+                setForm(initialFormState);
+              }}
+            >
+              <X className="h-5 w-5" />
+            </button>
+            
+            <div className="mb-6 flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/30">
+                <AlertCircle className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h2 className="font-bold text-2xl text-foreground">{validationError.title}</h2>
+                <p className="text-sm text-muted-foreground">Validation Error</p>
+              </div>
             </div>
-            Fuel-wise Sales Breakdown
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
+            
+            <div className="mb-6 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200/50 dark:border-amber-800/50">
+              <p className="text-sm text-foreground">
+                {validationError.message}
+              </p>
+            </div>
+            
+            <div className="flex justify-end">
+              <Button 
+                onClick={() => {
+                  setValidationError(null);
+                  setForm(initialFormState);
+                }} 
+                className="h-11 px-6 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+              >
+                OK, Got It
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Point 4: Fuel-wise Sales Breakdown - Hidden for employees */}
+      {!isEmployee && (
+        <Card className="overflow-hidden border-0 shadow-xl bg-gradient-to-br from-background via-muted/5 to-background">
+          <CardHeader className="border-b bg-gradient-to-r from-accent/5 to-primary/5">
+            <CardTitle className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-accent/10">
+                <Fuel className="h-5 w-5 text-accent" />
+              </div>
+              Fuel-wise Sales Breakdown
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
           {summary.products.length === 0 ? (
             <div className="text-center py-12">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
@@ -1447,6 +1750,7 @@ export default function Sales() {
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

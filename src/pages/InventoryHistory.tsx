@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
 import axios from 'axios';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
-  Calendar, Loader2, Trash2, X, ChevronLeft, ChevronRight, ArrowLeft, Eye, Droplet
+  ChevronLeft, ChevronRight, ArrowLeft, Droplet,
+  Loader2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -34,14 +35,11 @@ function getMonthRange() {
 export default function InventoryHistory() {
   const navigate = useNavigate();
   const orgId = localStorage.getItem('organizationId') || 'ORG-DEV-001';
-  const queryClient = useQueryClient();
 
   const [productName, setProductName] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  const [chosenPeriod, setChosenPeriod] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
-  const [confirmDelete, setConfirmDelete] = useState<any | null>(null);
-  const [selectedLog, setSelectedLog] = useState<any | null>(null);
+  const [chosenPeriod, setChosenPeriod] = useState<'all' | 'latest10' | 'week' | 'month' | 'custom'>('latest10');
 
   const [currentPage, setCurrentPage] = useState(1);
   const [recordsPerPage, setRecordsPerPage] = useState(10);
@@ -64,21 +62,22 @@ export default function InventoryHistory() {
     }
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (logId: string) => {
-      if (!logId) throw new Error('Invalid log ID');
-      await axios.delete(`${API_BASE}/api/organizations/${orgId}/inventory-logs/${logId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['inventoryLogs'] });
-      setConfirmDelete(null);
-      setSelectedLog(null);
-    }
-  });
-
   // FILTERING IS 100% FRONTEND: FAST + ACCURATE
   const filteredLogs = useMemo(() => {
     let logs = [...allLogs];
+    
+    // Sort by lastUpdated (newest first)
+    logs.sort((a, b) => {
+      const dateA = new Date(a.lastUpdated || 0).getTime();
+      const dateB = new Date(b.lastUpdated || 0).getTime();
+      return dateB - dateA;
+    });
+
+    // If latest10 is selected, return only the first 10 records
+    if (chosenPeriod === 'latest10' && !productName && !fromDate && !toDate) {
+      return logs.slice(0, 10);
+    }
+
     if (productName) logs = logs.filter(l => (l.productName || '').trim() === productName);
     if (fromDate)
       logs = logs.filter(l => l.lastUpdated &&
@@ -87,7 +86,7 @@ export default function InventoryHistory() {
       logs = logs.filter(l => l.lastUpdated &&
         new Date(l.lastUpdated).toISOString().slice(0,10) <= toDate);
     return logs;
-  }, [allLogs, productName, fromDate, toDate]);
+  }, [allLogs, productName, fromDate, toDate, chosenPeriod]);
 
   // Pagination
   const totalRecords = filteredLogs.length;
@@ -100,7 +99,7 @@ export default function InventoryHistory() {
   function handleQuickFilter(period: typeof chosenPeriod) {
     setChosenPeriod(period);
     setCurrentPage(1);
-    if (period === 'today')      { const { fromDate, toDate } = getTodayRange(); setFromDate(fromDate); setToDate(toDate); }
+    if (period === 'latest10')   { setFromDate(''); setToDate(''); }
     else if (period === 'week')  { const { fromDate, toDate } = getWeekRange(); setFromDate(fromDate); setToDate(toDate); }
     else if (period === 'month') { const { fromDate, toDate } = getMonthRange(); setFromDate(fromDate); setToDate(toDate); }
     else if (period === 'all')   { setFromDate(''); setToDate(''); }
@@ -111,13 +110,6 @@ export default function InventoryHistory() {
   const goToPage = (p: number) => { if (p >= 1 && p <= totalPages) setCurrentPage(p); };
   const formatDateTime = (s?: string) => !s ? '' : (new Date(s)).toLocaleDateString('en-IN') + ' ' + (new Date(s)).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
   const nf = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
-
-  // Modal functions
-  const openLogModal = (log: any) => setSelectedLog(log);
-  const closeLogModal = () => setSelectedLog(null);
-  const startDelete = (log: any) => { if (!log.id) return; setConfirmDelete(log); };
-  const cancelDelete = () => setConfirmDelete(null);
-  const confirmDeleteLog = () => { if (!confirmDelete?.id) return; deleteMutation.mutate(confirmDelete.id); };
 
   // List pagination page numbers
   const getPageNumbers = () => {
@@ -132,40 +124,33 @@ export default function InventoryHistory() {
   };
 
   // Modern Log Row UI
-  function LogRow({log, onClick, onDelete}: {log:any, onClick?:()=>void, onDelete?:()=>void}) {
+  function LogRow({log}: {log:any}) {
     return (
-      <li
-        className={`group flex items-center gap-3 py-4 px-2 sm:px-4 border-b border-border bg-background hover:bg-muted/40 transition relative cursor-pointer`}
-        onClick={onClick}
-      >
+      <li className={`group flex flex-col sm:flex-row items-start sm:items-center gap-3 py-4 px-3 sm:px-4 border-b border-border bg-background hover:bg-muted/40 transition relative`}>
         {/* Product Avatar/Icon */}
         <div className="flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-700/30 h-12 w-12 shrink-0">
           <Droplet className="h-6 w-6 text-blue-500 dark:text-blue-300" />
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap gap-x-2 items-baseline">
-            <span className="font-semibold text-lg text-foreground truncate">{log.productName}</span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-bold ml-2"
+        <div className="flex-1 min-w-0 w-full">
+          <div className="flex flex-wrap gap-x-2 gap-y-1 items-baseline">
+            <span className="font-semibold text-base sm:text-lg text-foreground truncate">{log.productName}</span>
+            <span className="px-2 py-0.5 rounded-full text-xs font-bold"
               style={{
                 background: log.status === false ? "#fee2e2" : "#dcfce7",
                 color: log.status === false ? "#ef4444" : "#22c55e"
               }}>
               {log.status === false ? "Inactive" : "Active"}
             </span>
-            <span className="mx-2 text-xs text-slate-400 font-mono">{formatDateTime(log.lastUpdated)}</span>
+            <span className="text-xs text-slate-400 font-mono">{formatDateTime(log.lastUpdated)}</span>
           </div>
-          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground tracking-tight">
-            <span><Droplet className="inline h-4 w-4 mr-1 text-blue-400" />Level: <b className="font-medium text-primary">{nf.format(log.currentLevel ?? 0)} L</b></span>
-            <span>Cap: <b className="font-medium">{nf.format(log.tankCapacity ?? 0)} L</b></span>
-            <span>Value: <b className="font-medium">₹{nf.format(log.stockValue ?? 0)}</b></span>
-            {log.remarks && <span className="italic text-slate-500">"{log.remarks}"</span>}
+          <div className="mt-2 grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-1.5 text-xs sm:text-sm text-muted-foreground">
+            <span><Droplet className="inline h-3.5 w-3.5 mr-1 text-blue-400" />Level: <b className="font-medium text-primary">{nf.format(log.currentLevel ?? 0)} {log.metric || 'L'}</b></span>
+            <span>Capacity: <b className="font-medium">{nf.format(log.tankCapacity ?? 0)} {log.metric || 'L'}</b></span>
+            <span>Stock Value: <b className="font-medium">₹{nf.format(log.stockValue ?? 0)}</b></span>
+            {log.receiptQuantityInLitres > 0 && <span>Receipt Qty: <b className="font-medium">{nf.format(log.receiptQuantityInLitres)} L</b></span>}
+            {log.empId && <span>Emp ID: <b className="font-medium">{log.empId}</b></span>}
+            {log.mutationby && <span>Updated By: <b className="font-medium">{log.mutationby}</b></span>}
           </div>
-        </div>
-
-        {/* Row Actions: Only on hover/tap for clean look */}
-        <div className="flex gap-1 items-center ml-2 opacity-0 group-hover:opacity-100 transition" onClick={e=>e.stopPropagation()}>
-          <Button variant="ghost" size="icon" onClick={onDelete} disabled={deleteMutation.isPending} className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={onClick} className="h-8 w-8 p-0 hover:bg-blue-100"><Eye className="h-4 w-4" /></Button>
         </div>
       </li>
     );
@@ -186,8 +171,8 @@ export default function InventoryHistory() {
 
       {/* Quick Filters */}
       <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant={chosenPeriod === 'latest10' ? "default" : "outline"} onClick={() => handleQuickFilter('latest10')}>Latest 10</Button>
         <Button size="sm" variant={chosenPeriod === 'all' ? "default" : "outline"} onClick={() => handleQuickFilter('all')}>All</Button>
-        <Button size="sm" variant={chosenPeriod === 'today' ? "default" : "outline"} onClick={() => handleQuickFilter('today')}>Today</Button>
         <Button size="sm" variant={chosenPeriod === 'week' ? "default" : "outline"} onClick={() => handleQuickFilter('week')}>Last 7 days</Button>
         <Button size="sm" variant={chosenPeriod === 'month' ? "default" : "outline"} onClick={() => handleQuickFilter('month')}>This Month</Button>
         <Button size="sm" variant={chosenPeriod === 'custom' ? "default" : "outline"} onClick={() => setChosenPeriod('custom')}>Custom</Button>
@@ -196,12 +181,12 @@ export default function InventoryHistory() {
       {/* Search Form */}
       <Card className="card-gradient border-0">
         <CardHeader>
-          <CardTitle>Filters</CardTitle>
+          <CardTitle className="text-lg sm:text-xl">Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Product</label>
+              <label className="text-xs sm:text-sm font-medium text-foreground">Product</label>
               <Select value={productName || "ALL_PRODUCTS"} onValueChange={handleProductChange}>
                 <SelectTrigger className="w-full"><SelectValue placeholder="All Products" /></SelectTrigger>
                 <SelectContent className='z-[10000]'>
@@ -211,15 +196,15 @@ export default function InventoryHistory() {
               </Select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">From</label>
-              <Input type="date" value={fromDate} onChange={handleFromDateChange} disabled={chosenPeriod !== 'custom' && chosenPeriod !== 'all'} className="h-10" />
+              <label className="text-xs sm:text-sm font-medium text-foreground">From</label>
+              <Input type="date" value={fromDate} onChange={handleFromDateChange} disabled={chosenPeriod !== 'custom' && chosenPeriod !== 'all' && chosenPeriod !== 'latest10'} className="h-10 text-sm" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">To</label>
-              <Input type="date" value={toDate} onChange={handleToDateChange} disabled={chosenPeriod !== 'custom' && chosenPeriod !== 'all'} className="h-10" />
+              <label className="text-xs sm:text-sm font-medium text-foreground">To</label>
+              <Input type="date" value={toDate} onChange={handleToDateChange} disabled={chosenPeriod !== 'custom' && chosenPeriod !== 'all' && chosenPeriod !== 'latest10'} className="h-10 text-sm" />
             </div>
-            <div className="md:col-span-2 space-y-2">
-              <label className="text-sm font-medium text-foreground opacity-0">Action</label>
+            <div className="sm:col-span-2 lg:col-span-2 space-y-2">
+              <label className="text-xs sm:text-sm font-medium text-foreground opacity-0 hidden sm:block">Action</label>
               <span className="block text-xs text-muted-foreground">({filteredLogs.length} record{filteredLogs.length !== 1 && 's'} found)</span>
             </div>
           </div>
@@ -229,12 +214,12 @@ export default function InventoryHistory() {
       {/* Log List Modern */}
       <Card className="card-gradient">
         <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <CardTitle>Log Entries</CardTitle>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground">Show</span>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <CardTitle className="text-lg sm:text-xl">Log Entries</CardTitle>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
+              <span className="text-xs sm:text-sm text-muted-foreground">Show</span>
               <Select value={String(recordsPerPage)} onValueChange={(v)=>{setRecordsPerPage(Number(v)); setCurrentPage(1);}}>
-                <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-[80px] sm:w-[100px] h-9"><SelectValue /></SelectTrigger>
                 <SelectContent className='z-[10000]'>
                   <SelectItem value="10">10</SelectItem>
                   <SelectItem value="25">25</SelectItem>
@@ -242,7 +227,7 @@ export default function InventoryHistory() {
                   <SelectItem value="100">100</SelectItem>
                 </SelectContent>
               </Select>
-              <span className="text-sm text-muted-foreground">per page</span>
+              <span className="text-xs sm:text-sm text-muted-foreground">per page</span>
             </div>
           </div>
         </CardHeader>
@@ -261,22 +246,22 @@ export default function InventoryHistory() {
           ) : (
             <ul>
               {currentLogs.map((log: any, i: number) => (
-                <LogRow key={log.id || `${log.inventoryId}-${i}`} log={log} onClick={()=>openLogModal(log)} onDelete={()=>startDelete(log)} />
+                <LogRow key={log.id || `${log.inventoryId}-${i}`} log={log} />
               ))}
             </ul>
           )}
 
           {/* Pagination Controls */}
           {(totalPages > 1 && filteredLogs.length > 0) && (
-            <div className="flex items-center justify-between mt-8 flex-wrap gap-4">
-              <div className="text-sm text-muted-foreground">
+            <div className="flex flex-col sm:flex-row items-center justify-between mt-6 sm:mt-8 gap-4">
+              <div className="text-xs sm:text-sm text-muted-foreground order-2 sm:order-1">
                 Showing <span className="font-medium text-foreground">{startIndex + 1}</span> to <span className="font-medium text-foreground">{Math.min(endIndex, totalRecords)}</span> of <span className="font-medium text-foreground">{totalRecords}</span> entries
               </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="h-9">
+              <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-2 w-full sm:w-auto order-1 sm:order-2">
+                <Button variant="outline" size="sm" onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="h-9 w-full sm:w-auto">
                   <ChevronLeft className="h-4 w-4 mr-1" /> Previous
                 </Button>
-                <div className="flex gap-1">
+                <div className="flex gap-1 overflow-x-auto max-w-full pb-2 sm:pb-0">
                   {getPageNumbers().map((page, idx) =>
                     page === '...' ? (
                       <span key={`ellipsis-${idx}`} className="flex items-center px-2 text-muted-foreground">...</span>
@@ -286,7 +271,7 @@ export default function InventoryHistory() {
                       </Button>
                     ))}
                 </div>
-                <Button variant="outline" size="sm" onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="h-9">
+                <Button variant="outline" size="sm" onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="h-9 w-full sm:w-auto">
                   Next <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
               </div>
@@ -294,173 +279,6 @@ export default function InventoryHistory() {
           )}
         </CardContent>
       </Card>
-
-      {/* LOG DETAIL MODAL */}
-      {selectedLog && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md"
-          onClick={closeLogModal}
-        >
-          <div
-            className="bg-background p-8 rounded-2xl shadow-2xl relative w-full max-w-lg mx-4 border border-border"
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition-all duration-200"
-              onClick={closeLogModal}
-              title="Close"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            {/* Modal Header */}
-            <div className="flex items-center gap-4 mb-6">
-              <div className="flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-700/30 h-16 w-16 shrink-0">
-                <Droplet className="h-8 w-8 text-blue-500 dark:text-blue-300" />
-              </div>
-              <div>
-                <h3 className="text-2xl font-bold text-primary mb-1">{selectedLog.productName}</h3>
-                <div className="text-sm font-mono text-muted-foreground">{formatDateTime(selectedLog.lastUpdated)}</div>
-              </div>
-            </div>
-
-            {/* Modal Content */}
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <span className="text-sm text-muted-foreground">Stock Value</span>
-                  <div className="font-semibold text-lg">{typeof selectedLog.stockValue === "number" ? `₹${nf.format(selectedLog.stockValue)}` : "—"}</div>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-sm text-muted-foreground">Current Level</span>
-                  <div className="font-semibold text-lg">{typeof selectedLog.currentLevel === "number" ? `${nf.format(selectedLog.currentLevel)} L` : "—"}</div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <span className="text-sm text-muted-foreground">Tank Capacity</span>
-                  <div className="font-semibold text-lg">{selectedLog.tankCapacity ? `${nf.format(selectedLog.tankCapacity)} L` : "—"}</div>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-sm text-muted-foreground">Status</span>
-                  <div>
-                    {selectedLog.status === false ? (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-destructive/10 text-destructive">
-                        Inactive
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-success/10 text-success">
-                        Active
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <span className="text-sm text-muted-foreground">Inventory ID</span>
-                <div className="font-mono text-sm bg-muted p-2 rounded">{selectedLog.inventoryId || "—"}</div>
-              </div>
-
-              {selectedLog.remarks && (
-                <div className="space-y-1">
-                  <span className="text-sm text-muted-foreground">Remarks</span>
-                  <div className="text-sm italic bg-muted p-3 rounded">{selectedLog.remarks}</div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex justify-end mt-8 gap-3">
-              <Button variant="outline" onClick={closeLogModal}>
-                Close
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => startDelete(selectedLog)}
-                disabled={deleteMutation.isPending}
-              >
-                Delete Log
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* DELETE CONFIRMATION MODAL */}
-      {confirmDelete && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md"
-          onClick={cancelDelete}
-        >
-          <div
-            className="bg-background p-8 rounded-2xl shadow-2xl relative w-full max-w-md mx-4 border border-border"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition-all duration-200"
-              onClick={cancelDelete}
-              title="Close"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            {/* Delete Modal Header */}
-            <div className="flex items-center gap-4 mb-6">
-              <div className="p-4 rounded-full bg-destructive/10">
-                <Trash2 className="h-8 w-8 text-destructive" />
-              </div>
-              <div>
-                <h3 className="text-2xl font-bold text-foreground">Delete Log Entry</h3>
-                <p className="text-sm text-muted-foreground">This action cannot be undone</p>
-              </div>
-            </div>
-
-            {/* Delete Modal Content */}
-            <div className="mb-6">
-              <p className="text-muted-foreground mb-4">
-                Are you sure you want to delete the log entry for{' '}
-                <span className="font-semibold text-foreground">{confirmDelete.productName}</span>?
-              </p>
-              <div className="bg-muted p-4 rounded-lg">
-                <div className="text-sm font-mono text-muted-foreground mb-2">Log Details:</div>
-                <div className="text-sm">
-                  <div>Date: {formatDateTime(confirmDelete.lastUpdated)}</div>
-                  <div>Level: {typeof confirmDelete.currentLevel === "number" ? `${nf.format(confirmDelete.currentLevel)} L` : "—"}</div>
-                  <div>Value: {typeof confirmDelete.stockValue === "number" ? `₹${nf.format(confirmDelete.stockValue)}` : "—"}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Delete Modal Actions */}
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={cancelDelete} disabled={deleteMutation.isPending}>
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={confirmDeleteLog}
-                disabled={deleteMutation.isPending}
-              >
-                {deleteMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

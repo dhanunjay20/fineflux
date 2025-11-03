@@ -283,7 +283,7 @@ export default function OnboardOrganization() {
         organizationId: derivedOrgId || orgForm.organizationId,
       };
       const res = await axios.post<OrganizationResponse>(`${API_BASE}/api/organizations`, payload, { timeout: 15000 });
-      toast({ title: '✅ Success!', description: 'Organization created successfully.' });
+      toast({ title: '✅ Success!', description: 'Organization created successfully.', variant: 'success' });
       setSelectedOrg(res.data);
     } catch (err: any) {
       toast({
@@ -345,7 +345,7 @@ export default function OnboardOrganization() {
         orgUpdateForm,
         { timeout: 15000 }
       );
-      toast({ title: '✅ Updated!', description: `${selectedOrg.organizationName} updated successfully.` });
+      toast({ title: '✅ Updated!', description: `${selectedOrg.organizationName} updated successfully.`, variant: 'success' });
     } catch (err: any) {
       toast({
         title: 'Error',
@@ -440,7 +440,7 @@ export default function OnboardOrganization() {
         payload,
         { timeout: 15000 }
       );
-      toast({ title: '🎉 Success!', description: `Owner ${payload.firstName} ${payload.lastName} onboarded successfully.` });
+      toast({ title: '🎉 Success!', description: `Owner ${payload.firstName} ${payload.lastName} onboarded successfully.`, variant: 'success' });
       setOwnerCreateForm(p => ({
         ...p,
         firstName: '',
@@ -586,7 +586,7 @@ export default function OnboardOrganization() {
         ownerUpdateForm,
         { timeout: 15000 }
       );
-      toast({ title: '✅ Updated!', description: `${selectedEmp.firstName} ${selectedEmp.lastName} updated successfully.` });
+      toast({ title: '✅ Updated!', description: `${selectedEmp.firstName} ${selectedEmp.lastName} updated successfully.`, variant: 'success' });
     } catch (err: any) {
       toast({
         title: 'Error',

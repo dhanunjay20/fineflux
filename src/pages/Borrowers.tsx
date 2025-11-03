@@ -16,6 +16,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
+import { Switch } from "@/components/ui/switch";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
 
@@ -30,6 +31,7 @@ type Customer = {
   borrowDate?: string;
   dueDate?: string;
   status?: 'PENDING' | 'PARTIAL' | 'PAID' | 'OVERDUE' | string;
+  lifecycleStatus?: 'ACTIVE' | 'INACTIVE' | string;
   phoneNumber?: string;
   email?: string;
   notes?: string;
@@ -52,6 +54,7 @@ type CustomerCreateRequest = {
   amountBorrowed: number;
   borrowDate: string;
   dueDate: string;
+  lifecycleStatus?: 'ACTIVE' | 'INACTIVE' | string;
   status: 'PENDING' | 'PARTIAL' | 'OVERDUE' | 'PAID';
   phoneNumber: string;
   email?: string;
@@ -192,14 +195,17 @@ export default function Borrowers() {
 
     switch (dateFilter) {
       case 'today':
-        return `${base}/filter/today`;
+        return `${base}/today`;
       case 'week':
-        return `${base}/filter/week`;
+        return `${base}/week`;
       case 'month':
-        return `${base}/filter/month`;
+        return `${base}/month`;
       case 'custom':
         if (customStartDate && customEndDate) {
-          return `${base}/filter/range?startDate=${customStartDate}&endDate=${customEndDate}`;
+          // Convert dates to LocalDateTime format for backend
+          const fromDateTime = `${customStartDate}T00:00:00`;
+          const toDateTime = `${customEndDate}T23:59:59`;
+          return `${base}/range?from=${encodeURIComponent(fromDateTime)}&to=${encodeURIComponent(toDateTime)}`;
         }
         return base;
       case 'all':
@@ -286,6 +292,30 @@ export default function Borrowers() {
     }
     return groups;
   }, [filtered]);
+
+  const handleToggleLifecycleStatus = async (customer: Customer) => {
+    const newStatus = customer.lifecycleStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    try {
+      await axios.put(
+        `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/${customer.id}/lifecycle-status`,
+        { lifecycleStatus: newStatus },
+        { timeout: 20000 }
+      );
+      toast({
+        title: 'Success',
+        description: `Borrower status updated to ${newStatus}`,
+        variant: 'success',
+      });
+      await refetch();
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.message || 'Failed to update status.',
+        variant: 'destructive',
+      });
+    }
+  };
+
 
   const stats = useMemo(() => {
     const total = customers.length;
@@ -382,14 +412,14 @@ export default function Borrowers() {
           payload,
           { timeout: 20000 }
         );
-        toast({ title: 'Success', description: 'Customer details updated successfully!' });
+        toast({ title: 'Success', description: 'Customer details updated successfully!', variant: 'success' });
       } else {
         await axios.post(
           `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers`,
           payload,
           { timeout: 20000 }
         );
-        toast({ title: 'Success', description: `Borrower created with ID: ${payload.custId}` });
+        toast({ title: 'Success', description: `Borrower created with ID: ${payload.custId}`, variant: 'success' });
       }
 
       setForm({
@@ -488,6 +518,14 @@ export default function Borrowers() {
     setOpen(true);
   };
   const handleOpenTransaction = (customer: Customer) => {
+    if (customer.lifecycleStatus === 'INACTIVE') {
+      toast({
+        title: 'Cannot Add Transaction',
+        description: 'This borrower is inactive. Please activate the borrower to add transactions.',
+        variant: 'destructive'
+      });
+      return;
+    }
     setSelectedCustomer(customer);
     setTransactionForm({
       custId: customer.custId || '',
@@ -534,7 +572,7 @@ export default function Borrowers() {
         transactionForm,
         { timeout: 20000 }
       );
-      toast({ title: 'Success', description: 'Transaction recorded successfully.' });
+      toast({ title: 'Success', description: 'Transaction recorded successfully.', variant: 'success' });
       await refetch();
       setTransactionOpen(false);
       if (historyOpen && selectedCustomer?.custId === transactionForm.custId) {
@@ -638,19 +676,23 @@ export default function Borrowers() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label>Amount Borrowed <span className="text-red-500">*</span></Label>
+                    <Label>Amount Borrowed (₹) <span className="text-red-500">*</span></Label>
                     <Input
                       type="number"
                       min="0.01"
                       step="0.01"
-                      value={form.amountBorrowed}
-                      onChange={(e) => updateField('amountBorrowed')(Number(e.target.value))}
+                      value={form.amountBorrowed === 0 ? "" : form.amountBorrowed}
+                      onChange={e => {
+                        const val = e.target.value;
+                        updateField('amountBorrowed')(val === "" ? 0 : Number(val));
+                      }}
                       placeholder="0.00"
                       required
                       readOnly={editMode}
                       disabled={editMode}
                       className={editMode ? "bg-muted/50 cursor-not-allowed text-muted-foreground" : ""}
                     />
+
                     {editMode ? (
                       <p className="text-xs text-amber-600 flex items-center gap-1">
                         <AlertTriangle className="h-3 w-3" />
@@ -732,14 +774,28 @@ export default function Borrowers() {
 
       {/* ========== TRANSACTION MODAL (WITH BALANCE CHECK) ========== */}
       {transactionOpen && (
-        <div className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md" style={{ margin: 0, padding: '1rem' }} onClick={() => setTransactionOpen(false)}>
-          <div className="relative bg-background shadow-2xl rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md"
+          style={{ margin: 0, padding: "1rem" }}
+          onClick={() => setTransactionOpen(false)}
+        >
+          <div
+            className="relative bg-background shadow-2xl rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
               <div>
-                <h2 className="text-2xl font-bold flex items-center gap-2"><CreditCard className="h-6 w-6" />Record Transaction</h2>
-                <p className="text-sm text-muted-foreground">{selectedCustomer?.customerName} ({selectedCustomer?.custId})</p>
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <CreditCard className="h-6 w-6" />Record Transaction
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {selectedCustomer?.customerName} ({selectedCustomer?.custId})
+                </p>
               </div>
-              <button onClick={() => setTransactionOpen(false)} className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition">
+              <button
+                onClick={() => setTransactionOpen(false)}
+                className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -749,14 +805,14 @@ export default function Borrowers() {
                   <Label>Customer ID *</Label>
                   <Input value={transactionForm.custId} readOnly disabled className="bg-muted/50 cursor-not-allowed" required />
                 </div>
-
                 <div className="p-4 rounded-lg bg-muted/30 border border-border">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-muted-foreground">Current Outstanding Balance:</span>
-                    <span className="text-2xl font-bold text-foreground">₹{Number(selectedCustomer?.amountBorrowed || 0).toLocaleString()}</span>
+                    <span className="text-2xl font-bold text-foreground">
+                      ₹{Number(selectedCustomer?.amountBorrowed || 0).toLocaleString()}
+                    </span>
                   </div>
                 </div>
-
                 {Number(selectedCustomer?.amountBorrowed || 0) <= 0 && (
                   <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
                     <div className="flex items-start gap-3">
@@ -770,7 +826,6 @@ export default function Borrowers() {
                     </div>
                   </div>
                 )}
-
                 <div className="space-y-2">
                   <Label>Amount *</Label>
                   <div className="relative">
@@ -778,12 +833,20 @@ export default function Borrowers() {
                       type="number"
                       min="0.01"
                       step="0.01"
-                      value={Math.abs(transactionForm.transactionAmount)}
+                      // This logic ensures the input stays blank if empty or 0
+                      value={
+                        transactionForm.transactionAmount === 0
+                          ? ""
+                          : Math.abs(transactionForm.transactionAmount)
+                      }
                       onChange={(e) => {
-                        const absValue = Math.abs(Number(e.target.value));
+                        const raw = e.target.value;
+                        // Keeps input blank if the user clears it
+                        const absValue = raw === "" ? 0 : Math.abs(Number(raw));
                         setTransactionForm((prev) => ({
                           ...prev,
-                          transactionAmount: prev.transactionAmount < 0 ? -absValue : absValue
+                          transactionAmount:
+                            prev.transactionAmount < 0 && absValue !== 0 ? -absValue : absValue
                         }));
                       }}
                       placeholder="0.00"
@@ -794,9 +857,13 @@ export default function Borrowers() {
                   </div>
                   <p className="text-sm text-muted-foreground">
                     {transactionForm.transactionAmount < 0 ? (
-                      <span className="text-warning">Additional borrowing (+₹{Math.abs(transactionForm.transactionAmount).toLocaleString()})</span>
+                      <span className="text-warning">
+                        Additional borrowing (+₹{Math.abs(Number(transactionForm.transactionAmount)).toLocaleString()})
+                      </span>
                     ) : (
-                      <span className="text-success">Payment (−₹{Math.abs(transactionForm.transactionAmount).toLocaleString()})</span>
+                      <span className="text-success">
+                        Payment (−₹{Math.abs(Number(transactionForm.transactionAmount)).toLocaleString()})
+                      </span>
                     )}
                   </p>
                 </div>
@@ -805,19 +872,22 @@ export default function Borrowers() {
                   <div className="grid grid-cols-2 gap-4">
                     <Button
                       type="button"
-                      variant={transactionForm.transactionAmount >= 0 ? 'default' : 'outline'}
+                      variant={transactionForm.transactionAmount >= 0 ? "default" : "outline"}
                       className="h-20 flex-col gap-2"
                       onClick={() => {
                         const currentBalance = Number(selectedCustomer?.amountBorrowed || 0);
                         if (currentBalance <= 0) {
                           toast({
-                            title: 'Cannot Record Payment',
-                            description: 'This customer has no outstanding balance. Payment cannot be recorded.',
-                            variant: 'destructive'
+                            title: "Cannot Record Payment",
+                            description: "This customer has no outstanding balance. Payment cannot be recorded.",
+                            variant: "destructive"
                           });
                           return;
                         }
-                        setTransactionForm((prev) => ({ ...prev, transactionAmount: Math.abs(prev.transactionAmount) }));
+                        setTransactionForm((prev) => ({
+                          ...prev,
+                          transactionAmount: Math.abs(prev.transactionAmount) || 0
+                        }));
                       }}
                       disabled={Number(selectedCustomer?.amountBorrowed || 0) <= 0}
                     >
@@ -829,9 +899,14 @@ export default function Borrowers() {
                     </Button>
                     <Button
                       type="button"
-                      variant={transactionForm.transactionAmount < 0 ? 'default' : 'outline'}
+                      variant={transactionForm.transactionAmount < 0 ? "default" : "outline"}
                       className="h-20 flex-col gap-2"
-                      onClick={() => setTransactionForm((prev) => ({ ...prev, transactionAmount: -Math.abs(prev.transactionAmount) }))}
+                      onClick={() =>
+                        setTransactionForm((prev) => ({
+                          ...prev,
+                          transactionAmount: prev.transactionAmount === 0 ? 0 : -Math.abs(prev.transactionAmount)
+                        }))
+                      }
                     >
                       <TrendingDown className="h-6 w-6" />
                       Extra Borrowed
@@ -841,23 +916,44 @@ export default function Borrowers() {
                 <div className="space-y-2">
                   <Label>Notes</Label>
                   <textarea
-                    value={transactionForm.notes || ''}
-                    onChange={(e) => setTransactionForm((prev) => ({ ...prev, notes: e.target.value }))}
+                    value={transactionForm.notes || ""}
+                    onChange={(e) =>
+                      setTransactionForm((prev) => ({ ...prev, notes: e.target.value }))
+                    }
                     placeholder="Optional notes"
                     className="min-h-[80px] w-full rounded-md border border-border bg-background p-2"
                   />
                 </div>
               </div>
               <div className="flex justify-end gap-3 p-6 border-t border-border bg-muted/20 shrink-0">
-                <Button type="button" variant="outline" onClick={() => setTransactionOpen(false)} disabled={transactionSubmitting}>Cancel</Button>
-                <Button type="submit" className="btn-gradient-primary" disabled={transactionSubmitting}>
-                  {transactionSubmitting ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing...</>) : ('Record Transaction')}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setTransactionOpen(false)}
+                  disabled={transactionSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="btn-gradient-primary"
+                  disabled={transactionSubmitting}
+                >
+                  {transactionSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    "Record Transaction"
+                  )}
                 </Button>
               </div>
             </form>
           </div>
         </div>
       )}
+
       {/* ========== HISTORY MODAL ========== */}
       {historyOpen && (
         <div className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md" style={{ margin: 0, padding: '1rem' }} onClick={() => setHistoryOpen(false)}>
@@ -1089,11 +1185,11 @@ export default function Borrowers() {
               </div>
             </CardHeader>
             <CardContent>
-              {groupByStatus.OVERDUE.length > 0 && (<Section title="Overdue" icon={<AlertTriangle className="h-4 w-4 text-destructive" />}>{groupByStatus.OVERDUE.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onDelete={handlePromptDelete} />))}</Section>)}
-              {groupByStatus.PENDING.length > 0 && (<Section title="Pending" icon={<Clock className="h-4 w-4 text-warning" />}>{groupByStatus.PENDING.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onDelete={handlePromptDelete} />))}</Section>)}
-              {groupByStatus.PARTIAL.length > 0 && (<Section title="Partial" icon={<TrendingUp className="h-4 w-4 text-accent" />}>{groupByStatus.PARTIAL.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onDelete={handlePromptDelete} />))}</Section>)}
-              {groupByStatus.PAID.length > 0 && (<Section title="Paid" icon={<TrendingUp className="h-4 w-4 text-success" />}>{groupByStatus.PAID.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onDelete={handlePromptDelete} />))}</Section>)}
-              {groupByStatus.OTHER.length > 0 && (<Section title="Other" icon={<Users className="h-4 w-4 text-muted-foreground" />}>{groupByStatus.OTHER.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onDelete={handlePromptDelete} />))}</Section>)}
+              {groupByStatus.OVERDUE.length > 0 && (<Section title="Overdue" icon={<AlertTriangle className="h-4 w-4 text-destructive" />}>{groupByStatus.OVERDUE.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onToggleLifecycleStatus={handleToggleLifecycleStatus} />))}</Section>)}
+              {groupByStatus.PENDING.length > 0 && (<Section title="Pending" icon={<Clock className="h-4 w-4 text-warning" />}>{groupByStatus.PENDING.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onToggleLifecycleStatus={handleToggleLifecycleStatus} />))}</Section>)}
+              {groupByStatus.PARTIAL.length > 0 && (<Section title="Partial" icon={<TrendingUp className="h-4 w-4 text-accent" />}>{groupByStatus.PARTIAL.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onToggleLifecycleStatus={handleToggleLifecycleStatus} />))}</Section>)}
+              {groupByStatus.PAID.length > 0 && (<Section title="Paid" icon={<TrendingUp className="h-4 w-4 text-success" />}>{groupByStatus.PAID.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onToggleLifecycleStatus={handleToggleLifecycleStatus} />))}</Section>)}
+              {groupByStatus.OTHER.length > 0 && (<Section title="Other" icon={<Users className="h-4 w-4 text-muted-foreground" />}>{groupByStatus.OTHER.map((c) => (<BorrowerRow key={c.id || c.custId} c={c} onHistory={handleOpenHistory} onTransaction={handleOpenTransaction} onEdit={handleEdit} onToggleLifecycleStatus={handleToggleLifecycleStatus} />))}</Section>)}
               {filtered.length === 0 && (<div className="text-sm text-muted-foreground">No borrowers match the current filter.</div>)}
             </CardContent>
           </Card>
@@ -1130,42 +1226,46 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
   return (<div className="mb-6"><div className="mb-2 flex items-center gap-2">{icon}<h3 className="text-sm font-semibold">{title}</h3></div><div className="space-y-3">{children}</div></div>);
 }
 
-function BorrowerRow({ c, onHistory, onTransaction, onEdit, onDelete }: { c: Customer; onHistory: (customer: Customer) => void; onTransaction: (customer: Customer) => void; onEdit: (customer: Customer) => void; onDelete: (customer: Customer) => void; }) {
-  const getUserInitials = (name?: string) => { if (!name) return 'NA'; return name.split(' ').map((n) => n[0]).join('').toUpperCase(); };
-  const formatDate = (iso?: string) => { if (!iso) return '—'; const d = new Date(iso); return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-IN'); };
+function BorrowerRow({
+  c,
+  onHistory,
+  onTransaction,
+  onEdit,
+  onToggleLifecycleStatus,
+}: {
+  c: Customer;
+  onHistory: (customer: Customer) => void;
+  onTransaction: (customer: Customer) => void;
+  onEdit: (customer: Customer) => void;
+  onToggleLifecycleStatus: (customer: Customer) => void;
+}) {
+  const getUserInitials = (name?: string) => (!name ? "NA" : name.split(" ").map((n) => n[0]).join("").toUpperCase());
+  const formatDate = (iso?: string) => (!iso ? "—" : new Date(iso).toLocaleDateString("en-IN"));
   return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-lg bg-muted/30 p-4 transition-colors hover:bg-muted/50">
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-lg bg-muted/30 p-4 hover:bg-muted/50">
       <div className="flex items-start sm:items-center gap-3">
-        <Avatar className="h-10 w-10 sm:h-12 sm:w-12"><AvatarFallback className="bg-primary text-primary-foreground font-semibold">{getUserInitials(c.customerName)}</AvatarFallback></Avatar>
+        <Avatar className="h-10 w-10 sm:h-12 sm:w-12">
+          <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+            {getUserInitials(c.customerName)}
+          </AvatarFallback>
+        </Avatar>
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold text-foreground">{c.customerName}</h3>
-            <Badge
-              className={
-                "text-foreground " +
-                (c.status === "PENDING"
-                  ? "bg-yellow-100 text-yellow-800 border-yellow-300"
-                  : c.status === "PARTIAL"
-                    ? "bg-blue-100 text-blue-800 border-blue-300"
-                    : c.status === "PAID"
-                      ? "bg-green-100 text-green-800 border-green-300"
-                      : c.status === "OVERDUE"
-                        ? "bg-red-100 text-red-800 border-red-300"
-                        : "bg-muted")
-              }
-            >
-              {(c.status || "N/A").toUpperCase()}
-            </Badge>
+            <Badge>{(c.status || "N/A").toUpperCase()}</Badge>
             {c.amountBorrowed && Number(c.amountBorrowed) > 0 && (
               <Badge className="bg-accent-soft text-accent">
                 ₹{Number(c.amountBorrowed).toLocaleString()}
               </Badge>
             )}
           </div>
-          <p className="text-sm text-muted-foreground">{c.customerVehicleNum ? `Vehicle: ${c.customerVehicleNum}` : 'Vehicle: —'}{c.custId && <span className="ml-2 text-xs">ID: {c.custId}</span>}</p>
+          <p className="text-sm text-muted-foreground">
+            {c.customerVehicleNum ? `Vehicle: ${c.customerVehicleNum}` : "Vehicle: —"}
+            {c.custId && <span className="ml-2 text-xs">ID: {c.custId}</span>}
+          </p>
           <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1"><Phone className="h-3 w-3" />{c.phoneNumber || '—'}</div>
-            <div className="flex items-center gap-1"><Mail className="h-3 w-3" />{c.email || '—'}</div>
+            <div className="flex items-center gap-1"><Phone className="h-3 w-3" />{c.phoneNumber || "—"}</div>
+            <div className="flex items-center gap-1"><Mail className="h-3 w-3" />{c.email || "—"}</div>
           </div>
           <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
             <span>Borrow: {formatDate(c.borrowDate)}</span>
@@ -1174,12 +1274,28 @@ function BorrowerRow({ c, onHistory, onTransaction, onEdit, onDelete }: { c: Cus
           </div>
         </div>
       </div>
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" title="Transaction History" onClick={() => onHistory(c)} disabled={!c.custId}><HistoryIcon className="h-4 w-4" /></Button>
-        <Button variant="outline" size="sm" title="Record Transaction" onClick={() => onTransaction(c)} disabled={!c.custId}><ArrowUpDown className="h-4 w-4" /></Button>
-        <Button variant="outline" size="sm" title="Edit Borrower" onClick={() => onEdit(c)}><Edit className="h-4 w-4" /></Button>
-        <Button variant="destructive" size="sm" title="Delete Borrower" onClick={() => onDelete(c)} disabled={!c.custId}><Trash2 className="h-4 w-4" /></Button>
+      <div className="flex gap-2 items-center">
+        <Button variant="outline" size="sm" title="Transaction History" onClick={() => onHistory(c)} disabled={!c.custId}>
+          <HistoryIcon className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm" title="Record Transaction" onClick={() => onTransaction(c)} disabled={!c.custId}>
+          <ArrowUpDown className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm" title="Edit Borrower" onClick={() => onEdit(c)}>
+          <Edit className="h-4 w-4" />
+        </Button>
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={c.lifecycleStatus === 'ACTIVE'}
+            onCheckedChange={() => onToggleLifecycleStatus(c)}
+            className={c.lifecycleStatus === 'ACTIVE' ? "bg-green-500" : "bg-gray-300"}
+          />
+          <span className="text-sm text-muted-foreground">
+            {c.lifecycleStatus === 'ACTIVE' ? "Active" : "Inactive"}
+          </span>
+        </div>
       </div>
     </div>
   );
 }
+

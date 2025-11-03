@@ -1,11 +1,12 @@
 import { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Plus, Edit2, Trash2, Box, Archive, Layers, PackageCheck,
@@ -45,6 +46,7 @@ export default function Products() {
   const orgId = localStorage.getItem('organizationId') || 'ORG-DEV-001';
   const empId = localStorage.getItem('empId') || 'EMP-AUTH-001';
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
@@ -99,10 +101,11 @@ export default function Products() {
       const url = `${API_BASE}/api/organizations/${orgId}/products`;
       return (await axios.post(url, dto)).data;
     },
-    onSuccess: () => { refetch(); closeModal(); toast({ title: "Product added successfully!" }); },
+    onSuccess: () => { refetch(); closeModal(); toast({ title: "Product added successfully!", variant: "success" }); },
     onError: () => { toast({ title: "Failed to add product", variant: "destructive" }); }
   });
 
+  // PATCH: Invalidate Inventory on Product Update
   const updateMutation = useMutation({
     mutationFn: async (body: any) => {
       const dto = {
@@ -116,7 +119,12 @@ export default function Products() {
       const url = `${API_BASE}/api/organizations/${orgId}/products/${body.id}`;
       return (await axios.put(url, dto)).data;
     },
-    onSuccess: () => { refetch(); closeModal(); toast({ title: "Product updated successfully!" }); },
+    onSuccess: () => {
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['inventories', orgId] }); // Auto-refresh inventories!
+      closeModal();
+      toast({ title: "Product updated successfully!", variant: "success" });
+    },
     onError: () => { toast({ title: "Failed to update product", variant: "destructive" }); }
   });
 
@@ -125,8 +133,25 @@ export default function Products() {
       const url = `${API_BASE}/api/organizations/${orgId}/products/${id}`;
       return (await axios.delete(url)).data;
     },
-    onSuccess: () => { refetch(); setDeleteTarget(null); setConfirmOpen(false); toast({ title: "Product deleted successfully!" }); },
+    onSuccess: () => { refetch(); setDeleteTarget(null); setConfirmOpen(false); toast({ title: "Product deleted successfully!", variant: "success" }); },
     onError: () => { toast({ title: "Failed to delete product", variant: "destructive" }); }
+  });
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: async ({ id, currentStatus }: { id: string; currentStatus: boolean }) => {
+      const url = `${API_BASE}/api/organizations/${orgId}/products/${id}/status?status=${!currentStatus}`;
+      return (await axios.patch(url)).data;
+    },
+    onSuccess: (data, variables) => {
+      const newStatus = !variables.currentStatus;
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['inventories', orgId] });
+      toast({ 
+        title: `Product status updated to ${newStatus ? 'Active' : 'Inactive'}`, 
+        variant: "success" 
+      });
+    },
+    onError: () => { toast({ title: "Failed to update product status", variant: "destructive" }); }
   });
 
   function closeModal() {
@@ -274,6 +299,12 @@ export default function Products() {
                           >
                             {prod.status ? "Active" : "Inactive"}
                           </Badge>
+                          <Switch
+                            checked={prod.status}
+                            onCheckedChange={() => toggleStatusMutation.mutate({ id: prod.id || prod._id, currentStatus: prod.status })}
+                            disabled={toggleStatusMutation.isPending}
+                            className="data-[state=checked]:bg-green-500"
+                          />
                           <span className="text-xs px-2 py-1 rounded-md bg-muted text-muted-foreground">
                             {prod.metric || "L"}
                           </span>
@@ -572,6 +603,7 @@ export default function Products() {
           </div>
         </div>
       )}
+
       {/* Delete Confirmation Modal */}
       {confirmOpen && (
         <div

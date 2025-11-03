@@ -200,7 +200,7 @@ export default function Settings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organization", orgId] });
       setEditMode(false);
-      toast({ title: "Success!", description: "Company information updated.", variant: "default" });
+      toast({ title: "Success!", description: "Company information updated.", variant: "success" });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to update information.", variant: "destructive" });

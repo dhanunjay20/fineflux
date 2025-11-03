@@ -194,7 +194,7 @@ export default function EmployeeSetDuty() {
     status: "SCHEDULED",
   });
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
-  const [selectedGuns, setSelectedGuns] = useState<string[]>([]);
+  const [productGuns, setProductGuns] = useState<Record<string, string[]>>({});
   const [validationErr, setValidationErr] = useState<string | null>(null);
 
   // Mutation for creating daily duty
@@ -262,7 +262,7 @@ export default function EmployeeSetDuty() {
       status: "SCHEDULED",
     });
     setSelectedProducts([]);
-    setSelectedGuns([]);
+    setProductGuns({});
     setValidationErr(null);
   }
 
@@ -303,7 +303,7 @@ export default function EmployeeSetDuty() {
       status: "SCHEDULED",
     });
     setSelectedProducts([]);
-    setSelectedGuns([]);
+    setProductGuns({});
     setDailyDutyOpen(true);
     setSpecialDutyOpen(false);
     setValidationErr(null);
@@ -333,7 +333,11 @@ export default function EmployeeSetDuty() {
       setValidationErr("At least one product is required");
       return;
     }
-    if (selectedGuns.length === 0) {
+    
+    // Collect all guns from all selected products
+    const allGuns = selectedProducts.flatMap(product => productGuns[product] || []);
+    
+    if (allGuns.length === 0) {
       setValidationErr("At least one gun is required");
       return;
     }
@@ -343,29 +347,55 @@ export default function EmployeeSetDuty() {
     }
 
     setValidationErr(null);
+    
+    // Format date properly for backend (LocalDate expects YYYY-MM-DD)
+    const dutyDateFormatted = dayjs(dailyDutyForm.dutyDate).format("YYYY-MM-DD");
+
     createDutyMutation.mutate({
       orgId,
-      ...dailyDutyForm,
+      empId: dailyDutyForm.empId,
+      dutyDate: dutyDateFormatted,
       products: selectedProducts,
-      guns: selectedGuns
+      guns: allGuns,
+      shiftStart: dailyDutyForm.shiftStart,
+      shiftEnd: dailyDutyForm.shiftEnd,
+      status: dailyDutyForm.status || "SCHEDULED"
     });
   }
 
   const toggleProductSelection = (productName: string) => {
     setSelectedProducts(prev => {
       if (prev.includes(productName)) {
-        const gunsToRemove = guns.filter((g: any) => g.productName === productName).map((g: any) => g.guns);
-        setSelectedGuns(prevGuns => prevGuns.filter(g => !gunsToRemove.includes(g)));
+        // When deselecting a product, remove its guns
+        setProductGuns(prevGuns => {
+          const newGuns = { ...prevGuns };
+          delete newGuns[productName];
+          return newGuns;
+        });
+        
         return prev.filter(p => p !== productName);
       }
+      // When selecting a product, initialize empty gun array for it
+      setProductGuns(prevGuns => ({
+        ...prevGuns,
+        [productName]: []
+      }));
       return [...prev, productName];
     });
   };
 
-  const toggleGunSelection = (gunName: string) => {
-    setSelectedGuns(prev =>
-      prev.includes(gunName) ? prev.filter(g => g !== gunName) : [...prev, gunName]
-    );
+  const toggleGunSelection = (productName: string, gunName: string) => {
+    setProductGuns(prev => {
+      const currentGuns = prev[productName] || [];
+      const newGuns = currentGuns.includes(gunName)
+        ? currentGuns.filter(g => g !== gunName)
+        : [...currentGuns, gunName];
+      
+      return {
+        ...prev,
+        [productName]: newGuns
+      };
+    });
   };
 
   const getUserInitials = (name: string) =>
@@ -538,12 +568,12 @@ export default function EmployeeSetDuty() {
       {/* SPECIAL DUTY MODAL */}
       {specialDutyOpen && (
         <div
-          className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md"
+          className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300"
           style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
           onClick={closeModal}
         >
           <div
-            className="relative bg-background shadow-2xl rounded-2xl mx-auto w-full max-w-lg my-auto"
+            className="relative bg-background shadow-2xl rounded-2xl w-full max-w-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -657,7 +687,8 @@ export default function EmployeeSetDuty() {
       {/* DAILY DUTY MODAL - MODERNIZED WITH STICKY HEADER/FOOTER */}
       {dailyDutyOpen && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
+          className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300"
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setDailyDutyOpen(false);
@@ -800,51 +831,67 @@ export default function EmployeeSetDuty() {
                       <Target className="h-4 w-4 text-primary" />
                       <Label className="font-semibold">Guns *</Label>
                     </div>
-                    {selectedGuns.length > 0 && (
+                    {Object.values(productGuns).flat().length > 0 && (
                       <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
-                        {selectedGuns.length} selected
+                        {Object.values(productGuns).flat().length} selected
                       </Badge>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-4">
                     {selectedProducts.length === 0 ? (
-                      <div className="col-span-2 text-center py-8 border-2 border-dashed rounded-lg bg-muted/30">
+                      <div className="text-center py-8 border-2 border-dashed rounded-lg bg-muted/30">
                         <Target className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
                         <p className="text-sm text-muted-foreground">Select products first to enable guns</p>
                       </div>
-                    ) : filteredGuns.length === 0 ? (
-                      <div className="col-span-2 text-center py-8 border-2 border-dashed rounded-lg bg-muted/30">
-                        <AlertCircle className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">No guns available for selected product(s)</p>
-                      </div>
                     ) : (
-                      filteredGuns.map((gun: any) => {
-                        const isSelected = selectedGuns.includes(gun.guns);
+                      selectedProducts.map(productName => {
+                        const productGunList = guns.filter((gun: any) => gun.productName === productName);
+                        
+                        if (productGunList.length === 0) return null;
+                        
                         return (
-                          <div
-                            key={gun.guns}
-                            onClick={() => toggleGunSelection(gun.guns)}
-                            className={`
-                        relative p-4 rounded-lg border-2 cursor-pointer transition-all duration-200
-                        ${isSelected
-                                ? 'border-primary bg-primary/5 shadow-md'
-                                : 'border-border hover:border-primary/50 hover:bg-muted/50'
-                              }
-                      `}
-                          >
-                            <div className="flex items-start gap-3">
-                              <div className={`mt-0.5 h-5 w-5 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${isSelected ? 'bg-primary border-primary' : 'border-muted-foreground'
-                                }`}>
-                                {isSelected && <CheckCircle2 className="h-3 w-3 text-white" />}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium truncate">{gun.guns}</p>
-                                <p className="text-xs text-muted-foreground truncate">
-                                  {gun.productName} • {gun.serialNumber || 'N/A'}
-                                </p>
-                              </div>
+                          <div key={productName} className="space-y-2">
+                            <div className="flex items-center justify-between px-2">
+                              <Label className="text-sm font-medium text-muted-foreground">{productName}</Label>
+                              {productGuns[productName]?.length > 0 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {productGuns[productName].length} selected
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {productGunList.map((gun: any) => {
+                                const isSelected = productGuns[productName]?.includes(gun.guns);
+                                return (
+                                  <div
+                                    key={gun.guns}
+                                    onClick={() => toggleGunSelection(productName, gun.guns)}
+                                    className={`
+                                      relative p-4 rounded-lg border-2 cursor-pointer transition-all duration-200
+                                      ${isSelected
+                                        ? 'border-primary bg-primary/5 shadow-md'
+                                        : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                                      }
+                                    `}
+                                  >
+                                    <div className="flex items-start gap-3">
+                                      <div className={`mt-0.5 h-5 w-5 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${
+                                        isSelected ? 'bg-primary border-primary' : 'border-muted-foreground'
+                                      }`}>
+                                        {isSelected && <CheckCircle2 className="h-3 w-3 text-white" />}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-medium truncate">{gun.guns}</p>
+                                        <p className="text-xs text-muted-foreground truncate">
+                                          {gun.serialNumber || 'N/A'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         );
@@ -852,7 +899,7 @@ export default function EmployeeSetDuty() {
                     )}
                   </div>
 
-                  {selectedGuns.length === 0 && filteredGuns.length > 0 && (
+                  {Object.values(productGuns).flat().length === 0 && filteredGuns.length > 0 && (
                     <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/20 p-3 rounded-lg">
                       <AlertCircle className="h-4 w-4 shrink-0" />
                       <span>Please select at least one gun to continue</span>

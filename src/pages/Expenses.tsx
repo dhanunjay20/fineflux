@@ -152,7 +152,7 @@ export default function Expenses() {
       }
       closeCategoryModal();
       setRefreshToken(v => v + 1);
-      toast({ title: "Success", description: message, variant: "default" });
+      toast({ title: "Success", description: message, variant: "success" });
     } catch (err: any) {
       setCategoryError(err?.response?.data?.message || (editingCategory ? "Failed to update category." : "Failed to create category."));
       toast({ title: "Error", description: (editingCategory ? "Failed to update category." : "Failed to create category."), variant: "destructive" });
@@ -166,7 +166,7 @@ export default function Expenses() {
     try {
       await axios.delete(`${API_BASE}/api/organizations/${orgId}/expense-categories/${id}`);
       setRefreshToken(v => v + 1);
-      toast({ title: "Success", description: "Category deleted.", variant: "default" });
+      toast({ title: "Success", description: "Category deleted.", variant: "success" });
       setDeleteCategoryConfirmId(null);
     } catch (err: any) {
       setCategoryError(err?.response?.data?.message || "Delete failed.");
@@ -213,7 +213,7 @@ export default function Expenses() {
         empId: empId
       });
       setRefreshToken(v => v + 1);
-      toast({ title: "Success", description: "Expense created.", variant: "default" });
+      toast({ title: "Success", description: "Expense created.", variant: "success" });
       closeExpenseModal();
     } catch (err: any) {
       setExpenseError(err?.response?.data?.message || "Failed to add expense.");
@@ -228,7 +228,7 @@ export default function Expenses() {
     try {
       await axios.delete(`${API_BASE}/api/organizations/${orgId}/expenses/${id}`);
       setRefreshToken(v => v + 1);
-      toast({ title: "Success", description: "Expense deleted.", variant: "default" });
+      toast({ title: "Success", description: "Expense deleted.", variant: "success" });
       setDeleteExpenseConfirmId(null);
     } catch (err: any) {
       toast({

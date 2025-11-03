@@ -23,6 +23,15 @@ const getUsedGunNames = (guns, productName, ignoreId) =>
     )
     .map((g) => g.guns);
 
+const getUsedSerialNumbers = (guns, productName, ignoreId) =>
+  guns
+    .filter(
+      (g) =>
+        g.productName === productName &&
+        (!ignoreId || (g.id || g._id) !== ignoreId)
+    )
+    .map((g) => g.serialNumber);
+
 const GunInfo = () => {
   const orgId = localStorage.getItem("organizationId") || "ORG-DEV-001";
   const empId = localStorage.getItem("empId") || "";
@@ -65,9 +74,13 @@ const GunInfo = () => {
     },
   });
 
-  // Gun name filtering logic for "Add" and "Edit" with memoized arrow functions
+  // Gun name & serial filtering logic for "Add" and "Edit"
   const usedGunNamesAdd = useMemo(
     () => getUsedGunNames(guns, addForm.productName, undefined),
+    [guns, addForm.productName]
+  );
+  const usedSerialNumbersAdd = useMemo(
+    () => getUsedSerialNumbers(guns, addForm.productName, undefined),
     [guns, addForm.productName]
   );
   const availableGunNamesAdd = useMemo(
@@ -78,8 +91,13 @@ const GunInfo = () => {
     () => availableGunNamesAdd.slice(0, gunDropdownLimit),
     [availableGunNamesAdd, gunDropdownLimit]
   );
+
   const usedGunNamesEdit = useMemo(
     () => getUsedGunNames(guns, editForm.productName, editId),
+    [guns, editForm.productName, editId]
+  );
+  const usedSerialNumbersEdit = useMemo(
+    () => getUsedSerialNumbers(guns, editForm.productName, editId),
     [guns, editForm.productName, editId]
   );
   const availableGunNamesEdit = useMemo(
@@ -132,7 +150,7 @@ const GunInfo = () => {
     ];
   }, [products, guns]);
 
-  // Add, Edit, Delete Mutations remain unchanged
+  // Add Gun Mutation
   const createMutation = useMutation({
     mutationFn: async (payload: typeof addForm) => {
       const url = `${API_BASE}/api/organizations/${orgId}/guninfo`;
@@ -150,13 +168,14 @@ const GunInfo = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guninfo", orgId] });
       setAddForm({ productName: "", guns: "", serialNumber: "", currentReading: "" });
-      toast({ title: "Success", description: "Gun added successfully!", variant: "default" });
+      toast({ title: "Success", description: "Gun added successfully!", variant: "success" });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to add gun info.", variant: "destructive" });
     },
   });
 
+  // Edit Gun Mutation
   const updateMutation = useMutation({
     mutationFn: async (payload: typeof editForm & { id: string }) => {
       const url = `${API_BASE}/api/organizations/${orgId}/guninfo/${payload.id}`;
@@ -176,13 +195,14 @@ const GunInfo = () => {
       setEditForm({ productName: "", guns: "", serialNumber: "", currentReading: "" });
       setEditId(null);
       setEditModalOpen(false);
-      toast({ title: "Success", description: "Gun updated successfully!", variant: "default" });
+      toast({ title: "Success", description: "Gun updated successfully!", variant: "success" });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to update gun info.", variant: "destructive" });
     },
   });
 
+  // Delete Gun Mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const url = `${API_BASE}/api/organizations/${orgId}/guninfo/${id}`;
@@ -195,7 +215,7 @@ const GunInfo = () => {
         const newPages = Math.max(1, Math.ceil(newTotal / GUNS_PER_PAGE));
         return Math.min(p, newPages);
       });
-      toast({ title: "Success", description: "Gun deleted successfully!", variant: "default" });
+      toast({ title: "Success", description: "Gun deleted successfully!", variant: "success" });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to delete gun info.", variant: "destructive" });
@@ -229,19 +249,29 @@ const GunInfo = () => {
     setEditModalOpen(false);
   };
 
+  // ADD: check duplicate serial number for a product
   const handleAddSubmit = (e: any) => {
     e.preventDefault();
     if (!addForm.productName || !addForm.guns || !addForm.serialNumber || addForm.currentReading === "") {
       toast({ title: "Validation Error", description: "All fields are required!", variant: "destructive" });
       return;
     }
+    if (usedSerialNumbersAdd.includes(addForm.serialNumber)) {
+      toast({ title: "Validation Error", description: "Duplicate serial number for this product!", variant: "destructive" });
+      return;
+    }
     createMutation.mutate(addForm);
   };
 
+  // EDIT: check duplicate serial number for a product (excluding current)
   const handleEditSubmit = (e: any) => {
     e.preventDefault();
     if (!editForm.productName || !editForm.guns || !editForm.serialNumber || editForm.currentReading === "") {
       toast({ title: "Validation Error", description: "All fields are required!", variant: "destructive" });
+      return;
+    }
+    if (usedSerialNumbersEdit.includes(editForm.serialNumber)) {
+      toast({ title: "Validation Error", description: "Duplicate serial number for this product!", variant: "destructive" });
       return;
     }
     if (editId) updateMutation.mutate({ ...editForm, id: editId });

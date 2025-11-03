@@ -131,7 +131,7 @@ export default function Profile() {
     localStorage.removeItem('organizationId');
     localStorage.removeItem('empId');
     localStorage.removeItem('authToken');
-    toast({ title: 'Logged out successfully' });
+    toast({ title: 'Logged out successfully', variant: 'success' });
     window.location.href = '/login';
   };
 
@@ -151,7 +151,7 @@ export default function Profile() {
 
       setForm(prev => ({ ...prev, profileImageUrl: imageUrl }));
       await saveProfileImage(imageUrl);
-      toast({ title: 'Profile photo updated successfully' });
+      toast({ title: 'Profile photo updated successfully', variant: 'success' });
 
       if (imageUrl && imageUrl.trim()) {
         localStorage.setItem(PROFILE_URL_KEY, imageUrl);
@@ -189,7 +189,7 @@ export default function Profile() {
       const res = await axios.put(`${API_BASE}/api/organizations/${orgId}/employees/${internalId}`, payload);
       setEmployee(res.data);
       setIsEditing(false);
-      toast({ title: 'Profile updated successfully' });
+      toast({ title: 'Profile updated successfully', variant: 'success' });
 
       const updatedUrl = res.data?.profileImageUrl;
       if (updatedUrl && updatedUrl.trim()) {
@@ -214,7 +214,7 @@ export default function Profile() {
       });
       setPwdDialogOpen(false);
       setCurrentPwd(''); setNewPwd('');
-      toast({ title: 'Password changed successfully' });
+      toast({ title: 'Password changed successfully', variant: 'success' });
     } catch {
       toast({ title: 'Password change failed', variant: 'destructive' });
     } finally {
