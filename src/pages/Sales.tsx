@@ -243,21 +243,23 @@ export default function Sales() {
     const testing = Number(form.testingTotal) || 0;
     const pricePerLiter = Number(form.price) || 0;
     
-    // Validate closing stock doesn't exceed tank capacity in real-time
-    if (close > 0 && form.fuel) {
-      // Get tank capacity from products API based on selected fuel
+    const grossSale = close > open ? close - open : 0;
+    const netSale = Math.max(0, grossSale - testing);
+    const salesAmount = Math.round(netSale * pricePerLiter * 100) / 100;
+    
+    // Validate net sale doesn't exceed current stock value from inventory
+    if (netSale > 0 && form.fuel) {
+      // Get current stock from products API based on selected fuel
       const selectedProduct = products.find((p: any) => p.productName === form.fuel);
-      const tankCapacity = selectedProduct?.tankCapacity || Infinity;
+      const currentStockLevel = Number(selectedProduct?.currentLevel || 0);
       
-      if (tankCapacity !== Infinity && close > tankCapacity) {
+      if (currentStockLevel > 0 && netSale > currentStockLevel) {
         setValidationError({
-          title: "Tank Capacity Exceeded",
-          message: `Closing stock (${close.toLocaleString()}L) cannot exceed the tank capacity of ${tankCapacity.toLocaleString()}L for ${form.fuel}. Please reduce the closing stock value to proceed.`
+          title: "⚠️ Net Sale Exceeds Current Stock",
+          message: `Net sale (${netSale.toLocaleString()}L) cannot exceed the current stock level of ${currentStockLevel.toLocaleString()}L for ${form.fuel}. Please verify your closing stock reading.`
         });
-        // Don't calculate sales if validation fails
-        return;
       } else {
-        // Clear validation error if closing stock is now valid
+        // Clear validation error if net sale is valid
         setValidationError(null);
       }
     } else {
@@ -265,9 +267,6 @@ export default function Sales() {
       setValidationError(null);
     }
     
-    const grossSale = close > open ? close - open : 0;
-    const netSale = Math.max(0, grossSale - testing);
-    const salesAmount = Math.round(netSale * pricePerLiter * 100) / 100;
     setForm((f) => ({
       ...f,
       saleLiters: netSale > 0 ? netSale.toFixed(3) : "",
@@ -462,18 +461,6 @@ export default function Sales() {
       return false;
     }
 
-    // Validate closing stock doesn't exceed tank capacity
-    const selectedProduct = products.find((p: any) => p.productName === fuel);
-    const tankCapacity = selectedProduct?.tankCapacity || Infinity;
-    
-    if (tankCapacity !== Infinity && closeNum > tankCapacity) {
-      setValidationError({
-        title: "Tank Capacity Exceeded",
-        message: `Closing stock (${closeNum.toLocaleString()}L) cannot exceed the tank capacity of ${tankCapacity.toLocaleString()}L for ${fuel}. Please enter a valid closing stock value.`
-      });
-      return false;
-    }
-
     const gross = closeNum - openNum;
     if (testingNum < 0 || testingNum > gross) {
       setValidationError({
@@ -484,6 +471,20 @@ export default function Sales() {
     }
 
     const net = gross - testingNum;
+    
+    // Validate net sale doesn't exceed current stock
+    if (net > 0 && fuel) {
+      const selectedProduct = products.find((p: any) => p.productName === fuel);
+      const currentStockLevel = Number(selectedProduct?.currentLevel || 0);
+      
+      if (currentStockLevel > 0 && net > currentStockLevel) {
+        setValidationError({
+          title: "⚠️ Net Sale Exceeds Current Stock",
+          message: `Net sale (${net.toLocaleString()}L) cannot exceed the current stock level of ${currentStockLevel.toLocaleString()}L for ${fuel}. Please verify your closing stock reading.`
+        });
+        return false;
+      }
+    }
     
     // Point 8: Allow net sale 0 when testing data is entered (no business day)
     if (net === 0 && testingNum > 0) {
@@ -1086,8 +1087,8 @@ export default function Sales() {
               </div>
             </div>
             
-            {/* Point 6: Excess Collections Card - Only visible to Owner */}
-            {isOwner && collectionSummary.excess > 0 && (
+            {/* Point 6: Excess Collections Card - Visible to Owner and Manager */}
+            {(isOwner || isManager) && (
               <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 p-6 text-white shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16" />
                 <div className="relative z-10">

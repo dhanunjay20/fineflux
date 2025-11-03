@@ -2,9 +2,15 @@ import { useState, useMemo, useTransition, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+// Extend dayjs with timezone support
+dayjs.extend(utc);
+dayjs.extend(timezone);
 import { 
   CalendarDays, 
   IndianRupee, 
@@ -52,11 +58,10 @@ export default function Analytics() {
   const orgId = localStorage.getItem('organizationId') || '';
   const [timeRange, setTimeRange] = useState('30d');
   const [isPending, startTransition] = useTransition();
-  const [lastRefresh, setLastRefresh] = useState(new Date());
 
   // Calculate date range based on selection
   const getDateRange = () => {
-    const now = dayjs();
+    const now = dayjs().tz('Asia/Kolkata');
     switch (timeRange) {
       case '7d':
         return { from: now.subtract(7, 'day'), to: now };
@@ -72,65 +77,101 @@ export default function Analytics() {
   };
 
   const { from, to } = getDateRange();
-  const fromIso = from.startOf('day').format('YYYY-MM-DDTHH:mm:ss');
-  const toIso = to.endOf('day').format('YYYY-MM-DDTHH:mm:ss');
+  const fromIso = from.startOf('day').utc().format('YYYY-MM-DDTHH:mm:ss');
+  const toIso = to.endOf('day').utc().format('YYYY-MM-DDTHH:mm:ss');
 
-  // Auto-refresh every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLastRefresh(new Date());
-    }, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Fetch Sales with real-time updates (FIXED ENDPOINT)
+  // Fetch Sales with real-time updates - CORRECTED ENDPOINT
   const { data: salesData = [], isLoading: loadingSales, isFetching: fetchingSales, refetch: refetchSales } = useQuery({
-    queryKey: ['sales-analytics', orgId, fromIso, toIso, lastRefresh],
+    queryKey: ['sales-analytics', orgId, fromIso, toIso],
     queryFn: async () => {
-      const params = `from=${fromIso}&to=${toIso}`;
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/sales/by-date?${params}`);
-      return Array.isArray(res.data) ? res.data : [];
+      try {
+        // Use the correct endpoint: sale-history/by-date
+        const url = `${API_BASE}/api/organizations/${orgId}/sale-history/by-date?from=${fromIso}&to=${toIso}`;
+        console.log('Fetching sales from:', url);
+        const res = await axios.get(url);
+        const data = Array.isArray(res.data) ? res.data : [];
+        console.log('Sales data fetched:', data.length, 'records');
+        return data;
+      } catch (error) {
+        console.error('Error fetching sales:', error);
+        return [];
+      }
     },
     enabled: !!orgId,
-    staleTime: 0,
-    refetchInterval: 30000,
+    staleTime: 30000, // 30 seconds
     refetchOnWindowFocus: true,
   });
 
-  // Transform sales data to match expected format
+  // Transform sales data to match expected format - FIXED
   const salesHistory = useMemo(() => {
-    return salesData.map((sale: any) => ({
-      ...sale,
-      salesInRupees: sale.totalAmount || sale.salesInRupees || 0,
-      salesInLiters: sale.quantity || sale.salesInLiters || 0,
-      productName: sale.productName || sale.product || 'Unknown',
-      dateTime: sale.saleDate || sale.dateTime || sale.createdAt
-    }));
+    if (!salesData || !Array.isArray(salesData)) return [];
+    
+    return salesData.map((sale: any) => {
+      // Handle different possible field names from API
+      const amount = Number(sale.salesInRupees || sale.totalAmount || sale.amount || 0);
+      const liters = Number(sale.salesInLiters || sale.quantity || sale.liters || 0);
+      const product = sale.productName || sale.product || 'Unknown';
+      const date = sale.dateTime || sale.saleDate || sale.createdAt;
+      
+      return {
+        ...sale,
+        salesInRupees: amount,
+        salesInLiters: liters,
+        productName: product,
+        dateTime: date
+      };
+    });
   }, [salesData]);
 
-  // Fetch Expenses with real-time updates
-  const { data: expenses = [], isLoading: loadingExpenses, refetch: refetchExpenses } = useQuery({
-    queryKey: ['expenses-analytics', orgId, lastRefresh],
+  // Fetch Expenses with real-time updates - FIXED
+  const { data: expensesData = [], isLoading: loadingExpenses, refetch: refetchExpenses } = useQuery({
+    queryKey: ['expenses-analytics', orgId],
     queryFn: async () => {
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/expenses`);
-      return Array.isArray(res.data) ? res.data : [];
+      try {
+        const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/expenses`);
+        const data = Array.isArray(res.data) ? res.data : [];
+        console.log('Expenses data fetched:', data.length, 'records');
+        return data;
+      } catch (error) {
+        console.error('Error fetching expenses:', error);
+        return [];
+      }
     },
     enabled: !!orgId,
-    staleTime: 0,
-    refetchInterval: 30000,
+    staleTime: 30000,
     refetchOnWindowFocus: true,
   });
 
-  // Fetch Latest Finance Summary with real-time updates
+  // Filter expenses by date range
+  const expenses = useMemo(() => {
+    if (!expensesData || !Array.isArray(expensesData)) return [];
+    
+    return expensesData.filter(e => {
+      if (!e.expenseDate && !e.date && !e.createdAt) return false;
+      const expDate = dayjs(e.expenseDate || e.date || e.createdAt);
+      return expDate.isAfter(from.subtract(1, 'day')) && expDate.isBefore(to.add(1, 'day'));
+    }).map(e => ({
+      ...e,
+      amount: Number(e.amount || e.totalAmount || e.expenseAmount || 0),
+      expenseDate: e.expenseDate || e.date || e.createdAt
+    }));
+  }, [expensesData, from, to]);
+
+  // Fetch Latest Finance Summary - FIXED
   const { data: financeSummary, isLoading: loadingFinance, refetch: refetchFinance } = useQuery({
-    queryKey: ['finance-summary-latest', orgId, lastRefresh],
+    queryKey: ['finance-summary-latest', orgId],
     queryFn: async () => {
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/finance-summary/latest`);
-      return res.data;
+      try {
+        const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/finance-summary/latest`);
+        console.log('Finance summary fetched:', res.data);
+        return res.data;
+      } catch (error) {
+        console.error('Error fetching finance summary:', error);
+        return null;
+      }
     },
     enabled: !!orgId,
-    staleTime: 0,
-    refetchInterval: 86400000, // Daily
+    staleTime: 300000, // 5 minutes
     refetchOnWindowFocus: true,
   });
 
@@ -139,81 +180,129 @@ export default function Analytics() {
     refetchSales();
     refetchExpenses();
     refetchFinance();
-    setLastRefresh(new Date());
   };
 
-  // Calculate KPIs
+  // Calculate KPIs - FIXED with proper data validation
   const kpis = useMemo(() => {
-    const totalRevenue = salesHistory.reduce((sum, s) => sum + (s.salesInRupees || 0), 0);
-    const totalExpenses = expenses
-      .filter(e => {
-        if (!e.expenseDate) return false;
-        const expDate = dayjs(e.expenseDate);
-        return expDate.isAfter(from) && expDate.isBefore(to);
-      })
-      .reduce((sum, e) => sum + (e.amount || 0), 0);
+    // Calculate total revenue from sales
+    const totalRevenue = salesHistory.reduce((sum, s) => {
+      const amount = Number(s.salesInRupees) || 0;
+      return sum + amount;
+    }, 0);
+    
+    // Calculate total expenses - already filtered by date range
+    const totalExpenses = expenses.reduce((sum, e) => {
+      const amount = Number(e.amount) || 0;
+      return sum + amount;
+    }, 0);
+    
+    // Calculate net profit
     const netProfit = totalRevenue - totalExpenses;
-    const totalLiters = salesHistory.reduce((sum, s) => sum + (s.salesInLiters || 0), 0);
+    
+    // Calculate total liters sold
+    const totalLiters = salesHistory.reduce((sum, s) => {
+      const liters = Number(s.salesInLiters) || 0;
+      return sum + liters;
+    }, 0);
 
-    return { totalRevenue, netProfit, totalExpenses, totalLiters };
-  }, [salesHistory, expenses, from, to]);
+    console.log('KPIs calculated:', { totalRevenue, totalExpenses, netProfit, totalLiters });
 
-  // Monthly Sales & Profit Data (for line chart)
+    return { 
+      totalRevenue: Math.round(totalRevenue * 100) / 100, 
+      netProfit: Math.round(netProfit * 100) / 100, 
+      totalExpenses: Math.round(totalExpenses * 100) / 100, 
+      totalLiters: Math.round(totalLiters * 100) / 100 
+    };
+  }, [salesHistory, expenses]);
+
+  // Monthly Sales & Profit Data (for line chart) - FIXED
   const monthlySalesData = useMemo(() => {
-    const monthlyMap: Record<string, { sales: number; expenses: number; profit: number }> = {};
+    const monthlyMap: Record<string, { sales: number; expenses: number; profit: number; timestamp: number }> = {};
 
+    // Aggregate sales by month
     salesHistory.forEach(sale => {
-      const month = dayjs(sale.dateTime).format('MMM YY');
-      if (!monthlyMap[month]) monthlyMap[month] = { sales: 0, expenses: 0, profit: 0 };
-      monthlyMap[month].sales += sale.salesInRupees || 0;
+      if (!sale.dateTime) return;
+      const saleDate = dayjs(sale.dateTime).tz('Asia/Kolkata');
+      const month = saleDate.format('MMM YYYY'); // Changed to full year format
+      if (!monthlyMap[month]) {
+        monthlyMap[month] = { 
+          sales: 0, 
+          expenses: 0, 
+          profit: 0, 
+          timestamp: saleDate.startOf('month').unix() 
+        };
+      }
+      const amount = Number(sale.salesInRupees) || 0;
+      monthlyMap[month].sales += amount;
     });
 
+    // Aggregate expenses by month - expenses already filtered
     expenses.forEach(exp => {
       if (!exp.expenseDate) return;
-      const expDate = dayjs(exp.expenseDate);
-      if (expDate.isAfter(from) && expDate.isBefore(to)) {
-        const month = expDate.format('MMM YY');
-        if (!monthlyMap[month]) monthlyMap[month] = { sales: 0, expenses: 0, profit: 0 };
-        monthlyMap[month].expenses += exp.amount || 0;
+      const expDate = dayjs(exp.expenseDate).tz('Asia/Kolkata');
+      const month = expDate.format('MMM YYYY'); // Changed to full year format
+      if (!monthlyMap[month]) {
+        monthlyMap[month] = { 
+          sales: 0, 
+          expenses: 0, 
+          profit: 0, 
+          timestamp: expDate.startOf('month').unix() 
+        };
       }
+      const amount = Number(exp.amount) || 0;
+      monthlyMap[month].expenses += amount;
     });
 
-    return Object.entries(monthlyMap)
+    // Calculate profit for each month and sort by timestamp
+    const result = Object.entries(monthlyMap)
       .map(([name, data]) => ({
         name,
         sales: Math.round(data.sales),
         expenses: Math.round(data.expenses),
         profit: Math.round(data.sales - data.expenses),
+        timestamp: data.timestamp
       }))
-      .sort((a, b) => dayjs(a.name, 'MMM YY').unix() - dayjs(b.name, 'MMM YY').unix())
-      .slice(-6);
-  }, [salesHistory, expenses, from, to]);
+      .sort((a, b) => a.timestamp - b.timestamp);
 
-  // Fuel Type Distribution (Pie Chart)
+    console.log('Monthly sales data:', result);
+    return result.slice(-6); // Last 6 months
+  }, [salesHistory, expenses]);
+
+  // Fuel Type Distribution (Pie Chart) - FIXED
   const fuelTypeData = useMemo(() => {
     const fuelMap: Record<string, number> = {};
+    
     salesHistory.forEach(sale => {
-      const product = sale.productName || 'Unknown';
-      fuelMap[product] = (fuelMap[product] || 0) + (sale.salesInRupees || 0);
+      const product = (sale.productName || 'Unknown').trim();
+      const amount = Number(sale.salesInRupees) || 0;
+      fuelMap[product] = (fuelMap[product] || 0) + amount;
     });
 
-    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
-    return Object.entries(fuelMap).map(([name, value], idx) => ({
-      name,
-      value: Math.round(value),
-      color: colors[idx % colors.length],
-    }));
+    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+    const result = Object.entries(fuelMap)
+      .map(([name, value], idx) => ({
+        name,
+        value: Math.round(value),
+        color: colors[idx % colors.length],
+      }))
+      .sort((a, b) => b.value - a.value); // Sort by revenue descending
+
+    console.log('Fuel type data:', result);
+    return result;
   }, [salesHistory]);
 
-  // Daily Sales (Last 7 days - Bar Chart) - FIXED
+  // Daily Sales (Last 7 days - Bar Chart) - FIXED with IST timezone
   const dailySalesData = useMemo(() => {
-    const today = dayjs();
+    const today = dayjs().tz('Asia/Kolkata');
     const last7Days = Array.from({ length: 7 }, (_, i) => today.subtract(6 - i, 'day'));
     
-    return last7Days.map(day => {
+    const result = last7Days.map(day => {
       const dayStr = day.format('DD MMM');
+      
+      // Filter sales for this specific day in IST
       const daySales = salesHistory.filter(s => {
-        const saleDate = dayjs(s.dateTime);
+        if (!s.dateTime) return false;
+        const saleDate = dayjs(s.dateTime).tz('Asia/Kolkata');
         return saleDate.isSame(day, 'day');
       });
       
@@ -228,33 +317,53 @@ export default function Analytics() {
         totalDaySales += amount;
       });
 
-      // Create result with normalized product keys
-      const result: Record<string, any> = { 
+      // Create result object with product data
+      const dayData: Record<string, any> = { 
         day: dayStr,
+        date: day.format('YYYY-MM-DD'),
         total: Math.round(totalDaySales)
       };
       
       // Add each product with normalized key
       Object.entries(productMap).forEach(([product, amount]) => {
-        const key = product.toLowerCase().replace(/\s+/g, '');
-        result[key] = Math.round(amount);
+        // Normalize product name for chart key
+        const key = product.toLowerCase().replace(/[^a-z0-9]/g, '');
+        dayData[key] = Math.round(amount);
+        dayData[`${key}_name`] = product; // Store original name for legend
       });
 
-      return result;
+      return dayData;
     });
+
+    console.log('Daily sales data:', result);
+    return result;
   }, [salesHistory]);
 
-  // Get all unique products for bar chart
+  // Get all unique products for bar chart - FIXED
   const uniqueProducts = useMemo(() => {
-    const products = new Set<string>();
+    const productsSet = new Set<string>();
+    const productsMap = new Map<string, string>(); // normalized -> original name
+    
     dailySalesData.forEach(day => {
       Object.keys(day).forEach(key => {
-        if (key !== 'day' && key !== 'total') {
-          products.add(key);
+        if (key !== 'day' && key !== 'date' && key !== 'total' && !key.endsWith('_name')) {
+          productsSet.add(key);
+          // Store original name if available
+          const originalName = day[`${key}_name`];
+          if (originalName) {
+            productsMap.set(key, originalName);
+          }
         }
       });
     });
-    return Array.from(products);
+    
+    const products = Array.from(productsSet).map(key => ({
+      key,
+      name: productsMap.get(key) || key.charAt(0).toUpperCase() + key.slice(1)
+    }));
+
+    console.log('Unique products:', products);
+    return products;
   }, [dailySalesData]);
 
   // Export as CSV
@@ -447,7 +556,7 @@ export default function Analytics() {
             {fetchingSales && <RefreshCw className="h-3 w-3 animate-spin text-primary" />}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Last updated: {lastRefresh.toLocaleTimeString('en-IN')} • Auto-refreshes every 24 hours
+            Period: {from.format('DD MMM YYYY')} to {to.format('DD MMM YYYY')}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
@@ -639,7 +748,7 @@ export default function Analytics() {
           <CardHeader>
             <CardTitle>Daily Sales (Last 7 Days)</CardTitle>
             <CardDescription>
-              Sales from {dayjs().subtract(6, 'day').format('DD MMM')} to {dayjs().format('DD MMM')}
+              Sales from {dayjs().tz('Asia/Kolkata').subtract(6, 'day').format('DD MMM')} to {dayjs().tz('Asia/Kolkata').format('DD MMM')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -655,17 +764,27 @@ export default function Analytics() {
                     <XAxis dataKey="day" />
                     <YAxis tickFormatter={(value) => `${RUPEE}${(value / 1000).toFixed(0)}K`} />
                     <Tooltip 
-                      formatter={(value) => [`${RUPEE}${formatIndianNumber(value as number)}`, '']}
+                      formatter={(value, name) => {
+                        // Find the product name from uniqueProducts
+                        const product = uniqueProducts.find(p => p.key === name);
+                        const displayName = product ? product.name : String(name);
+                        return [`${RUPEE}${formatIndianNumber(value as number)}`, displayName];
+                      }}
                       contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #ccc' }}
                     />
-                    <Legend />
+                    <Legend 
+                      formatter={(value) => {
+                        const product = uniqueProducts.find(p => p.key === value);
+                        return product ? product.name : value;
+                      }}
+                    />
                     {uniqueProducts.length > 0 ? (
-                      uniqueProducts.map((key, idx) => (
+                      uniqueProducts.map((product, idx) => (
                         <Bar 
-                          key={key} 
-                          dataKey={key} 
-                          fill={['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][idx % 5]} 
-                          name={key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim()} 
+                          key={product.key} 
+                          dataKey={product.key} 
+                          fill={['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'][idx % 7]} 
+                          name={product.name}
                         />
                       ))
                     ) : (

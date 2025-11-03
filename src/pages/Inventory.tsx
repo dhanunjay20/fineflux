@@ -82,7 +82,9 @@ export default function Inventory() {
     queryFn: async () => {
       const url = `${API_BASE}/api/organizations/${orgId}/products`;
       const res = await axios.get(url);
-      return Array.isArray(res.data) ? res.data : [];
+      const productList = Array.isArray(res.data) ? res.data : [];
+      console.log('Products API Response:', productList);
+      return productList;
     }
   });
 
@@ -90,15 +92,30 @@ export default function Inventory() {
 
   const tankList = (inventories || []).map((inv: any) => {
     const prod = products.find((p: any) => p.id === inv.productId);
+    const status = prod?.active ?? prod?.status ?? inv.status ?? true;
+    
+    // Debug logging
+    console.log('Product:', prod?.productName, {
+      prodActive: prod?.active,
+      prodStatus: prod?.status,
+      invStatus: inv.status,
+      finalStatus: status
+    });
+    
     return {
       ...inv,
       price: prod?.price ?? "-",
       supplier: prod?.supplier ?? "-",
-      productName: inv.productName ?? prod?.productName ?? "—"
+      productName: inv.productName ?? prod?.productName ?? "—",
+      // Get status from product API (prod.active or prod.status)
+      status: status
     }
   });
 
-  const activeTanks = tankList.filter(t => t.status === true || t.status === "true");
+  const activeTanks = tankList.filter(t => {
+    const isActive = t.status === true || t.status === "true" || t.status === 1 || t.status === "1";
+    return isActive;
+  });
   const lowStockTanks = activeTanks.filter(
     tank =>
       tank.tankCapacity &&
@@ -248,19 +265,72 @@ export default function Inventory() {
     return { color: "text-success", bg: "bg-success-soft", label: "Good", variant: "outline" };
   };
 
-  const openStockModal = (tank) => { setStockModal(tank); setStockValue(""); };
+  const openStockModal = (tank) => { 
+    const isActive = tank.status === true || tank.status === "true" || tank.status === 1 || tank.status === "1";
+    if (!isActive) {
+      toast({
+        title: "⚠️ Cannot Update Stock",
+        description: "This product is inactive. Please activate it first to update stock.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setStockModal(tank); 
+    setStockValue(""); 
+  };
+  
   const openAddModal = () => { setAddModal(true); setAddProductId(""); setAddValue(""); };
-  const openRefillModal = (tank) => { setRefillModal(tank); setRefillDate(tankRefillDates[tank.productId || tank.productName] || ""); };
+  
+  const openRefillModal = (tank) => { 
+    const isActive = tank.status === true || tank.status === "true" || tank.status === 1 || tank.status === "1";
+    if (!isActive) {
+      toast({
+        title: "⚠️ Cannot Schedule Refill",
+        description: "This product is inactive. Please activate it first to schedule refills.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setRefillModal(tank); 
+    setRefillDate(tankRefillDates[tank.productId || tank.productName] || ""); 
+  };
 
   const handleAddStock = (e) => {
     e.preventDefault();
     if (!addProductId || !addValue || isNaN(Number(addValue))) return;
+    
+    // Check if the selected product is active
+    const selectedTank = tankList.find((t: any) => t.productId === addProductId);
+    if (selectedTank) {
+      const isActive = selectedTank.status === true || selectedTank.status === "true" || selectedTank.status === 1 || selectedTank.status === "1";
+      if (!isActive) {
+        toast({
+          title: "⚠️ Cannot Add Stock",
+          description: "This product is inactive. Please activate it first to add stock.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    
     putStockMutation.mutate({ productId: addProductId, amount: Number(addValue) });
   };
 
   const handleStockUpdate = (e) => {
     e.preventDefault();
     if (!stockModal || !stockValue || isNaN(Number(stockValue))) return;
+    
+    // Check if the product is active
+    const isActive = stockModal.status === true || stockModal.status === "true" || stockModal.status === 1 || stockModal.status === "1";
+    if (!isActive) {
+      toast({
+        title: "⚠️ Cannot Update Stock",
+        description: "This product is inactive. Please activate it first to update stock.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     putStockMutation.mutate({ productId: stockModal.productId, amount: Number(stockValue) });
   };
 
@@ -390,22 +460,26 @@ export default function Inventory() {
               <Card
                 key={tank.inventoryId || tank.productId || tank.productName || idx}
                 className={
-                  "card-gradient hover-lift " +
-                  (!isActive ? "bg-gradient-to-br from-red-100 to-gray-200 dark:from-red-900 dark:to-gray-800 opacity-60" : "")
+                  "card-gradient hover-lift transition-all " +
+                  (!isActive 
+                    ? "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 border-2 border-red-300 dark:border-red-700 opacity-75" 
+                    : "")
                 }
               >
                 <CardHeader>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <Fuel className="h-5 w-5" />
-                      <CardTitle className="text-lg">{tank.productName || "—"}</CardTitle>
+                      <Fuel className={`h-5 w-5 ${!isActive ? 'text-gray-400' : ''}`} />
+                      <CardTitle className={`text-lg ${!isActive ? 'text-gray-500 dark:text-gray-400' : ''}`}>
+                        {tank.productName || "—"}
+                      </CardTitle>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge
-                        variant={isActive ? status.variant : "secondary"}
-                        className={!isActive ? "bg-red-200/90 text-red-700" : percentage < 20 ? "animate-pulse" : ""}
+                        variant={isActive ? status.variant : "destructive"}
+                        className={!isActive ? "bg-red-500 text-white font-semibold" : percentage < 20 ? "animate-pulse" : ""}
                       >
-                        {!isActive ? "Inactive" : (percentage < 20 && <AlertTriangle className="mr-1 h-3 w-3" />)}
+                        {!isActive ? "🔒 Inactive" : (percentage < 20 && <AlertTriangle className="mr-1 h-3 w-3" />)}
                         {!isActive ? "" : status.label}
                       </Badge>
                       {isActive && (

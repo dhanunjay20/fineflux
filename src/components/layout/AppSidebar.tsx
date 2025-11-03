@@ -160,7 +160,7 @@ export function AppSidebar() {
                       asChild
                       isActive={active}
                       className={`rounded-lg transition-all ${active
-                        ? 'bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold shadow-sm border border-blue-200 dark:border-blue-800'
+                        ? 'bg-blue-500 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold shadow-sm border border-blue-200 dark:border-blue-800'
                         : 'text-muted-foreground hover:bg-blue-50 dark:hover:bg-slate-800/50 hover:text-foreground font-medium'
                         }`}
                     >

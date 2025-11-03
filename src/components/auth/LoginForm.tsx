@@ -503,7 +503,7 @@ export function LoginForm() {
                   type="button" 
                   variant="outline" 
                   onClick={handleCloseModal}
-                  className="w-full h-11 bg-white/5 border-2 border-white/25 text-white hover:bg-white/15"
+                  className="w-full h-11 bg-transparent border-slate-600 text-slate-300 hover:bg-slate-700"
                 >
                   Cancel
                 </Button>

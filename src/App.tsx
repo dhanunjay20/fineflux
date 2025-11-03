@@ -17,7 +17,7 @@ import Sales from "./pages/Sales";
 import Borrowers from "./pages/Borrowers";
 import Reports from "./pages/Reports";
 import Expenses from "./pages/Expenses";
-import Attendance from "./pages/Attendance";
+import EmployeeAttendance from "./pages/EmployeeAttendance";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Analytics from "./pages/Analytics";
@@ -277,15 +277,14 @@ const App: React.FC = () => {
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="/attendance"
-                element={
-                  <ProtectedRoute requiredRoles={["employee"]}>
-                    <DashboardLayout>
-                      <Attendance />
-                    </DashboardLayout>
-                  </ProtectedRoute>
-                }
+              <Route path="/attendance"
+              element={
+                <ProtectedRoute requiredRoles={["employee"]}>
+                  <DashboardLayout>
+                    <EmployeeAttendance />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
               />
               <Route
                 path="/profile"

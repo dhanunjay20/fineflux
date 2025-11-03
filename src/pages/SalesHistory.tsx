@@ -66,7 +66,15 @@ interface SalesSummary {
   received: number;
 }
 
-type DatePreset = "today" | "week" | "month" | "custom";
+interface InventoryItem {
+  productId: string;
+  productName: string;
+  currentLevel: number;
+  capacity: number;
+  status: string;
+}
+
+type DatePreset = "latest" | "today" | "week" | "month" | "custom";
 
 // ============ Constants ============
 const API_BASE =
@@ -79,6 +87,9 @@ const RECORDS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 const rangeForPreset = (preset: DatePreset): [Dayjs, Dayjs] => {
   const today = dayjs();
   switch (preset) {
+    case "latest":
+      // Return a very wide range for latest 10 records
+      return [today.subtract(1, "year"), today.endOf("day")];
     case "today":
       return [today.startOf("day"), today.endOf("day")];
     case "week":
@@ -86,7 +97,7 @@ const rangeForPreset = (preset: DatePreset): [Dayjs, Dayjs] => {
     case "month":
       return [today.startOf("month"), today.endOf("month")];
     default:
-      return [today.startOf("day"), today.endOf("day")];
+      return [today.subtract(1, "year"), today.endOf("day")];
   }
 };
 
@@ -283,7 +294,7 @@ const exportToPDF = (
 };
 
 // ============ Compact Mobile-First Sale Record Card ============
-const SaleRecordCard = ({ record, index }: { record: SaleRecord; index: number }) => {
+const SaleRecordCard = ({ record, index, inventory }: { record: SaleRecord; index: number; inventory: InventoryItem[] }) => {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -335,6 +346,7 @@ const SaleRecordCard = ({ record, index }: { record: SaleRecord; index: number }
           <div className="mt-3 grid grid-cols-3 gap-2 sm:flex sm:items-center sm:gap-4 sm:border-y sm:py-2">
             <div className="flex items-center gap-1.5">
               <Droplet className="h-4 w-4 text-blue-600" />
+              <span className="text-xs text-muted-foreground">Sale</span>
               <span className="text-sm font-semibold">{record.salesInLiters}L</span>
             </div>
             <div className="flex items-center gap-1.5">
@@ -436,6 +448,7 @@ const DateRangeSelector = ({
   onApply: () => void;
 }) => {
   const presetButtons = [
+    { id: "latest", label: "Latest 10", icon: Clock },
     { id: "today", label: "Today", icon: Clock },
     { id: "week", label: "This Week", icon: CalendarIcon },
     { id: "month", label: "This Month", icon: CalendarIcon },
@@ -632,9 +645,9 @@ const PaginationControls = ({
 // ============ Main Component ============
 export default function SalesHistory() {
   const orgId = localStorage.getItem("organizationId") || "ORG-DEV-001";
-  const [preset, setPreset] = useState<DatePreset>("today");
+  const [preset, setPreset] = useState<DatePreset>("latest");
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>(() =>
-    rangeForPreset("today")
+    rangeForPreset("latest")
   );
   const [currentPage, setCurrentPage] = useState(1);
   const [recordsPerPage, setRecordsPerPage] = useState(10);
@@ -661,11 +674,29 @@ export default function SalesHistory() {
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ["sale-history", orgId, fromIso, toIso],
+    queryKey: ["sale-history", orgId, fromIso, toIso, preset],
     queryFn: async () => {
       const params = `from=${fromIso}&to=${toIso}`;
       const url = `${API_BASE}/api/organizations/${orgId}/sale-history/by-date?${params}`;
       const res = await axios.get<SaleRecord[]>(url);
+      const data = Array.isArray(res.data) ? res.data : [];
+      
+      // For "latest" preset, return only the latest 10 records
+      if (preset === "latest") {
+        return data.slice(0, 10);
+      }
+      
+      return data;
+    },
+    refetchOnWindowFocus: false,
+  });
+
+  // Fetch inventory/tank levels
+  const { data: inventory = [] } = useQuery({
+    queryKey: ["inventory", orgId],
+    queryFn: async () => {
+      const url = `${API_BASE}/api/organizations/${orgId}/inventory`;
+      const res = await axios.get<InventoryItem[]>(url);
       return Array.isArray(res.data) ? res.data : [];
     },
     refetchOnWindowFocus: false,
@@ -760,64 +791,167 @@ export default function SalesHistory() {
           onApply={() => refetch()}
         />
 
+        {/* Tank Levels */}
+        {inventory.length > 0 && (
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800/50">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-blue-600 text-white">
+                  <Fuel className="h-5 w-5" />
+                </div>
+                <CardTitle className="text-lg font-bold">Current Tank Levels</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {inventory.map((item) => {
+                  const percentage = item.capacity > 0 ? (item.currentLevel / item.capacity) * 100 : 0;
+                  const isLow = percentage < 20;
+                  const isMedium = percentage >= 20 && percentage < 50;
+                  
+                  return (
+                    <div
+                      key={item.productId}
+                      className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800/50"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-semibold text-sm">{item.productName}</span>
+                        <Badge
+                          variant={isLow ? "destructive" : isMedium ? "outline" : "default"}
+                          className="text-xs"
+                        >
+                          {percentage.toFixed(1)}%
+                        </Badge>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full transition-all ${
+                              isLow
+                                ? "bg-red-500"
+                                : isMedium
+                                ? "bg-yellow-500"
+                                : "bg-green-500"
+                            }`}
+                            style={{ width: `${Math.min(percentage, 100)}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {item.currentLevel.toLocaleString()}L / {item.capacity.toLocaleString()}L
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Summary Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          <Card>
-            <CardContent className="p-3 sm:p-4 text-center">
-              <p className="text-xs sm:text-sm text-muted-foreground font-medium">
-                Total Sales
-              </p>
-              <h3 className="text-xl sm:text-2xl font-bold text-primary">
-                {formatCurrency(summary.totalSales)}
-              </h3>
+          <Card className="overflow-hidden border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">
+                    Total Sales
+                  </p>
+                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                    {formatCurrency(summary.totalSales)}
+                  </h3>
+                </div>
+                <div className="p-3 rounded-lg bg-blue-500">
+                  <Wallet className="h-5 w-5 text-white" />
+                </div>
+              </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-3 sm:p-4 text-center">
-              <p className="text-xs sm:text-sm text-muted-foreground font-medium">Cash</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-green-700 dark:text-green-400">
-                {formatCurrency(summary.cash)}
-              </h3>
+          
+          <Card className="overflow-hidden border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">Cash</p>
+                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                    {formatCurrency(summary.cash)}
+                  </h3>
+                </div>
+                <div className="p-3 rounded-lg bg-emerald-500">
+                  <Wallet className="h-5 w-5 text-white" />
+                </div>
+              </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-3 sm:p-4 text-center">
-              <p className="text-xs sm:text-sm text-muted-foreground font-medium">UPI</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-indigo-700 dark:text-indigo-400">
-                {formatCurrency(summary.upi)}
-              </h3>
+          
+          <Card className="overflow-hidden border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">UPI</p>
+                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                    {formatCurrency(summary.upi)}
+                  </h3>
+                </div>
+                <div className="p-3 rounded-lg bg-violet-500">
+                  <Smartphone className="h-5 w-5 text-white" />
+                </div>
+              </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-3 sm:p-4 text-center">
-              <p className="text-xs sm:text-sm text-muted-foreground font-medium">Card</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-blue-700 dark:text-blue-400">
-                {formatCurrency(summary.card)}
-              </h3>
+          
+          <Card className="overflow-hidden border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">Card</p>
+                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                    {formatCurrency(summary.card)}
+                  </h3>
+                </div>
+                <div className="p-3 rounded-lg bg-amber-500">
+                  <CreditCard className="h-5 w-5 text-white" />
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
 
         {/* Short/Received */}
         <div className="grid md:grid-cols-2 gap-3 sm:gap-4">
-          <Card>
-            <CardContent className="p-3 sm:p-4 text-center">
-              <p className="text-xs sm:text-sm text-muted-foreground font-medium">
-                Short Collections
-              </p>
-              <h3 className="text-xl sm:text-2xl font-bold text-yellow-700 dark:text-yellow-400">
-                {formatCurrency(summary.short)}
-              </h3>
+          <Card className="overflow-hidden border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">
+                    Short Collections
+                  </p>
+                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                    {formatCurrency(summary.short)}
+                  </h3>
+                </div>
+                <div className="p-3 rounded-lg bg-rose-500">
+                  <AlertCircle className="h-5 w-5 text-white" />
+                </div>
+              </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-3 sm:p-4 text-center">
-              <p className="text-xs sm:text-sm text-muted-foreground font-medium">
-                Received Total
-              </p>
-              <h3 className="text-xl sm:text-2xl font-bold text-pink-700 dark:text-pink-400">
-                {formatCurrency(summary.received)}
-              </h3>
+          
+          <Card className="overflow-hidden border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">
+                    Received Total
+                  </p>
+                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                    {formatCurrency(summary.received)}
+                  </h3>
+                </div>
+                <div className="p-3 rounded-lg bg-teal-500">
+                  <Wallet className="h-5 w-5 text-white" />
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -879,7 +1013,7 @@ export default function SalesHistory() {
             {/* Records */}
             <div className="space-y-2">
               {paginatedRecords.map((record, index) => (
-                <SaleRecordCard key={record.id} record={record} index={index} />
+                <SaleRecordCard key={record.id} record={record} index={index} inventory={inventory} />
               ))}
             </div>
 
