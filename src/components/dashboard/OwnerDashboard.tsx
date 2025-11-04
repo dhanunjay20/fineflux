@@ -22,14 +22,21 @@ const formatIndianNumber = (num: number): string => {
 
 // Format large numbers in Indian format (Lakhs, Crores)
 const formatIndianCurrency = (num: number): string => {
-  if (num >= 10000000) { // 1 Crore
-    return `₹${(num / 10000000).toFixed(2)} Cr`;
-  } else if (num >= 100000) { // 1 Lakh
-    return `₹${(num / 100000).toFixed(2)} L`;
-  } else if (num >= 1000) { // 1 Thousand
-    return `₹${(num / 1000).toFixed(2)} K`;
+  const isNegative = num < 0;
+  const absNum = Math.abs(num);
+  
+  let formatted = '';
+  if (absNum >= 10000000) { // 1 Crore
+    formatted = `₹${(absNum / 10000000).toFixed(2)} Cr`;
+  } else if (absNum >= 100000) { // 1 Lakh
+    formatted = `₹${(absNum / 100000).toFixed(2)} L`;
+  } else if (absNum >= 1000) { // 1 Thousand
+    formatted = `₹${(absNum / 1000).toFixed(2)} K`;
+  } else {
+    formatted = `₹${formatIndianNumber(absNum)}`;
   }
-  return `₹${formatIndianNumber(num)}`;
+  
+  return isNegative ? `-${formatted}` : formatted;
 };
 
 export function OwnerDashboard() {
@@ -40,9 +47,31 @@ export function OwnerDashboard() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [tanks, setTanks] = useState<any[]>([]);
   const [borrowers, setBorrowers] = useState<any[]>([]);
-  const [loading, setLoading] = useState({ employees: true, tanks: true, borrowers: true });
-  const [error, setError] = useState<{ employees: string | null; tanks: string | null; borrowers: string | null }>({
-    employees: null, tanks: null, borrowers: null
+  const [sales, setSales] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [inventory, setInventory] = useState<any[]>([]);
+  const [loading, setLoading] = useState({ 
+    employees: true, 
+    tanks: true, 
+    borrowers: true,
+    sales: true,
+    expenses: true,
+    inventory: true
+  });
+  const [error, setError] = useState<{ 
+    employees: string | null; 
+    tanks: string | null; 
+    borrowers: string | null;
+    sales: string | null;
+    expenses: string | null;
+    inventory: string | null;
+  }>({
+    employees: null, 
+    tanks: null, 
+    borrowers: null,
+    sales: null,
+    expenses: null,
+    inventory: null
   });
 
   useEffect(() => {
@@ -55,30 +84,47 @@ export function OwnerDashboard() {
         employees: "No Organization ID",
         tanks: "No Organization ID",
         borrowers: "No Organization ID",
+        sales: "No Organization ID",
+        expenses: "No Organization ID",
+        inventory: "No Organization ID",
       });
-      setLoading({ employees: false, tanks: false, borrowers: false });
+      setLoading({ employees: false, tanks: false, borrowers: false, sales: false, expenses: false, inventory: false });
       return;
     }
-    setLoading({ employees: true, tanks: true, borrowers: true });
-    setError({ employees: null, tanks: null, borrowers: null });
+    setLoading({ employees: true, tanks: true, borrowers: true, sales: true, expenses: true, inventory: true });
+    setError({ employees: null, tanks: null, borrowers: null, sales: null, expenses: null, inventory: null });
+    
+    // Get today's date in YYYY-MM-DD format for sales filter
+    const today = new Date().toISOString().split('T')[0];
+    
     Promise.all([
       axios.get(`${API_BASE}/api/organizations/${orgId}/employees`),
       axios.get(`${API_BASE}/api/organizations/${orgId}/products`),
       axios.get(`${API_BASE}/api/organizations/${orgId}/customers`),
+      axios.get(`${API_BASE}/api/organizations/${orgId}/sales`).catch(() => ({ data: [] })),
+      axios.get(`${API_BASE}/api/organizations/${orgId}/expenses`).catch(() => ({ data: [] })),
+      axios.get(`${API_BASE}/api/organizations/${orgId}/inventory`).catch(() => ({ data: [] })),
     ])
-      .then(([empRes, tankRes, borrowRes]) => {
+      .then(([empRes, tankRes, borrowRes, salesRes, expensesRes, inventoryRes]) => {
         setEmployees(safeArray(empRes.data));
         setTanks(safeArray(tankRes.data));
         setBorrowers(safeArray(borrowRes.data));
-        setLoading({ employees: false, tanks: false, borrowers: false });
+        setSales(safeArray(salesRes.data));
+        setExpenses(safeArray(expensesRes.data));
+        setInventory(safeArray(inventoryRes.data));
+        setLoading({ employees: false, tanks: false, borrowers: false, sales: false, expenses: false, inventory: false });
       })
       .catch(err => {
+        const errMsg = err?.message || 'Error loading data.';
         setError({
-          employees: err?.message || 'Error loading employees.',
-          tanks: err?.message || 'Error loading inventory.',
-          borrowers: err?.message || 'Error loading borrowers.',
+          employees: errMsg,
+          tanks: errMsg,
+          borrowers: errMsg,
+          sales: errMsg,
+          expenses: errMsg,
+          inventory: errMsg,
         });
-        setLoading({ employees: false, tanks: false, borrowers: false });
+        setLoading({ employees: false, tanks: false, borrowers: false, sales: false, expenses: false, inventory: false });
       });
   }, [orgId]);
 
@@ -86,39 +132,87 @@ export function OwnerDashboard() {
     fetchAll();
   }, [fetchAll]);
 
-  const stats = useMemo(() => ([
-    {
-      title: 'Total Employees',
-      value: loading.employees ? '...' : String(employees.length),
-      icon: Users,
-      color: 'text-primary',
-      bgColor: 'bg-primary-soft',
-    },
-    {
-      title: 'Active Tanks',
-      value: loading.tanks ? '...' : String(tanks.filter((t: any) => t.status).length),
-      icon: Fuel,
-      color: 'text-success',
-      bgColor: 'bg-success-soft',
-    },
-    {
-      title: 'Total Borrowers',
-      value: loading.borrowers ? '...' : String(borrowers.length),
-      change: borrowers.length
-        ? `₹${formatIndianNumber(borrowers.reduce((sum, b) => sum + (Number(b.amountBorrowed) || 0), 0))} outstanding`
-        : '',
-      icon: CreditCard,
-      color: 'text-warning',
-      bgColor: 'bg-warning-soft',
-    },
-    {
-      title: 'Monthly Revenue',
-      value: '₹0',
-      icon: TrendingUp,
-      color: 'text-accent',
-      bgColor: 'bg-accent-soft',
-    },
-  ]), [employees, tanks, borrowers, loading.employees, loading.tanks, loading.borrowers]);
+  const stats = useMemo(() => {
+    // Today's sales calculation
+    const today = new Date().toISOString().split('T')[0];
+    const todaySales = sales.filter((s: any) => s.saleDate?.startsWith(today) || s.date?.startsWith(today));
+    const todayRevenue = todaySales.reduce((sum, s) => {
+      const amount = Number(s.totalAmount) || Number(s.amount) || 0;
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
+    
+    // Today's expenses
+    const todayExpenses = expenses.filter((e: any) => e.expenseDate?.startsWith(today) || e.date?.startsWith(today));
+    const todayExpenseTotal = todayExpenses.reduce((sum, e) => {
+      const amount = Number(e.amount) || 0;
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
+    
+    // Profit calculation
+    const todayProfit = todayRevenue - todayExpenseTotal;
+    
+    // Active employees
+    const activeEmployees = employees.filter((e: any) => 
+      e.status?.toLowerCase() === 'active' || e.status?.toUpperCase() === 'ACTIVE'
+    ).length;
+    
+    // Outstanding credit calculation with safety check
+    const outstandingCredit = borrowers.reduce((sum, b) => {
+      const amount = Number(b.amountBorrowed) || 0;
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
+    
+    return [
+      {
+        title: 'Today\'s Revenue',
+        value: formatIndianCurrency(todayRevenue),
+        change: `${todaySales.length} transaction${todaySales.length !== 1 ? 's' : ''}`,
+        icon: TrendingUp,
+        color: 'text-green-600',
+        bgColor: 'bg-green-100 dark:bg-green-900/20',
+      },
+      {
+        title: 'Today\'s Profit',
+        value: formatIndianCurrency(todayProfit),
+        change: todayProfit >= 0 ? 'Profit' : 'Loss',
+        icon: DollarSign,
+        color: todayProfit >= 0 ? 'text-blue-600' : 'text-red-600',
+        bgColor: todayProfit >= 0 ? 'bg-blue-100 dark:bg-blue-900/20' : 'bg-red-100 dark:bg-red-900/20',
+      },
+      {
+        title: 'Active Employees',
+        value: loading.employees ? '...' : String(activeEmployees),
+        change: `${employees.length} total`,
+        icon: Users,
+        color: 'text-primary',
+        bgColor: 'bg-primary-soft',
+      },
+      {
+        title: 'Today\'s Expenses',
+        value: formatIndianCurrency(todayExpenseTotal),
+        change: `${todayExpenses.length} expense${todayExpenses.length !== 1 ? 's' : ''}`,
+        icon: CreditCard,
+        color: 'text-orange-600',
+        bgColor: 'bg-orange-100 dark:bg-orange-900/20',
+      },
+      {
+        title: 'Active Fuel Tanks',
+        value: loading.tanks ? '...' : String(tanks.filter((t: any) => t.status).length),
+        change: `${tanks.length} total`,
+        icon: Fuel,
+        color: 'text-purple-600',
+        bgColor: 'bg-purple-100 dark:bg-purple-900/20',
+      },
+      {
+        title: 'Outstanding Credit',
+        value: formatIndianCurrency(outstandingCredit),
+        change: `${borrowers.length} borrower${borrowers.length !== 1 ? 's' : ''}`,
+        icon: AlertTriangle,
+        color: 'text-yellow-600',
+        bgColor: 'bg-yellow-100 dark:bg-yellow-900/20',
+      },
+    ];
+  }, [employees, tanks, borrowers, sales, expenses, loading.employees, loading.tanks, loading.borrowers]);
 
   const tankData = useMemo(() => safeArray(tanks).map((tank: any) => ({
     id: tank.id,
@@ -137,27 +231,59 @@ export function OwnerDashboard() {
     status: borrower.status === 'overdue' ? 'overdue' : 'current',
   })), [borrowers]);
 
-  const financialSummary = useMemo(() => ({
-    totalStockValue: safeArray(tanks)
-      .reduce(
-        (sum: number, tank: any) =>
-          sum +
-          (Number(tank.currentLevel) || 0) *
-          (
-            Number(tank.ratePerLitre) ||
-            Number(tank.productRate) ||
-            Number(tank.price) ||
-            0
-          ),
-        0
-      ),
-    dailyCollection: safeArray(borrowers)
-      .reduce((sum: number, b: any) => sum + (Number(b.amountBorrowed) || 0), 0),
-    totalLiabilities: safeArray(borrowers)
-      .filter((b: any) => b.status === 'overdue')
-      .reduce((sum: number, b: any) => sum + (Number(b.amountBorrowed) || 0), 0),
-    netPosition: 0
-  }), [tanks, borrowers]);
+  const financialSummary = useMemo(() => {
+    // Total stock value with safety checks
+    const totalStockValue = safeArray(tanks).reduce(
+      (sum: number, tank: any) => {
+        const currentLevel = Number(tank.currentLevel) || 0;
+        const rate = Number(tank.ratePerLitre) || Number(tank.productRate) || Number(tank.price) || 0;
+        const value = currentLevel * rate;
+        return sum + (isNaN(value) ? 0 : value);
+      },
+      0
+    );
+    
+    // Today's date for filtering
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Today's sales revenue with safety checks
+    const todaySales = sales.filter((s: any) => 
+      s.saleDate?.startsWith(today) || s.date?.startsWith(today)
+    );
+    const todayRevenue = todaySales.reduce((sum, s) => {
+      const amount = Number(s.totalAmount) || Number(s.amount) || 0;
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
+    
+    // Today's expenses with safety checks
+    const todayExpenses = expenses.filter((e: any) => 
+      e.expenseDate?.startsWith(today) || e.date?.startsWith(today)
+    );
+    const todayExpenseTotal = todayExpenses.reduce((sum, e) => {
+      const amount = Number(e.amount) || 0;
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
+    
+    // Total outstanding credit with safety checks
+    const totalOutstanding = safeArray(borrowers).reduce(
+      (sum: number, b: any) => {
+        const amount = Number(b.amountBorrowed) || 0;
+        return sum + (isNaN(amount) ? 0 : amount);
+      }, 
+      0
+    );
+    
+    // Net position (today's profit)
+    const netPosition = todayRevenue - todayExpenseTotal;
+    
+    return {
+      totalStockValue,
+      todayRevenue,
+      todayExpenseTotal,
+      totalOutstanding,
+      netPosition,
+    };
+  }, [tanks, borrowers, sales, expenses]);
 
   const getStockPercentage = (current: number, capacity: number) =>
     capacity ? Math.round((current / capacity) * 100) : 0;
@@ -201,6 +327,8 @@ export function OwnerDashboard() {
         .stagger-2 { animation-delay: 0.2s; }
         .stagger-3 { animation-delay: 0.3s; }
         .stagger-4 { animation-delay: 0.4s; }
+        .stagger-5 { animation-delay: 0.5s; }
+        .stagger-6 { animation-delay: 0.6s; }
       `}</style>
 
       {/* Header */}
@@ -238,21 +366,21 @@ export function OwnerDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => {
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        {stats.map((stat, idx) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.title} className="stat-card hover-lift">
+            <Card key={stat.title} className={`stat-card hover-lift opacity-0 animate-slide-up stagger-${idx + 1}`}>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-muted-foreground truncate">{stat.title}</p>
                     <div>
-                      <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                      {stat.change && <p className="text-xs text-muted-foreground">{stat.change}</p>}
+                      <p className="text-2xl font-bold text-foreground mt-1">{stat.value}</p>
+                      {stat.change && <p className="text-xs text-muted-foreground mt-1">{stat.change}</p>}
                     </div>
                   </div>
-                  <div className={`${stat.bgColor} p-3 rounded-lg`}>
+                  <div className={`${stat.bgColor} p-3 rounded-lg shrink-0`}>
                     <Icon className={`h-6 w-6 ${stat.color}`} />
                   </div>
                 </div>
@@ -424,29 +552,46 @@ export function OwnerDashboard() {
         </CardHeader>
 
         <CardContent className="p-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             <div className="text-center space-y-2">
               <p className="text-sm text-muted-foreground">Total Stock Value</p>
               <p className="text-2xl font-bold text-primary">
                 {formatIndianCurrency(financialSummary.totalStockValue)}
               </p>
+              <p className="text-xs text-muted-foreground">Current Inventory</p>
             </div>
             <div className="text-center space-y-2">
-              <p className="text-sm text-muted-foreground">Daily Collection</p>
-              <p className="text-2xl font-bold text-success">
-                {formatIndianCurrency(financialSummary.dailyCollection)}
+              <p className="text-sm text-muted-foreground">Today's Revenue</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                {formatIndianCurrency(financialSummary.todayRevenue)}
               </p>
+              <p className="text-xs text-muted-foreground">Sales Income</p>
             </div>
             <div className="text-center space-y-2">
-              <p className="text-sm text-muted-foreground">Total Liabilities</p>
-              <p className="text-2xl font-bold text-warning">
-                {formatIndianCurrency(financialSummary.totalLiabilities)}
+              <p className="text-sm text-muted-foreground">Today's Expenses</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                {formatIndianCurrency(financialSummary.todayExpenseTotal)}
               </p>
+              <p className="text-xs text-muted-foreground">Operating Costs</p>
             </div>
             <div className="text-center space-y-2">
-              <p className="text-sm text-muted-foreground">Net Position</p>
-              <p className="text-2xl font-bold text-accent">
+              <p className="text-sm text-muted-foreground">Outstanding Credit</p>
+              <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                {formatIndianCurrency(financialSummary.totalOutstanding)}
+              </p>
+              <p className="text-xs text-muted-foreground">Pending Recovery</p>
+            </div>
+            <div className="text-center space-y-2">
+              <p className="text-sm text-muted-foreground">Today's Profit</p>
+              <p className={`text-2xl font-bold ${
+                financialSummary.netPosition >= 0 
+                  ? 'text-blue-600 dark:text-blue-400' 
+                  : 'text-red-600 dark:text-red-400'
+              }`}>
                 {formatIndianCurrency(financialSummary.netPosition)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {financialSummary.netPosition >= 0 ? 'Net Profit' : 'Net Loss'}
               </p>
             </div>
           </div>

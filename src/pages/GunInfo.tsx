@@ -168,7 +168,7 @@ const GunInfo = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guninfo", orgId] });
       setAddForm({ productName: "", guns: "", serialNumber: "", currentReading: "" });
-      toast({ title: "Success", description: "Gun added successfully!", variant: "success" });
+      toast({ title: "Success", description: "Gun added successfully!", variant: "default" });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to add gun info.", variant: "destructive" });
@@ -195,7 +195,7 @@ const GunInfo = () => {
       setEditForm({ productName: "", guns: "", serialNumber: "", currentReading: "" });
       setEditId(null);
       setEditModalOpen(false);
-      toast({ title: "Success", description: "Gun updated successfully!", variant: "success" });
+      toast({ title: "Success", description: "Gun updated successfully!", variant: "default" });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to update gun info.", variant: "destructive" });
@@ -215,7 +215,7 @@ const GunInfo = () => {
         const newPages = Math.max(1, Math.ceil(newTotal / GUNS_PER_PAGE));
         return Math.min(p, newPages);
       });
-      toast({ title: "Success", description: "Gun deleted successfully!", variant: "success" });
+      toast({ title: "Success", description: "Gun deleted successfully!", variant: "default" });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to delete gun info.", variant: "destructive" });

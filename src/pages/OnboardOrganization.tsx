@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Building2, Users, UserPlus, Edit, Search, Loader2, 
@@ -156,6 +157,30 @@ const IN_STATES = [
   'Ladakh','Lakshadweep','Puducherry',
 ];
 
+const ROLES = [
+  'Owner',
+  'Manager',
+  'Employee',
+  'Supervisor',
+  'Cashier',
+  'Attendant',
+  'Accountant',
+  'Security',
+  'Maintenance',
+  'Other'
+];
+
+const DEPARTMENTS = [
+  'Management',
+  'Operations',
+  'Sales',
+  'Finance',
+  'Administration',
+  'Maintenance',
+  'Security',
+  'Other'
+];
+
 const makeOrgId = (name: string) => {
   const initials = (name || '').trim().split(/\s+/).map(w => w[0] || '').join('').toUpperCase();
   const rand = Math.floor(Math.random() * 10000);
@@ -283,7 +308,7 @@ export default function OnboardOrganization() {
         organizationId: derivedOrgId || orgForm.organizationId,
       };
       const res = await axios.post<OrganizationResponse>(`${API_BASE}/api/organizations`, payload, { timeout: 15000 });
-      toast({ title: '✅ Success!', description: 'Organization created successfully.', variant: 'success' });
+      toast({ title: '✅ Success!', description: 'Organization created successfully.', variant: 'default' });
       setSelectedOrg(res.data);
     } catch (err: any) {
       toast({
@@ -345,7 +370,7 @@ export default function OnboardOrganization() {
         orgUpdateForm,
         { timeout: 15000 }
       );
-      toast({ title: '✅ Updated!', description: `${selectedOrg.organizationName} updated successfully.`, variant: 'success' });
+      toast({ title: '✅ Updated!', description: `${selectedOrg.organizationName} updated successfully.`, variant: 'default' });
     } catch (err: any) {
       toast({
         title: 'Error',
@@ -440,7 +465,7 @@ export default function OnboardOrganization() {
         payload,
         { timeout: 15000 }
       );
-      toast({ title: '🎉 Success!', description: `Owner ${payload.firstName} ${payload.lastName} onboarded successfully.`, variant: 'success' });
+      toast({ title: '🎉 Success!', description: `Owner ${payload.firstName} ${payload.lastName} onboarded successfully.`, variant: 'default' });
       setOwnerCreateForm(p => ({
         ...p,
         firstName: '',
@@ -586,7 +611,7 @@ export default function OnboardOrganization() {
         ownerUpdateForm,
         { timeout: 15000 }
       );
-      toast({ title: '✅ Updated!', description: `${selectedEmp.firstName} ${selectedEmp.lastName} updated successfully.`, variant: 'success' });
+      toast({ title: '✅ Updated!', description: `${selectedEmp.firstName} ${selectedEmp.lastName} updated successfully.`, variant: 'default' });
     } catch (err: any) {
       toast({
         title: 'Error',
@@ -905,7 +930,9 @@ export default function OnboardOrganization() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="md:col-span-2 space-y-2">
-                      <Label className="text-sm font-semibold">Organization Name *</Label>
+                      <Label className="text-sm font-semibold">
+                        Organization Name <span className="text-red-500">*</span>
+                      </Label>
                       <Input
                         value={orgForm.organizationName}
                         onChange={(e) => updateOrgCreate('organizationName')(e.target.value)}
@@ -915,14 +942,25 @@ export default function OnboardOrganization() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Organization ID *</Label>
+                      <Label className="text-sm font-semibold">
+                        Organization ID <span className="text-red-500">*</span>
+                      </Label>
                       <Input value={derivedOrgId || ''} readOnly disabled placeholder="Auto-generated" className="h-11" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <Input placeholder="GST Number" value={orgForm.gstNumber || ''} onChange={(e) => updateOrgCreate('gstNumber')(e.target.value)} className="h-11 border-2" />
-                    <Input placeholder="License Number" value={orgForm.licenseNumber || ''} onChange={(e) => updateOrgCreate('licenseNumber')(e.target.value)} className="h-11 border-2" />
-                    <Input type="email" placeholder="Email" value={orgForm.email || ''} onChange={(e) => updateOrgCreate('email')(e.target.value)} className="h-11 border-2" />
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">GST Number</Label>
+                      <Input placeholder="GST Number" value={orgForm.gstNumber || ''} onChange={(e) => updateOrgCreate('gstNumber')(e.target.value)} className="h-11 border-2" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">License Number</Label>
+                      <Input placeholder="License Number" value={orgForm.licenseNumber || ''} onChange={(e) => updateOrgCreate('licenseNumber')(e.target.value)} className="h-11 border-2" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Email</Label>
+                      <Input type="email" placeholder="Email" value={orgForm.email || ''} onChange={(e) => updateOrgCreate('email')(e.target.value)} className="h-11 border-2" />
+                    </div>
                   </div>
                 </div>
 
@@ -932,15 +970,39 @@ export default function OnboardOrganization() {
                     <h3 className="text-lg font-bold">Address Information</h3>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <Input placeholder="Address Line 1 *" value={orgForm.address1} onChange={(e) => updateOrgCreate('address1')(e.target.value)} required className="h-11 border-2" />
-                    <Input placeholder="Address Line 2" value={orgForm.address2 || ''} onChange={(e) => updateOrgCreate('address2')(e.target.value)} className="h-11 border-2" />
-                    <Input placeholder="City *" value={orgForm.city} onChange={(e) => updateOrgCreate('city')(e.target.value)} required className="h-11 border-2" />
-                    <select className="flex h-11 w-full rounded-md border-2 border-input bg-background px-3 py-2 text-sm" value={orgForm.state} onChange={(e) => updateOrgCreate('state')(e.target.value)} required>
-                      <option value="">Select State *</option>
-                      {IN_STATES.map((s) => (<option key={s} value={s}>{s}</option>))}
-                    </select>
-                    <Input placeholder="Postal Code *" value={orgForm.postalCode} onChange={(e) => updateOrgCreate('postalCode')(e.target.value)} required className="h-11 border-2" />
-                    <Input placeholder="Country *" value={orgForm.country} onChange={(e) => updateOrgCreate('country')(e.target.value)} required className="h-11 border-2" />
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Address Line 1 <span className="text-red-500">*</span></Label>
+                      <Input placeholder="Address Line 1" value={orgForm.address1} onChange={(e) => updateOrgCreate('address1')(e.target.value)} required className="h-11 border-2" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Address Line 2</Label>
+                      <Input placeholder="Address Line 2" value={orgForm.address2 || ''} onChange={(e) => updateOrgCreate('address2')(e.target.value)} className="h-11 border-2" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">City <span className="text-red-500">*</span></Label>
+                      <Input placeholder="City" value={orgForm.city} onChange={(e) => updateOrgCreate('city')(e.target.value)} required className="h-11 border-2" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">State <span className="text-red-500">*</span></Label>
+                      <Select value={orgForm.state} onValueChange={(value) => updateOrgCreate('state')(value)} required>
+                        <SelectTrigger className="h-11 border-2">
+                          <SelectValue placeholder="Select State" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {IN_STATES.map((s) => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Postal Code <span className="text-red-500">*</span></Label>
+                      <Input placeholder="Postal Code" value={orgForm.postalCode} onChange={(e) => updateOrgCreate('postalCode')(e.target.value)} required className="h-11 border-2" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Country <span className="text-red-500">*</span></Label>
+                      <Input placeholder="Country" value={orgForm.country} onChange={(e) => updateOrgCreate('country')(e.target.value)} required className="h-11 border-2" />
+                    </div>
                   </div>
                 </div>
 
@@ -950,9 +1012,18 @@ export default function OnboardOrganization() {
                     <h3 className="text-lg font-bold">Owner & Contact</h3>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <Input type="tel" placeholder="Phone Number" value={orgForm.phoneNumber || ''} onChange={(e) => updateOrgCreate('phoneNumber')(e.target.value)} className="h-11 border-2" />
-                    <Input placeholder="Owner First Name *" value={orgForm.ownerFirstName} onChange={(e) => updateOrgCreate('ownerFirstName')(e.target.value)} required className="h-11 border-2" />
-                    <Input placeholder="Owner Last Name *" value={orgForm.ownerLastName} onChange={(e) => updateOrgCreate('ownerLastName')(e.target.value)} required className="h-11 border-2" />
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Phone Number</Label>
+                      <Input type="tel" placeholder="Phone Number" value={orgForm.phoneNumber || ''} onChange={(e) => updateOrgCreate('phoneNumber')(e.target.value)} className="h-11 border-2" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Owner First Name <span className="text-red-500">*</span></Label>
+                      <Input placeholder="Owner First Name" value={orgForm.ownerFirstName} onChange={(e) => updateOrgCreate('ownerFirstName')(e.target.value)} required className="h-11 border-2" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Owner Last Name <span className="text-red-500">*</span></Label>
+                      <Input placeholder="Owner Last Name" value={orgForm.ownerLastName} onChange={(e) => updateOrgCreate('ownerLastName')(e.target.value)} required className="h-11 border-2" />
+                    </div>
                   </div>
                 </div>
 
@@ -1016,8 +1087,8 @@ export default function OnboardOrganization() {
                         <h3 className="text-lg font-bold">Organization Details</h3>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="md:col-span-2 space-y-2">
-                          <Label className="text-sm font-semibold">Organization Name *</Label>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Organization Name <span className="text-red-500">*</span></Label>
                           <Input value={orgUpdateForm.organizationName || ''} onChange={(e) => updateOrgUpdate('organizationName')(e.target.value)} className="h-11 border-2" />
                         </div>
                         <div className="space-y-2">
@@ -1026,9 +1097,18 @@ export default function OnboardOrganization() {
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <Input placeholder="GST Number" value={orgUpdateForm.gstNumber || ''} onChange={(e) => updateOrgUpdate('gstNumber')(e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="License Number" value={orgUpdateForm.licenseNumber || ''} onChange={(e) => updateOrgUpdate('licenseNumber')(e.target.value)} className="h-11 border-2" />
-                        <Input type="email" placeholder="Email" value={orgUpdateForm.email || ''} onChange={(e) => updateOrgUpdate('email')(e.target.value)} className="h-11 border-2" />
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">GST Number</Label>
+                          <Input placeholder="GST Number" value={orgUpdateForm.gstNumber || ''} onChange={(e) => updateOrgUpdate('gstNumber')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">License Number</Label>
+                          <Input placeholder="License Number" value={orgUpdateForm.licenseNumber || ''} onChange={(e) => updateOrgUpdate('licenseNumber')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Email</Label>
+                          <Input type="email" placeholder="Email" value={orgUpdateForm.email || ''} onChange={(e) => updateOrgUpdate('email')(e.target.value)} className="h-11 border-2" />
+                        </div>
                       </div>
                     </div>
 
@@ -1038,15 +1118,39 @@ export default function OnboardOrganization() {
                         <h3 className="text-lg font-bold">Address Information</h3>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Input placeholder="Address Line 1" value={orgUpdateForm.address1 || ''} onChange={(e) => updateOrgUpdate('address1')(e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="Address Line 2" value={orgUpdateForm.address2 || ''} onChange={(e) => updateOrgUpdate('address2')(e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="City" value={orgUpdateForm.city || ''} onChange={(e) => updateOrgUpdate('city')(e.target.value)} className="h-11 border-2" />
-                        <select className="flex h-11 w-full rounded-md border-2 border-input bg-background px-3 py-2 text-sm" value={orgUpdateForm.state || ''} onChange={e => updateOrgUpdate('state')(e.target.value)}>
-                          <option value="">Select State</option>
-                          {IN_STATES.map((s) => (<option key={s} value={s}>{s}</option>))}
-                        </select>
-                        <Input placeholder="Postal Code" value={orgUpdateForm.postalCode || ''} onChange={(e) => updateOrgUpdate('postalCode')(e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="Country" value={orgUpdateForm.country || 'India'} onChange={(e) => updateOrgUpdate('country')(e.target.value)} className="h-11 border-2" />
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Address Line 1 <span className="text-red-500">*</span></Label>
+                          <Input placeholder="Address Line 1" value={orgUpdateForm.address1 || ''} onChange={(e) => updateOrgUpdate('address1')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Address Line 2</Label>
+                          <Input placeholder="Address Line 2" value={orgUpdateForm.address2 || ''} onChange={(e) => updateOrgUpdate('address2')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">City <span className="text-red-500">*</span></Label>
+                          <Input placeholder="City" value={orgUpdateForm.city || ''} onChange={(e) => updateOrgUpdate('city')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">State <span className="text-red-500">*</span></Label>
+                          <Select value={orgUpdateForm.state || ''} onValueChange={(value) => updateOrgUpdate('state')(value)}>
+                            <SelectTrigger className="h-11 border-2">
+                              <SelectValue placeholder="Select State" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {IN_STATES.map((s) => (
+                                <SelectItem key={s} value={s}>{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Postal Code <span className="text-red-500">*</span></Label>
+                          <Input placeholder="Postal Code" value={orgUpdateForm.postalCode || ''} onChange={(e) => updateOrgUpdate('postalCode')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Country <span className="text-red-500">*</span></Label>
+                          <Input placeholder="Country" value={orgUpdateForm.country || 'India'} onChange={(e) => updateOrgUpdate('country')(e.target.value)} className="h-11 border-2" />
+                        </div>
                       </div>
                     </div>
 
@@ -1056,9 +1160,18 @@ export default function OnboardOrganization() {
                         <h3 className="text-lg font-bold">Owner & Contact</h3>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <Input type="tel" placeholder="Phone" value={orgUpdateForm.phoneNumber || ''} onChange={(e) => updateOrgUpdate('phoneNumber')(e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="Owner First Name" value={orgUpdateForm.ownerFirstName || ''} onChange={(e) => updateOrgUpdate('ownerFirstName')(e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="Owner Last Name" value={orgUpdateForm.ownerLastName || ''} onChange={(e) => updateOrgUpdate('ownerLastName')(e.target.value)} className="h-11 border-2" />
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Phone Number</Label>
+                          <Input type="tel" placeholder="Phone" value={orgUpdateForm.phoneNumber || ''} onChange={(e) => updateOrgUpdate('phoneNumber')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Owner First Name <span className="text-red-500">*</span></Label>
+                          <Input placeholder="Owner First Name" value={orgUpdateForm.ownerFirstName || ''} onChange={(e) => updateOrgUpdate('ownerFirstName')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Owner Last Name <span className="text-red-500">*</span></Label>
+                          <Input placeholder="Owner Last Name" value={orgUpdateForm.ownerLastName || ''} onChange={(e) => updateOrgUpdate('ownerLastName')(e.target.value)} className="h-11 border-2" />
+                        </div>
                       </div>
                     </div>
 
@@ -1110,8 +1223,40 @@ export default function OnboardOrganization() {
                         <div className="space-y-2"><Label className="text-sm font-semibold">Status</Label><Input value={ownerCreateForm.status || 'ACTIVE'} readOnly disabled className="h-11" /></div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Input placeholder="Role *" value={ownerCreateForm.role} onChange={e => updateOwnerCreate('role')(e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="Department *" value={ownerCreateForm.department} onChange={e => updateOwnerCreate('department')(e.target.value)} className="h-11 border-2" />
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Role <span className="text-red-500">*</span></Label>
+                          <Select 
+                            value={ownerCreateForm.role} 
+                            onValueChange={(value) => updateOwnerCreate('role')(value)}
+                            required
+                          >
+                            <SelectTrigger className="h-11 border-2">
+                              <SelectValue placeholder="Select Role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ROLES.map((role) => (
+                                <SelectItem key={role} value={role}>{role}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Department <span className="text-red-500">*</span></Label>
+                          <Select 
+                            value={ownerCreateForm.department} 
+                            onValueChange={(value) => updateOwnerCreate('department')(value)}
+                            required
+                          >
+                            <SelectTrigger className="h-11 border-2">
+                              <SelectValue placeholder="Select Department" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DEPARTMENTS.map((dept) => (
+                                <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     </div>
 
@@ -1121,10 +1266,22 @@ export default function OnboardOrganization() {
                         <h3 className="text-lg font-bold">Personal Information</h3>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Input placeholder="First Name *" value={ownerCreateForm.firstName} onChange={e => updateOwnerCreate('firstName')(e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="Last Name *" value={ownerCreateForm.lastName} onChange={e => updateOwnerCreate('lastName')(e.target.value)} className="h-11 border-2" />
-                        <Input type="tel" placeholder="Phone Number" value={ownerCreateForm.phoneNumber || ''} onChange={e => updateOwnerCreate('phoneNumber')(e.target.value)} className="h-11 border-2" />
-                        <Input type="email" placeholder="Email *" value={ownerCreateForm.emailId} onChange={e => updateOwnerCreate('emailId')(e.target.value)} className="h-11 border-2" />
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">First Name <span className="text-red-500">*</span></Label>
+                          <Input placeholder="First Name" value={ownerCreateForm.firstName} onChange={e => updateOwnerCreate('firstName')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Last Name <span className="text-red-500">*</span></Label>
+                          <Input placeholder="Last Name" value={ownerCreateForm.lastName} onChange={e => updateOwnerCreate('lastName')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Phone Number</Label>
+                          <Input type="tel" placeholder="Phone Number" value={ownerCreateForm.phoneNumber || ''} onChange={e => updateOwnerCreate('phoneNumber')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Email <span className="text-red-500">*</span></Label>
+                          <Input type="email" placeholder="Email" value={ownerCreateForm.emailId} onChange={e => updateOwnerCreate('emailId')(e.target.value)} className="h-11 border-2" />
+                        </div>
                       </div>
                     </div>
 
@@ -1134,8 +1291,14 @@ export default function OnboardOrganization() {
                         <h3 className="text-lg font-bold">Login Credentials</h3>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Input placeholder="Username *" value={ownerCreateForm.username} onChange={e => updateOwnerCreate('username')(e.target.value)} className="h-11 border-2" />
-                        <Input type="password" placeholder="Password *" value={ownerCreateForm.password} onChange={e => updateOwnerCreate('password')(e.target.value)} className="h-11 border-2" />
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Username <span className="text-red-500">*</span></Label>
+                          <Input placeholder="Username" value={ownerCreateForm.username} onChange={e => updateOwnerCreate('username')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Password <span className="text-red-500">*</span></Label>
+                          <Input type="password" placeholder="Password" value={ownerCreateForm.password} onChange={e => updateOwnerCreate('password')(e.target.value)} className="h-11 border-2" />
+                        </div>
                       </div>
                     </div>
 
@@ -1145,15 +1308,39 @@ export default function OnboardOrganization() {
                         <h3 className="text-lg font-bold">Address</h3>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Input placeholder="Address Line 1" value={ownerCreateForm.address?.line1 || ''} onChange={e => updateOwnerCreateAddress('line1', e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="Address Line 2" value={ownerCreateForm.address?.line2 || ''} onChange={e => updateOwnerCreateAddress('line2', e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="City" value={ownerCreateForm.address?.city || ''} onChange={e => updateOwnerCreateAddress('city', e.target.value)} className="h-11 border-2" />
-                        <select className="flex h-11 w-full rounded-md border-2 border-input bg-background px-3 py-2 text-sm" value={ownerCreateForm.address?.state || ''} onChange={e => updateOwnerCreateAddress('state', e.target.value)}>
-                          <option value="">Select State</option>
-                          {IN_STATES.map((s) => (<option key={s} value={s}>{s}</option>))}
-                        </select>
-                        <Input placeholder="Postal Code" value={ownerCreateForm.address?.postalCode || ''} onChange={e => updateOwnerCreateAddress('postalCode', e.target.value)} className="h-11 border-2" />
-                        <Input value={ownerCreateForm.address?.country || 'India'} readOnly disabled className="h-11" />
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Address Line 1</Label>
+                          <Input placeholder="Address Line 1" value={ownerCreateForm.address?.line1 || ''} onChange={e => updateOwnerCreateAddress('line1', e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Address Line 2</Label>
+                          <Input placeholder="Address Line 2" value={ownerCreateForm.address?.line2 || ''} onChange={e => updateOwnerCreateAddress('line2', e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">City</Label>
+                          <Input placeholder="City" value={ownerCreateForm.address?.city || ''} onChange={e => updateOwnerCreateAddress('city', e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">State</Label>
+                          <Select value={ownerCreateForm.address?.state || ''} onValueChange={(value) => updateOwnerCreateAddress('state', value)}>
+                            <SelectTrigger className="h-11 border-2">
+                              <SelectValue placeholder="Select State" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {IN_STATES.map((s) => (
+                                <SelectItem key={s} value={s}>{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Postal Code</Label>
+                          <Input placeholder="Postal Code" value={ownerCreateForm.address?.postalCode || ''} onChange={e => updateOwnerCreateAddress('postalCode', e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Country</Label>
+                          <Input value={ownerCreateForm.address?.country || 'India'} readOnly disabled className="h-11" />
+                        </div>
                       </div>
                     </div>
 
@@ -1163,9 +1350,18 @@ export default function OnboardOrganization() {
                         <h3 className="text-lg font-bold">Emergency Contact</h3>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <Input placeholder="Name" value={ownerCreateForm.emergencyContact?.name || ''} onChange={e => updateOwnerCreateEmergency('name', e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="Phone" value={ownerCreateForm.emergencyContact?.phone || ''} onChange={e => updateOwnerCreateEmergency('phone', e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="Relationship" value={ownerCreateForm.emergencyContact?.relationship || ''} onChange={e => updateOwnerCreateEmergency('relationship', e.target.value)} className="h-11 border-2" />
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Name</Label>
+                          <Input placeholder="Name" value={ownerCreateForm.emergencyContact?.name || ''} onChange={e => updateOwnerCreateEmergency('name', e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Phone</Label>
+                          <Input placeholder="Phone" value={ownerCreateForm.emergencyContact?.phone || ''} onChange={e => updateOwnerCreateEmergency('phone', e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Relationship</Label>
+                          <Input placeholder="Relationship" value={ownerCreateForm.emergencyContact?.relationship || ''} onChange={e => updateOwnerCreateEmergency('relationship', e.target.value)} className="h-11 border-2" />
+                        </div>
                       </div>
                     </div>
 
@@ -1218,12 +1414,50 @@ export default function OnboardOrganization() {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-2"><Label className="text-sm font-semibold">Employee ID</Label><Input value={selectedEmp.empId} readOnly disabled className="h-11" /></div>
-                        <Input placeholder="Status" value={ownerUpdateForm.status || 'ACTIVE'} onChange={e => updateOwnerUpdate('status')(e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="Role" value={ownerUpdateForm.role || ''} onChange={e => updateOwnerUpdate('role')(e.target.value)} className="h-11 border-2" />
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Status</Label>
+                          <Input placeholder="Status" value={ownerUpdateForm.status || 'ACTIVE'} onChange={e => updateOwnerUpdate('status')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Role <span className="text-red-500">*</span></Label>
+                          <Select 
+                            value={ownerUpdateForm.role || ''} 
+                            onValueChange={(value) => updateOwnerUpdate('role')(value)}
+                            required
+                          >
+                            <SelectTrigger className="h-11 border-2">
+                              <SelectValue placeholder="Select Role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ROLES.map((role) => (
+                                <SelectItem key={role} value={role}>{role}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Input placeholder="Department" value={ownerUpdateForm.department || ''} onChange={e => updateOwnerUpdate('department')(e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="First Name" value={ownerUpdateForm.firstName || ''} onChange={e => updateOwnerUpdate('firstName')(e.target.value)} className="h-11 border-2" />
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Department <span className="text-red-500">*</span></Label>
+                          <Select 
+                            value={ownerUpdateForm.department || ''} 
+                            onValueChange={(value) => updateOwnerUpdate('department')(value)}
+                            required
+                          >
+                            <SelectTrigger className="h-11 border-2">
+                              <SelectValue placeholder="Select Department" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DEPARTMENTS.map((dept) => (
+                                <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">First Name <span className="text-red-500">*</span></Label>
+                          <Input placeholder="First Name" value={ownerUpdateForm.firstName || ''} onChange={e => updateOwnerUpdate('firstName')(e.target.value)} className="h-11 border-2" />
+                        </div>
                       </div>
                     </div>
 
@@ -1233,10 +1467,22 @@ export default function OnboardOrganization() {
                         <h3 className="text-lg font-bold">Personal & Contact</h3>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Input placeholder="Last Name" value={ownerUpdateForm.lastName || ''} onChange={e => updateOwnerUpdate('lastName')(e.target.value)} className="h-11 border-2" />
-                        <Input type="tel" placeholder="Phone" value={ownerUpdateForm.phoneNumber || ''} onChange={e => updateOwnerUpdate('phoneNumber')(e.target.value)} className="h-11 border-2" />
-                        <Input type="email" placeholder="Email" value={ownerUpdateForm.emailId || ''} onChange={e => updateOwnerUpdate('emailId')(e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="Username" value={ownerUpdateForm.username || ''} onChange={e => updateOwnerUpdate('username')(e.target.value)} className="h-11 border-2" />
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Last Name <span className="text-red-500">*</span></Label>
+                          <Input placeholder="Last Name" value={ownerUpdateForm.lastName || ''} onChange={e => updateOwnerUpdate('lastName')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Phone Number</Label>
+                          <Input type="tel" placeholder="Phone" value={ownerUpdateForm.phoneNumber || ''} onChange={e => updateOwnerUpdate('phoneNumber')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Email <span className="text-red-500">*</span></Label>
+                          <Input type="email" placeholder="Email" value={ownerUpdateForm.emailId || ''} onChange={e => updateOwnerUpdate('emailId')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Username <span className="text-red-500">*</span></Label>
+                          <Input placeholder="Username" value={ownerUpdateForm.username || ''} onChange={e => updateOwnerUpdate('username')(e.target.value)} className="h-11 border-2" />
+                        </div>
                       </div>
                     </div>
 
@@ -1246,9 +1492,18 @@ export default function OnboardOrganization() {
                         <h3 className="text-lg font-bold">Password & Shift</h3>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <Input type="password" placeholder="New Password" value={ownerUpdateForm.newPassword || ''} onChange={e => updateOwnerUpdate('newPassword')(e.target.value)} className="h-11 border-2" />
-                        <Input type="time" placeholder="Shift Start" value={ownerUpdateForm.shiftTiming?.start || ''} onChange={e => updateOwnerUpdateShift('start', e.target.value)} className="h-11 border-2" />
-                        <Input type="time" placeholder="Shift End" value={ownerUpdateForm.shiftTiming?.end || ''} onChange={e => updateOwnerUpdateShift('end', e.target.value)} className="h-11 border-2" />
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">New Password</Label>
+                          <Input type="password" placeholder="New Password" value={ownerUpdateForm.newPassword || ''} onChange={e => updateOwnerUpdate('newPassword')(e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Shift Start</Label>
+                          <Input type="time" placeholder="Shift Start" value={ownerUpdateForm.shiftTiming?.start || ''} onChange={e => updateOwnerUpdateShift('start', e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Shift End</Label>
+                          <Input type="time" placeholder="Shift End" value={ownerUpdateForm.shiftTiming?.end || ''} onChange={e => updateOwnerUpdateShift('end', e.target.value)} className="h-11 border-2" />
+                        </div>
                       </div>
                     </div>
 
@@ -1258,15 +1513,39 @@ export default function OnboardOrganization() {
                         <h3 className="text-lg font-bold">Address</h3>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Input placeholder="Address Line 1" value={ownerUpdateForm.address?.line1 || ''} onChange={e => updateOwnerUpdateAddress('line1', e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="Address Line 2" value={ownerUpdateForm.address?.line2 || ''} onChange={e => updateOwnerUpdateAddress('line2', e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="City" value={ownerUpdateForm.address?.city || ''} onChange={e => updateOwnerUpdateAddress('city', e.target.value)} className="h-11 border-2" />
-                        <select className="flex h-11 w-full rounded-md border-2 border-input bg-background px-3 py-2 text-sm" value={ownerUpdateForm.address?.state || ''} onChange={e => updateOwnerUpdateAddress('state', e.target.value)}>
-                          <option value="">Select State</option>
-                          {IN_STATES.map((s) => (<option key={s} value={s}>{s}</option>))}
-                        </select>
-                        <Input placeholder="Postal Code" value={ownerUpdateForm.address?.postalCode || ''} onChange={e => updateOwnerUpdateAddress('postalCode', e.target.value)} className="h-11 border-2" />
-                        <Input value={ownerUpdateForm.address?.country || 'India'} readOnly disabled className="h-11" />
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Address Line 1</Label>
+                          <Input placeholder="Address Line 1" value={ownerUpdateForm.address?.line1 || ''} onChange={e => updateOwnerUpdateAddress('line1', e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Address Line 2</Label>
+                          <Input placeholder="Address Line 2" value={ownerUpdateForm.address?.line2 || ''} onChange={e => updateOwnerUpdateAddress('line2', e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">City</Label>
+                          <Input placeholder="City" value={ownerUpdateForm.address?.city || ''} onChange={e => updateOwnerUpdateAddress('city', e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">State</Label>
+                          <Select value={ownerUpdateForm.address?.state || ''} onValueChange={(value) => updateOwnerUpdateAddress('state', value)}>
+                            <SelectTrigger className="h-11 border-2">
+                              <SelectValue placeholder="Select State" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {IN_STATES.map((s) => (
+                                <SelectItem key={s} value={s}>{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Postal Code</Label>
+                          <Input placeholder="Postal Code" value={ownerUpdateForm.address?.postalCode || ''} onChange={e => updateOwnerUpdateAddress('postalCode', e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Country</Label>
+                          <Input value={ownerUpdateForm.address?.country || 'India'} readOnly disabled className="h-11" />
+                        </div>
                       </div>
                     </div>
 
@@ -1276,9 +1555,18 @@ export default function OnboardOrganization() {
                         <h3 className="text-lg font-bold">Emergency Contact</h3>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <Input placeholder="Name" value={ownerUpdateForm.emergencyContact?.name || ''} onChange={e => updateOwnerUpdateEmergency('name', e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="Phone" value={ownerUpdateForm.emergencyContact?.phone || ''} onChange={e => updateOwnerUpdateEmergency('phone', e.target.value)} className="h-11 border-2" />
-                        <Input placeholder="Relationship" value={ownerUpdateForm.emergencyContact?.relationship || ''} onChange={e => updateOwnerUpdateEmergency('relationship', e.target.value)} className="h-11 border-2" />
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Name</Label>
+                          <Input placeholder="Name" value={ownerUpdateForm.emergencyContact?.name || ''} onChange={e => updateOwnerUpdateEmergency('name', e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Phone</Label>
+                          <Input placeholder="Phone" value={ownerUpdateForm.emergencyContact?.phone || ''} onChange={e => updateOwnerUpdateEmergency('phone', e.target.value)} className="h-11 border-2" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Relationship</Label>
+                          <Input placeholder="Relationship" value={ownerUpdateForm.emergencyContact?.relationship || ''} onChange={e => updateOwnerUpdateEmergency('relationship', e.target.value)} className="h-11 border-2" />
+                        </div>
                       </div>
                     </div>
 

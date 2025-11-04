@@ -157,21 +157,39 @@ export default function Analytics() {
     }));
   }, [expensesData, from, to]);
 
-  // Fetch Latest Finance Summary - FIXED
+  // Fetch Latest Finance Summary
   const { data: financeSummary, isLoading: loadingFinance, refetch: refetchFinance } = useQuery({
     queryKey: ['finance-summary-latest', orgId],
     queryFn: async () => {
       try {
         const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/finance-summary/latest`);
-        console.log('Finance summary fetched:', res.data);
-        return res.data;
-      } catch (error) {
-        console.error('Error fetching finance summary:', error);
+        console.log('✅ Finance summary fetched:', res.data);
+        
+        // Ensure all fields are numbers
+        const data = res.data;
+        return {
+          id: data.id,
+          organizationId: data.organizationId,
+          createdAt: data.createdAt,
+          cashReceived: Number(data.cashReceived) || 0,
+          phonePay: Number(data.phonePay) || 0,
+          creditCard: Number(data.creditCard) || 0,
+          petrolInventory: Number(data.petrolInventory) || 0,
+          dieselInventory: Number(data.dieselInventory) || 0,
+          premiumPetrolInventory: Number(data.premiumPetrolInventory) || 0,
+          cngInventory: Number(data.cngInventory) || 0,
+          twoTInventory: Number(data.twoTInventory) || 0,
+          totalExpenses: Number(data.totalExpenses) || 0,
+          description: data.description || '',
+          total: Number(data.total) || 0,
+        };
+      } catch (error: any) {
+        console.error('❌ Error fetching finance summary:', error?.response?.status, error?.response?.data);
         return null;
       }
     },
     enabled: !!orgId,
-    staleTime: 300000, // 5 minutes
+    staleTime: 0, // Always fetch fresh data
     refetchOnWindowFocus: true,
   });
 
@@ -502,14 +520,48 @@ export default function Analytics() {
           <h2>Finance Summary</h2>
           ${financeSummary ? `
             <table>
+              <thead>
+                <tr>
+                  <th colspan="2">Revenue</th>
+                </tr>
+              </thead>
               <tbody>
-                <tr><td><strong>Cash Received</strong></td><td>${RUPEE}${formatIndianNumber(financeSummary.cashReceived || 0)}</td></tr>
-                <tr><td><strong>UPI/PhonePe</strong></td><td>${RUPEE}${formatIndianNumber(financeSummary.phonePay || 0)}</td></tr>
-                <tr><td><strong>Credit Card</strong></td><td>${RUPEE}${formatIndianNumber(financeSummary.creditCard || 0)}</td></tr>
-                <tr><td><strong>Total Expenses</strong></td><td>${RUPEE}${formatIndianNumber(financeSummary.totalExpenses || 0)}</td></tr>
-                <tr style="background: #f0f0f0;"><td><strong>Net Total</strong></td><td><strong>${RUPEE}${formatIndianNumber(financeSummary.total || 0)}</strong></td></tr>
+                <tr><td><strong>Cash Received</strong></td><td>${RUPEE}${formatIndianNumber(financeSummary.cashReceived)}</td></tr>
+                <tr><td><strong>UPI/PhonePe</strong></td><td>${RUPEE}${formatIndianNumber(financeSummary.phonePay)}</td></tr>
+                <tr><td><strong>Credit Card</strong></td><td>${RUPEE}${formatIndianNumber(financeSummary.creditCard)}</td></tr>
               </tbody>
             </table>
+            ${(financeSummary.petrolInventory > 0 || financeSummary.dieselInventory > 0 || 
+                financeSummary.premiumPetrolInventory > 0 || financeSummary.cngInventory > 0 || 
+                financeSummary.twoTInventory > 0) ? `
+              <table style="margin-top: 20px;">
+                <thead>
+                  <tr>
+                    <th colspan="2">Inventory Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${financeSummary.petrolInventory > 0 ? `<tr><td><strong>Petrol</strong></td><td>${RUPEE}${formatIndianNumber(financeSummary.petrolInventory)}</td></tr>` : ''}
+                  ${financeSummary.dieselInventory > 0 ? `<tr><td><strong>Diesel</strong></td><td>${RUPEE}${formatIndianNumber(financeSummary.dieselInventory)}</td></tr>` : ''}
+                  ${financeSummary.premiumPetrolInventory > 0 ? `<tr><td><strong>Premium Petrol</strong></td><td>${RUPEE}${formatIndianNumber(financeSummary.premiumPetrolInventory)}</td></tr>` : ''}
+                  ${financeSummary.cngInventory > 0 ? `<tr><td><strong>CNG</strong></td><td>${RUPEE}${formatIndianNumber(financeSummary.cngInventory)}</td></tr>` : ''}
+                  ${financeSummary.twoTInventory > 0 ? `<tr><td><strong>2T Oil</strong></td><td>${RUPEE}${formatIndianNumber(financeSummary.twoTInventory)}</td></tr>` : ''}
+                </tbody>
+              </table>
+            ` : ''}
+            <table style="margin-top: 20px;">
+              <tbody>
+                <tr><td><strong>Total Expenses</strong></td><td style="color: #dc2626;">${RUPEE}${formatIndianNumber(financeSummary.totalExpenses)}</td></tr>
+                <tr style="background: #f0f0f0; font-weight: bold;">
+                  <td><strong>Net Total</strong></td>
+                  <td style="color: ${financeSummary.total >= 0 ? '#16a34a' : '#dc2626'};">
+                    <strong>${RUPEE}${formatIndianNumber(financeSummary.total)}</strong>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            ${financeSummary.description ? `<p style="margin-top: 10px; font-style: italic; color: #666;">${financeSummary.description}</p>` : ''}
+            ${financeSummary.createdAt ? `<p style="margin-top: 10px; font-size: 12px; color: #666;">Updated: ${dayjs(financeSummary.createdAt).format('DD MMMM YYYY, HH:mm')}</p>` : ''}
           ` : '<p>No finance summary available</p>'}
         </div>
       </body>
@@ -821,35 +873,106 @@ export default function Analytics() {
         <Card>
           <CardHeader>
             <CardTitle>Latest Finance Summary</CardTitle>
-            <CardDescription>Current financial overview</CardDescription>
+            <CardDescription>
+              Current financial overview
+              {financeSummary?.createdAt && (
+                <span className="block text-xs mt-1">
+                  Updated: {dayjs(financeSummary.createdAt).format('DD MMM YYYY, HH:mm')}
+                </span>
+              )}
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             {!financeSummary ? (
-              <div className="text-muted-foreground text-center py-8">No finance summary available</div>
+              <div className="text-muted-foreground text-center py-8">
+                <p>No finance summary available</p>
+                <p className="text-xs mt-2">Create one from the Finance section</p>
+              </div>
             ) : (
               <>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Cash Received</span>
-                  <span className="text-sm font-bold">{RUPEE}{formatIndianNumber(financeSummary.cashReceived || 0)}</span>
+                {/* Revenue Section */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase">Revenue</h4>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Cash Received</span>
+                    <span className="text-sm font-bold text-green-600">{RUPEE}{formatIndianNumber(financeSummary.cashReceived)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">UPI/PhonePe</span>
+                    <span className="text-sm font-bold text-green-600">{RUPEE}{formatIndianNumber(financeSummary.phonePay)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Credit Card</span>
+                    <span className="text-sm font-bold text-green-600">{RUPEE}{formatIndianNumber(financeSummary.creditCard)}</span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">UPI/PhonePe</span>
-                  <span className="text-sm font-bold">{RUPEE}{formatIndianNumber(financeSummary.phonePay || 0)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Credit Card</span>
-                  <span className="text-sm font-bold">{RUPEE}{formatIndianNumber(financeSummary.creditCard || 0)}</span>
-                </div>
-                <div className="h-px bg-border my-2" />
+
+                {/* Inventory Section */}
+                {(financeSummary.petrolInventory > 0 || financeSummary.dieselInventory > 0 || 
+                  financeSummary.premiumPetrolInventory > 0 || financeSummary.cngInventory > 0 || 
+                  financeSummary.twoTInventory > 0) && (
+                  <>
+                    <div className="h-px bg-border" />
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase">Inventory Value</h4>
+                      {financeSummary.petrolInventory > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Petrol</span>
+                          <span className="text-sm font-bold text-blue-600">{RUPEE}{formatIndianNumber(financeSummary.petrolInventory)}</span>
+                        </div>
+                      )}
+                      {financeSummary.dieselInventory > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Diesel</span>
+                          <span className="text-sm font-bold text-blue-600">{RUPEE}{formatIndianNumber(financeSummary.dieselInventory)}</span>
+                        </div>
+                      )}
+                      {financeSummary.premiumPetrolInventory > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Premium Petrol</span>
+                          <span className="text-sm font-bold text-blue-600">{RUPEE}{formatIndianNumber(financeSummary.premiumPetrolInventory)}</span>
+                        </div>
+                      )}
+                      {financeSummary.cngInventory > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">CNG</span>
+                          <span className="text-sm font-bold text-blue-600">{RUPEE}{formatIndianNumber(financeSummary.cngInventory)}</span>
+                        </div>
+                      )}
+                      {financeSummary.twoTInventory > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">2T Oil</span>
+                          <span className="text-sm font-bold text-blue-600">{RUPEE}{formatIndianNumber(financeSummary.twoTInventory)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                <div className="h-px bg-border" />
+                
+                {/* Expenses */}
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Total Expenses</span>
-                  <span className="text-sm font-bold text-destructive">{RUPEE}{formatIndianNumber(financeSummary.totalExpenses || 0)}</span>
+                  <span className="text-sm font-bold text-destructive">{RUPEE}{formatIndianNumber(financeSummary.totalExpenses)}</span>
                 </div>
+                
                 <div className="h-px bg-border my-2" />
-                <div className="flex items-center justify-between">
+                
+                {/* Net Total */}
+                <div className="flex items-center justify-between bg-muted/50 p-3 rounded-lg">
                   <span className="text-base font-bold">Net Total</span>
-                  <span className="text-lg font-bold text-green-600">{RUPEE}{formatIndianNumber(financeSummary.total || 0)}</span>
+                  <span className={`text-lg font-bold ${financeSummary.total >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {RUPEE}{formatIndianNumber(financeSummary.total)}
+                  </span>
                 </div>
+
+                {/* Description if available */}
+                {financeSummary.description && (
+                  <div className="pt-2">
+                    <p className="text-xs text-muted-foreground italic">{financeSummary.description}</p>
+                  </div>
+                )}
               </>
             )}
           </CardContent>

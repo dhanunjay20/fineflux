@@ -103,6 +103,7 @@ const normalizeTaskStatus = (value?: string): Task["status"] => {
 
 const AllEmployeeTasks: React.FC = () => {
   const orgId = localStorage.getItem("organizationId") || "";
+  const [viewMode, setViewMode] = useState<"daily" | "special" | "both">("daily");
 
   // Org-wide tasks (no employeeId)
   const {
@@ -165,26 +166,69 @@ const AllEmployeeTasks: React.FC = () => {
           </h1>
           <p className="text-muted-foreground mt-1">Org-wide view with live updates every 30s.</p>
         </div>
-        <Button onClick={handleRefreshAll} variant="outline" size="sm" className="gap-2">
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleRefreshAll} variant="outline" size="sm" className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      {/* Special Tasks */}
-      <SpecialSection
-        title="Special Tasks"
-        tasks={tasks}
-        calculateHours={calculateHours}
-        loading={fetchingTasks}
-      />
+      {/* View Toggle Buttons */}
+      <Card className="card-gradient">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={viewMode === "daily" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("daily")}
+                className={viewMode === "daily" ? "bg-gradient-to-r from-blue-600 to-blue-500" : ""}
+              >
+                <Fuel className="h-4 w-4 mr-2" />
+                Daily Duties
+              </Button>
+              <Button
+                variant={viewMode === "special" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("special")}
+                className={viewMode === "special" ? "bg-gradient-to-r from-purple-600 to-purple-500" : ""}
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                Special Tasks
+              </Button>
+              <Button
+                variant={viewMode === "both" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("both")}
+                className={viewMode === "both" ? "bg-gradient-to-r from-primary to-primary/80" : ""}
+              >
+                <Target className="h-4 w-4 mr-2" />
+                Show Both
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Daily Duties (org-wide, server time filters) */}
-      <DailySection
-        title="Daily Duties"
-        orgId={orgId}
-        calculateHours={calculateHours}
-      />
+      {/* Daily Duties (shown first when viewMode is "daily" or "both") */}
+      {(viewMode === "daily" || viewMode === "both") && (
+        <DailySection
+          title="Daily Duties"
+          orgId={orgId}
+          calculateHours={calculateHours}
+        />
+      )}
+
+      {/* Special Tasks */}
+      {(viewMode === "special" || viewMode === "both") && (
+        <SpecialSection
+          title="Special Tasks"
+          tasks={tasks}
+          calculateHours={calculateHours}
+          loading={fetchingTasks}
+        />
+      )}
     </div>
   );
 };

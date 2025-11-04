@@ -180,6 +180,11 @@ export default function Borrowers() {
   const [deletingBorrower, setDeletingBorrower] = useState<Customer | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // Effect to log filter changes
+  useEffect(() => {
+    console.log('📅 Date filter changed:', dateFilter, { customStartDate, customEndDate });
+  }, [dateFilter, customStartDate, customEndDate]);
+
   useEffect(() => {
     if (open || historyOpen || transactionOpen || deleteOpen) {
       document.body.style.overflow = 'hidden';
@@ -218,34 +223,49 @@ export default function Borrowers() {
     const url = getDateFilterUrl();
     if (!url) return [];
 
+    console.log('🔍 Fetching customers with filter:', dateFilter, 'URL:', url);
+
     try {
       const res = await axios.get(url, { timeout: 20000 });
       const data = res.data;
+      
+      console.log('✅ Response received:', { 
+        isArray: Array.isArray(data), 
+        hasContent: data && 'content' in data,
+        length: Array.isArray(data) ? data.length : (data?.content?.length || 'N/A')
+      });
 
-
-      if (data && typeof data === 'object' && 'content' in data && Array.isArray(data.content)) {
-        return data.content;
-      }
-
+      // Filter endpoints (today, week, month, range) return List directly
       if (Array.isArray(data)) {
+        console.log('📋 Direct array response with', data.length, 'customers');
         return data;
       }
 
+      // Default /customers endpoint returns Page with content field
+      if (data && typeof data === 'object' && 'content' in data && Array.isArray(data.content)) {
+        console.log('📄 Paginated response with', data.content.length, 'customers');
+        return data.content;
+      }
+
+      // Fallback: try to find any array in the response
       const candidates = ['data', 'items', 'result', 'results', 'records', 'rows'];
       for (const key of candidates) {
         if (Array.isArray((data as any)?.[key])) {
+          console.log('📦 Found array in key:', key);
           return (data as any)[key];
         }
       }
 
       const firstArray = Object.values(data || {}).find((v) => Array.isArray(v)) as Customer[] | undefined;
       if (Array.isArray(firstArray)) {
+        console.log('🔎 Found array in object values');
         return firstArray;
       }
 
       console.warn('⚠️ No array found in response, returning empty array');
       return [];
     } catch (err: any) {
+      console.error('❌ Error fetching customers:', err?.response?.status, err?.response?.data);
       toast({
         title: 'Error',
         description: err?.response?.data?.message || err?.message || 'Failed to fetch customers',
@@ -260,7 +280,7 @@ export default function Borrowers() {
     queryFn: fetchCustomers,
     enabled: !!orgId,
     refetchOnWindowFocus: false,
-    staleTime: 30_000,
+    staleTime: 0, // Changed from 30_000 to ensure filters work immediately
   });
 
   // Fetch all customer history for total borrowed and recovered stats
@@ -469,6 +489,15 @@ export default function Borrowers() {
       toast({
         title: 'Validation error',
         description: 'All required fields must be filled.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (payload.phoneNumber.length !== 10 || !/^\d{10}$/.test(payload.phoneNumber)) {
+      toast({
+        title: 'Validation error',
+        description: 'Phone number must be exactly 10 digits.',
         variant: 'destructive'
       });
       return;
@@ -812,11 +841,18 @@ export default function Borrowers() {
                     <Input
                       type="tel"
                       value={form.phoneNumber}
-                      onChange={(e) => updateField('phoneNumber')(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        updateField('phoneNumber')(value);
+                      }}
                       placeholder="9000000000"
                       pattern="^\d{10}$"
+                      maxLength={10}
                       required
                     />
+                    {form.phoneNumber && form.phoneNumber.length !== 10 && (
+                      <p className="text-xs text-red-500">Phone number must be exactly 10 digits</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Email</Label>
@@ -1335,7 +1371,17 @@ function BorrowerRow({
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold text-foreground">{c.customerName}</h3>
-            <Badge>{(c.status || "N/A").toUpperCase()}</Badge>
+            <Badge 
+              className={
+                (c.status || '').toUpperCase() === 'OVERDUE' ? 'bg-red-500 text-white hover:bg-red-600' :
+                (c.status || '').toUpperCase() === 'PENDING' ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
+                (c.status || '').toUpperCase() === 'PARTIAL' ? 'bg-blue-500 text-white hover:bg-blue-600' :
+                (c.status || '').toUpperCase() === 'PAID' ? 'bg-green-500 text-white hover:bg-green-600' :
+                'bg-gray-500 text-white hover:bg-gray-600'
+              }
+            >
+              {(c.status || "N/A").toUpperCase()}
+            </Badge>
             {c.amountBorrowed && Number(c.amountBorrowed) > 0 && (
               <Badge className="bg-accent-soft text-accent">
                 ₹{Number(c.amountBorrowed).toLocaleString()}
