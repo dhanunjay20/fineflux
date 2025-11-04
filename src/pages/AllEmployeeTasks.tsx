@@ -24,8 +24,10 @@ import {
   Sparkles,
   UserCheck,
 } from "lucide-react";
+import { API_CONFIG } from '@/lib/api-config';
+import { logger } from '@/lib/logger';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 
 type DateFilterKey = "all" | "today" | "week" | "month" | "custom";
 
@@ -114,7 +116,7 @@ const AllEmployeeTasks: React.FC = () => {
     queryKey: ["org-tasks", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/tasks`);
+      const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/tasks`);
       return Array.isArray(res.data) ? res.data : [];
     },
     enabled: !!orgId,
@@ -608,7 +610,7 @@ const DailySection: React.FC<{
     queryKey: ["org-duties", orgId, dateFilter, customStartDate, customEndDate],
     queryFn: async () => {
       if (!orgId) return [];
-      let url = `${API_BASE}/api/organizations/${orgId}/employee-duties`;
+      let url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employee-duties`;
       if (dateFilter === "today") url += "/today";
       else if (dateFilter === "week") url += "/week";
       else if (dateFilter === "month") url += "/month";
@@ -630,7 +632,7 @@ const DailySection: React.FC<{
     queryKey: ["products", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/products`);
+      const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products`);
       return Array.isArray(res.data) ? res.data : [];
     },
     enabled: !!orgId,
@@ -640,7 +642,7 @@ const DailySection: React.FC<{
     queryKey: ["guns", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/guninfo`);
+      const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/guninfo`);
       return Array.isArray(res.data) ? res.data : [];
     },
     enabled: !!orgId,
@@ -987,3 +989,4 @@ const DailySection: React.FC<{
 };
 
 export default AllEmployeeTasks;
+

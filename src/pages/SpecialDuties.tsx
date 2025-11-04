@@ -16,9 +16,11 @@ import {
   Calendar,
   Search as SearchIcon,
 } from "lucide-react";
+import { API_CONFIG } from '@/lib/api-config';
+import { logger } from '@/lib/logger';
 import { useNavigate } from "react-router-dom";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 const DEFAULT_PAGE_SIZE = 10;
 
 type SpecialTask = {
@@ -65,9 +67,9 @@ export default function SpecialDuties() {
     if (!orgId || !empId) return;
     setLoading(true);
     Promise.all([
-      axios.get(`${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=pending`),
-      axios.get(`${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=in-progress`),
-      axios.get(`${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=completed`),
+      axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/tasks/employee/${empId}?status=pending`),
+      axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/tasks/employee/${empId}?status=in-progress`),
+      axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/tasks/employee/${empId}?status=completed`),
     ])
       .then(([pending, inprogress, completed]) => {
         const p = Array.isArray(pending.data) ? pending.data : [];
@@ -133,7 +135,7 @@ export default function SpecialDuties() {
   // Actions
   const handleTaskAction = async (taskId: string, newStatus: SpecialTask["status"]) => {
     await axios.put(
-      `${API_BASE}/api/organizations/${orgId}/tasks/${taskId}/status?status=${encodeURIComponent(newStatus)}`
+      `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/tasks/${taskId}/status?status=${encodeURIComponent(newStatus)}`
     );
     setTasks((ds) => ds.map((d) => (d.id === taskId ? { ...d, status: newStatus } : d)));
   };
@@ -454,3 +456,5 @@ export default function SpecialDuties() {
     </div>
   );
 }
+
+

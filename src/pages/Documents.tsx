@@ -11,8 +11,10 @@ import {
   Calendar, User, Building2, Clock, FileCheck, X, Loader2,
   Search, AlertCircle, File
 } from "lucide-react";
+import { API_CONFIG } from '@/lib/api-config';
+import { logger } from '@/lib/logger';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 
 function safeArray(v: any) {
   return Array.isArray(v) ? v : Array.isArray(v?.content) ? v.content : [];
@@ -90,7 +92,7 @@ export default function Documents() {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/documents?page=0&size=50`);
+      const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents?page=0&size=50`);
       setDocuments(safeArray(res.data));
     } catch (err: any) {
       setError(err?.message || "Failed to load documents");
@@ -116,7 +118,7 @@ export default function Documents() {
       const data = new FormData();
       data.append("file", file);
       const res = await axios.post(
-        `${API_BASE}/api/organizations/${orgId}/documents/upload`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/upload`,
         data,
         { headers: { "Content-Type": "multipart/form-data" } }
       );
@@ -161,10 +163,10 @@ export default function Documents() {
         notes: form.notes,
       };
       if (editId) {
-        await axios.put(`${API_BASE}/api/organizations/${orgId}/documents/${editId}`, payload);
+        await axios.put(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/${editId}`, payload);
         toast({ title: "Success", description: "Document updated successfully!" });
       } else {
-        await axios.post(`${API_BASE}/api/organizations/${orgId}/documents`, payload);
+        await axios.post(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents`, payload);
         toast({ title: "Success", description: "Document added successfully!" });
       }
       setOpen(false);
@@ -202,7 +204,7 @@ export default function Documents() {
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await axios.delete(`${API_BASE}/api/organizations/${orgId}/documents/${deleteTarget.id}`);
+      await axios.delete(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/${deleteTarget.id}`);
       fetchDocs();
       toast({ title: "Success", description: "Document deleted successfully!" });
     } catch (err: any) {
@@ -588,3 +590,4 @@ export default function Documents() {
     </div>
   );
 }
+

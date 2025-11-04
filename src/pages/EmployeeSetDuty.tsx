@@ -13,6 +13,8 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { Search, Eye, Users, UserCheck, Briefcase, ClipboardList, Star, Calendar, X, Mail, Phone, Clock, Filter, Fuel, CheckCircle2, AlertCircle, Target, Loader2, Edit, Trash2 } from "lucide-react";
+import { API_CONFIG } from '@/lib/api-config';
+import { logger } from '@/lib/logger';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -20,7 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 const IST_TIMEZONE = "Asia/Kolkata";
 
 type Employee = {
@@ -98,7 +100,7 @@ export default function EmployeeSetDuty() {
     queryKey: ["employees", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employees`);
+      const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employees`);
       if (Array.isArray(res.data)) return res.data;
       if (Array.isArray(res.data.content)) return res.data.content;
       return [];
@@ -111,7 +113,7 @@ export default function EmployeeSetDuty() {
     queryKey: ["products", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/products`);
+      const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products`);
       return Array.isArray(res.data) ? res.data : [];
     },
     enabled: !!orgId,
@@ -122,7 +124,7 @@ export default function EmployeeSetDuty() {
     queryKey: ["guns", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/guninfo`);
+      const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/guninfo`);
       return Array.isArray(res.data) ? res.data : [];
     },
     enabled: !!orgId,
@@ -133,7 +135,7 @@ export default function EmployeeSetDuty() {
     queryKey: ["allDuties", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employee-duties`);
+      const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employee-duties`);
       return Array.isArray(res.data) ? res.data : Array.isArray(res.data?.content) ? res.data.content : [];
     },
     enabled: !!orgId,
@@ -238,7 +240,7 @@ export default function EmployeeSetDuty() {
   const createDutyMutation = useMutation({
     mutationFn: async (data: DailyDutyCreate) => {
       const response = await axios.post(
-        `${API_BASE}/api/organizations/${orgId}/employee-duties`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employee-duties`,
         data
       );
       return response.data;
@@ -268,7 +270,7 @@ export default function EmployeeSetDuty() {
   const updateDutyMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: DailyDutyCreate }) => {
       const response = await axios.put(
-        `${API_BASE}/api/organizations/${orgId}/employee-duties/${id}`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employee-duties/${id}`,
         data
       );
       return response.data;
@@ -299,7 +301,7 @@ export default function EmployeeSetDuty() {
   const deleteDutyMutation = useMutation({
     mutationFn: async (id: string) => {
       const response = await axios.delete(
-        `${API_BASE}/api/organizations/${orgId}/employee-duties/${id}`
+        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employee-duties/${id}`
       );
       return response.data;
     },
@@ -328,7 +330,7 @@ export default function EmployeeSetDuty() {
   const createTaskMutation = useMutation({
     mutationFn: async (data: TaskCreate) => {
       const response = await axios.post(
-        `${API_BASE}/api/organizations/${orgId}/tasks`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/tasks`,
         data
       );
       return response.data;
@@ -1610,3 +1612,4 @@ export default function EmployeeSetDuty() {
     </div>
   );
 }
+

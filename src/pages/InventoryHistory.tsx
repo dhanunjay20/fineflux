@@ -10,8 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { API_CONFIG } from '@/lib/api-config';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
+// Removed - using API_CONFIG
 
 function getTodayRange() {
   const now = new Date();
@@ -48,7 +49,7 @@ export default function InventoryHistory() {
   const { data: products = [] } = useQuery({
     queryKey: ['products', orgId],
     queryFn: async () => {
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/products`);
+      const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products`);
       return Array.isArray(res.data) ? res.data : [];
     }
   });
@@ -56,7 +57,7 @@ export default function InventoryHistory() {
   const { data: allLogs = [], isLoading } = useQuery({
     queryKey: ['inventoryLogs', orgId],
     queryFn: async () => {
-      const url = `${API_BASE}/api/organizations/${orgId}/inventory-logs`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/inventory-logs`;
       const res = await axios.get(url, { timeout: 20000 });
       return Array.isArray(res.data) ? res.data : [];
     }
@@ -282,3 +283,4 @@ export default function InventoryHistory() {
     </div>
   );
 }
+

@@ -1,6 +1,8 @@
 // AuthContext.tsx
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import { API_CONFIG } from '@/lib/api-config';
+import { logger } from '@/lib/logger';
 
 export type UserRole = 'owner' | 'manager' | 'employee';
 
@@ -28,14 +30,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
-
-const API_LOGIN =
-  import.meta.env.VITE_API_LOGIN_URL ||
-  'https://finflux-64307221061.asia-south1.run.app/api/auth/login';
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  'https://finflux-64307221061.asia-south1.run.app';
 
 const PROFILE_URL_KEY = 'profileImageUrl';
 
@@ -85,10 +79,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const res = await axios.post<ApiResponse>(
-        API_LOGIN,
+        API_CONFIG.LOGIN_URL,
         { username, password },
         {
-          timeout: 10000,
+          timeout: API_CONFIG.TIMEOUT,
           signal: controller.signal,
           withCredentials: true,
         }
@@ -123,7 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (nextUser.organizationId && nextUser.empId) {
         try {
           const employeeRes = await axios.get(
-            `${API_BASE}/api/organizations/${nextUser.organizationId}/employees?page=0&size=100`
+            `${API_CONFIG.BASE_URL}/api/organizations/${nextUser.organizationId}/employees?page=0&size=100`
           );
           const items = Array.isArray(employeeRes.data?.content)
             ? employeeRes.data.content

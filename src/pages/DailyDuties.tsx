@@ -9,8 +9,10 @@ import {
   Fuel, Activity, CheckCircle, ChevronLeft, ChevronRight,
   Clock, Calendar, Target, Timer, Play, History, Loader2
 } from "lucide-react";
+import { API_CONFIG } from '@/lib/api-config';
+import { logger } from '@/lib/logger';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 const ITEMS_PER_PAGE = 6;
 
 type Duty = {
@@ -98,9 +100,9 @@ export default function DailyDuties() {
     setLoading(true);
     
     Promise.all([
-      axios.get(`${API_BASE}/api/organizations/${orgId}/employee-duties/employee/${empId}`),
-      axios.get(`${API_BASE}/api/organizations/${orgId}/products`),
-      axios.get(`${API_BASE}/api/organizations/${orgId}/guninfo`)
+      axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employee-duties/employee/${empId}`),
+      axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products`),
+      axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/guninfo`)
     ])
       .then(([dutiesRes, productsRes, gunsRes]) => {
         setDuties(Array.isArray(dutiesRes.data) ? dutiesRes.data : []);
@@ -108,7 +110,7 @@ export default function DailyDuties() {
         setGuns(Array.isArray(gunsRes.data) ? gunsRes.data : []);
       })
       .catch((err) => {
-        console.error("Error fetching data:", err);
+        logger.error("Error fetching data:", err);
         toast({
           title: "Error",
           description: "Failed to load duties. Please try again.",
@@ -168,7 +170,7 @@ export default function DailyDuties() {
 
       setActionLoading(dutyId);
       await axios.put(
-        `${API_BASE}/api/organizations/${orgId}/employee-duties/${dutyId}`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employee-duties/${dutyId}`,
         { status: newStatus }
       );
 
@@ -179,7 +181,7 @@ export default function DailyDuties() {
         description: `Duty ${newStatus.toLowerCase()} successfully!`,
       });
     } catch (err) {
-      console.error("Error updating duty:", err);
+      logger.error("Error updating duty:", err);
       toast({
         title: "Error",
         description: "Failed to update duty status. Please try again.",
@@ -488,3 +490,4 @@ export default function DailyDuties() {
     </div>
   );
 }
+

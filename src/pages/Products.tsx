@@ -12,9 +12,11 @@ import {
   Plus, Edit2, Trash2, Box, Archive, Layers, PackageCheck,
   Database, X, CalendarDays, Fuel, Droplets, Zap
 } from 'lucide-react';
+import { API_CONFIG } from '@/lib/api-config';
+import { logger } from '@/lib/logger';
 import { useToast } from '@/components/ui/use-toast';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
+// Removed - using API_CONFIG
 const RUPEE = '\u20B9';
 
 const PRODUCT_OPTIONS = ['Petrol', 'Diesel', '2T', 'Premium Petrol', 'CNG'];
@@ -62,7 +64,7 @@ export default function Products() {
   const { data: products = [], isLoading, refetch } = useQuery({
     queryKey: ['products', orgId],
     queryFn: async () => {
-      const url = `${API_BASE}/api/organizations/${orgId}/products`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products`;
       const res = await axios.get(url, { timeout: 20000 });
       return Array.isArray(res.data) ? res.data : [];
     }
@@ -98,7 +100,7 @@ export default function Products() {
         lastUpdated: new Date().toISOString(),
         empId
       };
-      const url = `${API_BASE}/api/organizations/${orgId}/products`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products`;
       return (await axios.post(url, dto)).data;
     },
     onSuccess: () => { refetch(); closeModal(); toast({ title: "Product added successfully!", variant: "success" }); },
@@ -116,7 +118,7 @@ export default function Products() {
         status: body.status === "true",
         lastUpdated: new Date().toISOString()
       };
-      const url = `${API_BASE}/api/organizations/${orgId}/products/${body.id}`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products/${body.id}`;
       return (await axios.put(url, dto)).data;
     },
     onSuccess: () => {
@@ -130,7 +132,7 @@ export default function Products() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const url = `${API_BASE}/api/organizations/${orgId}/products/${id}`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products/${id}`;
       return (await axios.delete(url)).data;
     },
     onSuccess: () => { refetch(); setDeleteTarget(null); setConfirmOpen(false); toast({ title: "Product deleted successfully!", variant: "success" }); },
@@ -139,7 +141,7 @@ export default function Products() {
 
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ id, currentStatus }: { id: string; currentStatus: boolean }) => {
-      const url = `${API_BASE}/api/organizations/${orgId}/products/${id}/status?status=${!currentStatus}`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products/${id}/status?status=${!currentStatus}`;
       return (await axios.patch(url)).data;
     },
     onSuccess: (data, variables) => {
@@ -635,3 +637,5 @@ export default function Products() {
     </div>
   );
 }
+
+

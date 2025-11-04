@@ -11,12 +11,14 @@ import {
   Briefcase, MapPin, Users, Building, Eye, EyeOff, Loader2, Save, X,
   AlertCircle, CheckCircle2, Home, UserCircle, LogOut
 } from 'lucide-react';
+import { API_CONFIG } from '@/lib/api-config';
+import { logger } from '@/lib/logger';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 const CLOUDINARY_UPLOAD_URL = import.meta.env.VITE_CLOUDINARY_UPLOAD_URL || 'https://api.cloudinary.com/v1_1/dosyyvmtb/auto/upload';
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_PROFILE_UPLOAD_PRESET || 'Profile_Pictures';
 const PROFILE_URL_KEY = "profileImageUrl";
@@ -77,14 +79,14 @@ export default function Profile() {
     const load = async () => {
       setLoading(true); setError(null);
       try {
-        const listUrl = `${API_BASE}/api/organizations/${orgId}/employees?page=0&size=200`;
+        const listUrl = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employees?page=0&size=200`;
         const listRes = await axios.get(listUrl, { timeout: 15000 });
         const items = Array.isArray(listRes.data?.content) ? listRes.data.content : Array.isArray(listRes.data) ? listRes.data : [];
         const match = items.find((x: any) => x.empId === empId);
         if (!match) throw new Error('Employee not found');
         const id = match.id;
         setInternalId(id);
-        const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employees/${id}`, { timeout: 15000 });
+        const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employees/${id}`, { timeout: 15000 });
         if (cancelled) return;
         const data: EmployeeResponse = res.data;
 
@@ -168,7 +170,7 @@ export default function Profile() {
 
   const saveProfileImage = async (imageUrl: string) => {
     if (!employee || !internalId) return;
-    const res = await axios.put(`${API_BASE}/api/organizations/${orgId}/employees/${internalId}`, {
+    const res = await axios.put(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employees/${internalId}`, {
       empId: employee.empId, organizationId: employee.organizationId, profileImageUrl: imageUrl
     });
     setEmployee(res.data);
@@ -186,7 +188,7 @@ export default function Profile() {
     setSaving(true);
     try {
       const payload = { ...form, empId: employee.empId, organizationId: employee.organizationId };
-      const res = await axios.put(`${API_BASE}/api/organizations/${orgId}/employees/${internalId}`, payload);
+      const res = await axios.put(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employees/${internalId}`, payload);
       setEmployee(res.data);
       setIsEditing(false);
       toast({ title: 'Profile updated successfully', variant: 'default' });
@@ -209,7 +211,7 @@ export default function Profile() {
     if (!currentPwd || !newPwd) { toast({ title: 'All fields required', variant: 'destructive' }); return; }
     setSavingPwd(true);
     try {
-      await axios.put(`${API_BASE}/api/organizations/${orgId}/employees/${employee?.id}/change-password`, {
+      await axios.put(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employees/${employee?.id}/change-password`, {
         empId: employee?.empId, currentPassword: currentPwd, newPassword: newPwd
       });
       setPwdDialogOpen(false);
@@ -709,3 +711,5 @@ export default function Profile() {
     </div>
   );
 }
+
+

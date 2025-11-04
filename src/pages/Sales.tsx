@@ -10,6 +10,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { useNavigate } from "react-router-dom";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { API_CONFIG } from "@/lib/api-config";
+import { logger } from "@/lib/logger";
 import {
   Select,
   SelectTrigger,
@@ -55,9 +57,6 @@ dayjs.extend(timezone);
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  "https://finflux-64307221061.asia-south1.run.app";
 const RUPEE = "\u20B9";
 const SALES_PER_PAGE = 5;
 
@@ -149,7 +148,7 @@ export default function Sales() {
   const { data: products = [] } = useQuery({
     queryKey: ["products", orgId],
     queryFn: async () =>
-      (await axios.get(`${API_BASE}/api/organizations/${orgId}/products`)).data || [],
+      (await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products`)).data || [],
   });
 
   const productsActive = useMemo(
@@ -162,7 +161,7 @@ export default function Sales() {
   const { data: guns = [] } = useQuery({
     queryKey: ["guninfo", orgId],
     queryFn: async () =>
-      (await axios.get(`${API_BASE}/api/organizations/${orgId}/guninfo`)).data || [],
+      (await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/guninfo`)).data || [],
   });
 
   // Fetch employee duties to filter guns for employees
@@ -171,10 +170,10 @@ export default function Sales() {
     queryFn: async () => {
       if (!isEmployee || !empId || !orgId) return [];
       try {
-        const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employee-duties/employee/${empId}`);
+        const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employee-duties/employee/${empId}`, { timeout: API_CONFIG.TIMEOUT });
         return res.data || [];
       } catch (error: any) {
-        console.error("Failed to fetch employee duties:", error);
+        logger.error("Failed to fetch employee duties:", error);
         // Return empty array instead of throwing error
         return [];
       }
@@ -264,13 +263,13 @@ export default function Sales() {
   const { data: sales = [], isLoading } = useQuery({
     queryKey: ["sales", orgId],
     queryFn: async () =>
-      (await axios.get(`${API_BASE}/api/organizations/${orgId}/sales`)).data || [],
+      (await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sales`)).data || [],
   });
 
   const { data: collections = [] } = useQuery({
     queryKey: ["collections", orgId],
     queryFn: async () =>
-      (await axios.get(`${API_BASE}/api/organizations/${orgId}/collections`)).data || [],
+      (await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/collections`)).data || [],
   });
 
   const filteredGuns = useMemo(
@@ -367,7 +366,7 @@ export default function Sales() {
   const [validationError, setValidationError] = useState<{ title: string; message: string } | null>(null);
   const deleteSaleMutation = useMutation({
     mutationFn: async (saleId: string) => {
-      const url = `${API_BASE}/api/organizations/${orgId}/sales/${saleId}`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sales/${saleId}`;
       await axios.delete(url, {
         headers: {
           "X-Employee-Id": empId || "",
@@ -385,7 +384,7 @@ export default function Sales() {
       }, 1000); // 1 second delay to show the toast message
     },
     onError: (error: any) => {
-      console.error("❌ Delete Sale Error:", error);
+      logger.error("❌ Delete Sale Error:", error);
       toast({
         title: "Delete Failed",
         description: error?.response?.data?.message || "Failed to delete sale entry.",
@@ -447,25 +446,27 @@ export default function Sales() {
         creditCard: Number(input.creditCard) || 0,
       };
 
-      console.log("📤 Sending Sale DTO:", saleDTO);
-      console.log("📤 Sending Collection DTO:", collectionDTO);
+      logger.debug("📤 Sending Sale DTO:", saleDTO);
+      logger.debug("📤 Sending Collection DTO:", collectionDTO);
 
       try {
         const saleResponse = await axios.post(
-          `${API_BASE}/api/organizations/${orgId}/sales`,
-          saleDTO
+          `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sales`,
+          saleDTO,
+          { timeout: API_CONFIG.TIMEOUT }
         );
-        console.log("✅ Sale created:", saleResponse.data);
+        logger.debug("✅ Sale created:", saleResponse.data);
 
         const collectionResponse = await axios.post(
-          `${API_BASE}/api/organizations/${orgId}/collections`,
-          collectionDTO
+          `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/collections`,
+          collectionDTO,
+          { timeout: API_CONFIG.TIMEOUT }
         );
-        console.log("✅ Collection created:", collectionResponse.data);
+        logger.debug("✅ Collection created:", collectionResponse.data);
 
         return { success: true };
       } catch (error: any) {
-        console.error("❌ Sale/Collection Error:", error);
+        logger.error("❌ Sale/Collection Error:", error);
 
         let errorMessage = "Unable to process your sale request. Please check all fields and try again.";
         let errorTitle = "Sale Recording Failed";
@@ -503,7 +504,7 @@ export default function Sales() {
       }
     },
     onError: (error: any) => {
-      console.error("❌ Mutation Error:", error);
+      logger.error("❌ Mutation Error:", error);
       
       // Parse enhanced error message
       let title = "Failed to Record Sale";
@@ -627,7 +628,7 @@ export default function Sales() {
     try {
       await saleCollectionMutation.mutateAsync(form);
     } catch (error) {
-      console.error("Submit error:", error);
+      logger.error("Submit error:", error);
     } finally {
       submittingRef.current = false;
     }
@@ -773,7 +774,7 @@ export default function Sales() {
       const tz = "Asia/Kolkata";
       const fromIso = from.tz(tz).startOf("day").utc().toISOString();
       const toIso = to.tz(tz).endOf("day").utc().toISOString();
-      const url = `${API_BASE}/api/organizations/${orgId}/sale-history/by-date?from=${fromIso}&to=${toIso}`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sale-history/by-date?from=${fromIso}&to=${toIso}`;
       const res = await axios.get(url);
       const items = Array.isArray(res.data) ? res.data : [];
       setDsrRecords(items);

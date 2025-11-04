@@ -29,11 +29,13 @@ import {
   Globe,
   User,
 } from "lucide-react";
+import { API_CONFIG } from '@/lib/api-config';
+import { logger } from '@/lib/logger';
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 
 type OrganizationResponse = {
   id?: string;
@@ -158,7 +160,7 @@ export default function Settings() {
   const { data: org, isLoading, isError, refetch } = useQuery<OrganizationResponse>({
     queryKey: ["organization", orgId],
     queryFn: async () => {
-      const res = await axios.get(`${API_BASE}/api/organizations/by-org-id/${orgId}`);
+      const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/by-org-id/${orgId}`);
       return res.data;
     },
     enabled: !!orgId,
@@ -194,7 +196,7 @@ export default function Settings() {
     mutationFn: async (payload: OrgForm) => {
       const id = org?.id;
       if (!id) throw new Error("Organization id missing");
-      const res = await axios.put(`${API_BASE}/api/organizations/${id}`, payload);
+      const res = await axios.put(`${API_CONFIG.BASE_URL}/api/organizations/${id}`, payload);
       return res.data;
     },
     onSuccess: () => {
@@ -215,7 +217,7 @@ export default function Settings() {
   } = useQuery<Product[]>({
     queryKey: ["products", orgId],
     queryFn: async () => {
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/products`);
+      const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products`);
       return Array.isArray(res.data) ? res.data : [];
     },
     enabled: !!orgId,
@@ -248,7 +250,7 @@ export default function Settings() {
       idx: number;
       name: string;
     }) => {
-      await axios.put(`${API_BASE}/api/organizations/${orgId}/appsettings/products/${id}/price`, null, {
+      await axios.put(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/appsettings/products/${id}/price`, null, {
         params: { price, empId },
       });
       return { idx, price, name };
@@ -819,3 +821,5 @@ export default function Settings() {
     </div>
   );
 }
+
+

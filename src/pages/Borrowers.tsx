@@ -17,8 +17,8 @@ import {
 } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from "@/components/ui/switch";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
+import { API_CONFIG, buildOrgEndpoint } from '@/lib/api-config';
+import { logger } from '@/lib/logger';
 
 type Customer = {
   id?: string;
@@ -182,7 +182,7 @@ export default function Borrowers() {
 
   // Effect to log filter changes
   useEffect(() => {
-    console.log('📅 Date filter changed:', dateFilter, { customStartDate, customEndDate });
+    logger.debug('📅 Date filter changed:', dateFilter, { customStartDate, customEndDate });
   }, [dateFilter, customStartDate, customEndDate]);
 
   useEffect(() => {
@@ -196,7 +196,7 @@ export default function Borrowers() {
 
   const getDateFilterUrl = () => {
     if (!orgId) return null;
-    const base = `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers`;
+    const base = `${API_CONFIG.BASE_URL}/api/organizations/${encodeURIComponent(orgId)}/customers`;
 
     switch (dateFilter) {
       case 'today':
@@ -223,13 +223,13 @@ export default function Borrowers() {
     const url = getDateFilterUrl();
     if (!url) return [];
 
-    console.log('🔍 Fetching customers with filter:', dateFilter, 'URL:', url);
+    logger.debug('🔍 Fetching customers with filter:', dateFilter, 'URL:', url);
 
     try {
       const res = await axios.get(url, { timeout: 20000 });
       const data = res.data;
       
-      console.log('✅ Response received:', { 
+      logger.debug('✅ Response received:', { 
         isArray: Array.isArray(data), 
         hasContent: data && 'content' in data,
         length: Array.isArray(data) ? data.length : (data?.content?.length || 'N/A')
@@ -237,13 +237,13 @@ export default function Borrowers() {
 
       // Filter endpoints (today, week, month, range) return List directly
       if (Array.isArray(data)) {
-        console.log('📋 Direct array response with', data.length, 'customers');
+        logger.debug('📋 Direct array response with', data.length, 'customers');
         return data;
       }
 
       // Default /customers endpoint returns Page with content field
       if (data && typeof data === 'object' && 'content' in data && Array.isArray(data.content)) {
-        console.log('📄 Paginated response with', data.content.length, 'customers');
+        logger.debug('📄 Paginated response with', data.content.length, 'customers');
         return data.content;
       }
 
@@ -251,21 +251,21 @@ export default function Borrowers() {
       const candidates = ['data', 'items', 'result', 'results', 'records', 'rows'];
       for (const key of candidates) {
         if (Array.isArray((data as any)?.[key])) {
-          console.log('📦 Found array in key:', key);
+          logger.debug('📦 Found array in key:', key);
           return (data as any)[key];
         }
       }
 
       const firstArray = Object.values(data || {}).find((v) => Array.isArray(v)) as Customer[] | undefined;
       if (Array.isArray(firstArray)) {
-        console.log('🔎 Found array in object values');
+        logger.debug('🔎 Found array in object values');
         return firstArray;
       }
 
-      console.warn('⚠️ No array found in response, returning empty array');
+      logger.warn('⚠️ No array found in response, returning empty array');
       return [];
     } catch (err: any) {
-      console.error('❌ Error fetching customers:', err?.response?.status, err?.response?.data);
+      logger.error('❌ Error fetching customers:', err?.response?.status, err?.response?.data);
       toast({
         title: 'Error',
         description: err?.response?.data?.message || err?.message || 'Failed to fetch customers',
@@ -287,7 +287,7 @@ export default function Borrowers() {
   const fetchAllHistory = async (): Promise<HistoryTransaction[]> => {
     if (!orgId) return [];
     try {
-      const url = `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/history`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${encodeURIComponent(orgId)}/customers/history`;
       const res = await axios.get(url, { timeout: 20000 });
       const data = res.data;
 
@@ -299,7 +299,7 @@ export default function Borrowers() {
       }
       return [];
     } catch (err: any) {
-      console.error('Failed to fetch history:', err);
+      logger.error('Failed to fetch history:', err);
       return [];
     }
   };
@@ -375,7 +375,7 @@ export default function Borrowers() {
     
     try {
       await axios.put(
-        `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/${customer.id}/lifecycle-status`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${encodeURIComponent(orgId)}/customers/${customer.id}/lifecycle-status`,
         { lifecycleStatus: newStatus },
         { timeout: 20000 }
       );
@@ -516,14 +516,14 @@ export default function Borrowers() {
     try {
       if (editMode && editingCustomer?.id) {
         await axios.put(
-          `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/${editingCustomer.id}`,
+          `${API_CONFIG.BASE_URL}/api/organizations/${encodeURIComponent(orgId)}/customers/${editingCustomer.id}`,
           payload,
           { timeout: 20000 }
         );
         toast({ title: 'Success', description: 'Customer details updated successfully!', variant: 'default' });
       } else {
         await axios.post(
-          `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers`,
+          `${API_CONFIG.BASE_URL}/api/organizations/${encodeURIComponent(orgId)}/customers`,
           payload,
           { timeout: 20000 }
         );
@@ -578,7 +578,7 @@ export default function Borrowers() {
     setDeleteLoading(true);
     try {
       await axios.delete(
-        `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/by-cust/${encodeURIComponent(deletingBorrower.custId)}`
+        `${API_CONFIG.BASE_URL}/api/organizations/${encodeURIComponent(orgId)}/customers/by-cust/${encodeURIComponent(deletingBorrower.custId)}`
       );
       toast({
         title: 'Success',
@@ -680,7 +680,7 @@ export default function Borrowers() {
     setTransactionSubmitting(true);
     try {
       await axios.post(
-        `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/history`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${encodeURIComponent(orgId)}/customers/history`,
         transactionForm,
         { timeout: 20000 }
       );
@@ -704,7 +704,7 @@ export default function Borrowers() {
   const fetchHistory = async (custId: string, page: number = 0) => {
     setHistoryLoading(true);
     try {
-      const url = `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/history/cust/${encodeURIComponent(custId)}?page=${page}&size=50`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${encodeURIComponent(orgId)}/customers/history/cust/${encodeURIComponent(custId)}?page=${page}&size=50`;
       const res = await axios.get(url, { timeout: 20000 });
       setHistoryData(res.data);
     } catch (err: any) {

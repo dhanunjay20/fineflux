@@ -13,8 +13,9 @@ import {
   Mail, Shield, Clock, Home, AlertCircle, 
   FileText, Crown, ArrowLeft, Sparkles, Briefcase
 } from 'lucide-react';
+import { API_CONFIG } from '@/lib/api-config';
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'https://finflux-64307221061.asia-south1.run.app';
+// Removed - using API_CONFIG
 
 type OrganizationCreateRequest = {
   organizationId: string;
@@ -224,7 +225,7 @@ export default function OnboardOrganization() {
     if (orgLoading || !orgHasMore) return;
     try {
       setOrgLoading(true);
-      const res = await axios.get<Page<OrganizationResponse>>(`${API_BASE}/api/organizations`, {
+      const res = await axios.get<Page<OrganizationResponse>>(`${API_CONFIG.BASE_URL}/api/organizations`, {
         params: { page: orgPage, size: 20 },
         timeout: 15000,
       });
@@ -307,7 +308,7 @@ export default function OnboardOrganization() {
         ...orgForm,
         organizationId: derivedOrgId || orgForm.organizationId,
       };
-      const res = await axios.post<OrganizationResponse>(`${API_BASE}/api/organizations`, payload, { timeout: 15000 });
+      const res = await axios.post<OrganizationResponse>(`${API_CONFIG.BASE_URL}/api/organizations`, payload, { timeout: 15000 });
       toast({ title: '✅ Success!', description: 'Organization created successfully.', variant: 'default' });
       setSelectedOrg(res.data);
     } catch (err: any) {
@@ -366,7 +367,7 @@ export default function OnboardOrganization() {
     try {
       setSubmittingOrgUpdate(true);
       await axios.put<OrganizationResponse>(
-        `${API_BASE}/api/organizations/${encodeURIComponent(selectedOrg.id)}`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${encodeURIComponent(selectedOrg.id)}`,
         orgUpdateForm,
         { timeout: 15000 }
       );
@@ -461,7 +462,7 @@ export default function OnboardOrganization() {
         address: { ...(ownerCreateForm.address || {}), country: ownerCreateForm.address?.country || 'India' },
       };
       await axios.post(
-        `${API_BASE}/api/organizations/${encodeURIComponent(payload.organizationId)}/employees`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${encodeURIComponent(payload.organizationId)}/employees`,
         payload,
         { timeout: 15000 }
       );
@@ -521,7 +522,7 @@ export default function OnboardOrganization() {
     try {
       setEmpLoading(true);
       const res = await axios.get<Page<EmployeeResponse>>(
-        `${API_BASE}/api/organizations/${encodeURIComponent(selectedOrg.organizationId)}/employees`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${encodeURIComponent(selectedOrg.organizationId)}/employees`,
         { params: { page: empPage, size: 20 }, timeout: 15000 }
       );
       const page = res.data;
@@ -607,7 +608,7 @@ export default function OnboardOrganization() {
     try {
       setSubmittingOwnerUpdate(true);
       await axios.put(
-        `${API_BASE}/api/organizations/${encodeURIComponent(selectedOrg.organizationId)}/employees/${encodeURIComponent(selectedEmp.id)}`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${encodeURIComponent(selectedOrg.organizationId)}/employees/${encodeURIComponent(selectedEmp.id)}`,
         ownerUpdateForm,
         { timeout: 15000 }
       );
@@ -1587,3 +1588,5 @@ export default function OnboardOrganization() {
     </div>
   );
 }
+
+

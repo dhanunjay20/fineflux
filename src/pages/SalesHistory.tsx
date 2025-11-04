@@ -34,6 +34,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
+import { API_CONFIG } from '@/lib/api-config';
+import { logger } from '@/lib/logger';
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import jsPDF from "jspdf";
@@ -77,9 +79,7 @@ interface InventoryItem {
 type DatePreset = "latest" | "today" | "week" | "month" | "custom";
 
 // ============ Constants ============
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 const RUPEE = "\u20B9";
 const RECORDS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
@@ -677,7 +677,7 @@ export default function SalesHistory() {
     queryKey: ["sale-history", orgId, fromIso, toIso, preset],
     queryFn: async () => {
       const params = `from=${fromIso}&to=${toIso}`;
-      const url = `${API_BASE}/api/organizations/${orgId}/sale-history/by-date?${params}`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sale-history/by-date?${params}`;
       const res = await axios.get<SaleRecord[]>(url);
       const data = Array.isArray(res.data) ? res.data : [];
       
@@ -695,7 +695,7 @@ export default function SalesHistory() {
   const { data: inventory = [] } = useQuery({
     queryKey: ["inventory", orgId],
     queryFn: async () => {
-      const url = `${API_BASE}/api/organizations/${orgId}/inventory`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/inventory`;
       const res = await axios.get<InventoryItem[]>(url);
       return Array.isArray(res.data) ? res.data : [];
     },
@@ -1034,4 +1034,6 @@ export default function SalesHistory() {
     </div>
   );
 }
+
+
 

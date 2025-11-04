@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Edit, Box, Archive, Barcode, Fuel, Activity, TrendingUp, AlertCircle, ChevronDown, ChevronUp, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { API_CONFIG } from "@/lib/api-config";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 const GUNS_PER_PAGE = 4;
 const ALL_GUN_OPTIONS = Array.from({ length: 20 }, (_, i) => `G${i + 1}`);
 
@@ -41,7 +42,7 @@ const GunInfo = () => {
   const { data: products = [] } = useQuery({
     queryKey: ["products", orgId],
     queryFn: async () => {
-      const url = `${API_BASE}/api/organizations/${orgId}/products`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products`;
       const res = await axios.get(url);
       return Array.isArray(res.data) ? res.data : [];
     },
@@ -68,7 +69,7 @@ const GunInfo = () => {
   const { data: guns = [], isLoading } = useQuery({
     queryKey: ["guninfo", orgId],
     queryFn: async () => {
-      const url = `${API_BASE}/api/organizations/${orgId}/guninfo`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/guninfo`;
       const res = await axios.get(url);
       return Array.isArray(res.data) ? res.data : [];
     },
@@ -153,7 +154,7 @@ const GunInfo = () => {
   // Add Gun Mutation
   const createMutation = useMutation({
     mutationFn: async (payload: typeof addForm) => {
-      const url = `${API_BASE}/api/organizations/${orgId}/guninfo`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/guninfo`;
       return (
         await axios.post(url, {
           organizationId: orgId,
@@ -178,7 +179,7 @@ const GunInfo = () => {
   // Edit Gun Mutation
   const updateMutation = useMutation({
     mutationFn: async (payload: typeof editForm & { id: string }) => {
-      const url = `${API_BASE}/api/organizations/${orgId}/guninfo/${payload.id}`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/guninfo/${payload.id}`;
       return (
         await axios.put(url, {
           empId,
@@ -205,7 +206,7 @@ const GunInfo = () => {
   // Delete Gun Mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const url = `${API_BASE}/api/organizations/${orgId}/guninfo/${id}`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/guninfo/${id}`;
       await axios.delete(url);
     },
     onSuccess: () => {
@@ -796,3 +797,4 @@ const GunInfo = () => {
 };
 
 export default GunInfo;
+

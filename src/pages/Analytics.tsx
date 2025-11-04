@@ -7,6 +7,8 @@ import timezone from 'dayjs/plugin/timezone';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { API_CONFIG } from '@/lib/api-config';
+import { logger } from '@/lib/logger';
 
 // Extend dayjs with timezone support
 dayjs.extend(utc);
@@ -46,7 +48,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
 const RUPEE = '₹';
 
 // Indian number format helper
@@ -86,14 +87,14 @@ export default function Analytics() {
     queryFn: async () => {
       try {
         // Use the correct endpoint: sale-history/by-date
-        const url = `${API_BASE}/api/organizations/${orgId}/sale-history/by-date?from=${fromIso}&to=${toIso}`;
-        console.log('Fetching sales from:', url);
-        const res = await axios.get(url);
+        const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sale-history/by-date?from=${fromIso}&to=${toIso}`;
+        logger.debug('Fetching sales from:', url);
+        const res = await axios.get(url, { timeout: API_CONFIG.TIMEOUT });
         const data = Array.isArray(res.data) ? res.data : [];
-        console.log('Sales data fetched:', data.length, 'records');
+        logger.debug('Sales data fetched:', data.length, 'records');
         return data;
       } catch (error) {
-        console.error('Error fetching sales:', error);
+        logger.error('Error fetching sales:', error);
         return [];
       }
     },
@@ -128,12 +129,12 @@ export default function Analytics() {
     queryKey: ['expenses-analytics', orgId],
     queryFn: async () => {
       try {
-        const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/expenses`);
+        const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/expenses`, { timeout: API_CONFIG.TIMEOUT });
         const data = Array.isArray(res.data) ? res.data : [];
-        console.log('Expenses data fetched:', data.length, 'records');
+        logger.debug('Expenses data fetched:', data.length, 'records');
         return data;
       } catch (error) {
-        console.error('Error fetching expenses:', error);
+        logger.error('Error fetching expenses:', error);
         return [];
       }
     },
@@ -162,8 +163,8 @@ export default function Analytics() {
     queryKey: ['finance-summary-latest', orgId],
     queryFn: async () => {
       try {
-        const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/finance-summary/latest`);
-        console.log('✅ Finance summary fetched:', res.data);
+        const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/finance-summary/latest`, { timeout: API_CONFIG.TIMEOUT });
+        logger.debug('✅ Finance summary fetched:', res.data);
         
         // Ensure all fields are numbers
         const data = res.data;
@@ -184,7 +185,7 @@ export default function Analytics() {
           total: Number(data.total) || 0,
         };
       } catch (error: any) {
-        console.error('❌ Error fetching finance summary:', error?.response?.status, error?.response?.data);
+        logger.error('❌ Error fetching finance summary:', error?.response?.status, error?.response?.data);
         return null;
       }
     },
@@ -223,7 +224,7 @@ export default function Analytics() {
       return sum + liters;
     }, 0);
 
-    console.log('KPIs calculated:', { totalRevenue, totalExpenses, netProfit, totalLiters });
+    logger.debug('KPIs calculated:', { totalRevenue, totalExpenses, netProfit, totalLiters });
 
     return { 
       totalRevenue: Math.round(totalRevenue * 100) / 100, 
@@ -282,7 +283,7 @@ export default function Analytics() {
       }))
       .sort((a, b) => a.timestamp - b.timestamp);
 
-    console.log('Monthly sales data:', result);
+    logger.debug('Monthly sales data:', result);
     return result.slice(-6); // Last 6 months
   }, [salesHistory, expenses]);
 
@@ -305,7 +306,7 @@ export default function Analytics() {
       }))
       .sort((a, b) => b.value - a.value); // Sort by revenue descending
 
-    console.log('Fuel type data:', result);
+    logger.debug('Fuel type data:', result);
     return result;
   }, [salesHistory]);
 
@@ -353,7 +354,7 @@ export default function Analytics() {
       return dayData;
     });
 
-    console.log('Daily sales data:', result);
+    logger.debug('Daily sales data:', result);
     return result;
   }, [salesHistory]);
 
@@ -380,7 +381,7 @@ export default function Analytics() {
       name: productsMap.get(key) || key.charAt(0).toUpperCase() + key.slice(1)
     }));
 
-    console.log('Unique products:', products);
+    logger.debug('Unique products:', products);
     return products;
   }, [dailySalesData]);
 
@@ -658,11 +659,26 @@ export default function Analytics() {
 
       {/* Loading overlay when fetching */}
       {(isPending || fetchingSales) && (
-        <div className="fixed inset-0 bg-background/50 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-card p-6 rounded-lg shadow-lg">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Loading real-time data...</p>
+        <div 
+          className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md"
+          style={{ margin: 0, padding: "1rem", minHeight: "100vh", minWidth: "100vw" }}
+        >
+          <div
+            className="relative bg-background shadow-2xl rounded-xl sm:rounded-2xl p-8 flex flex-col border border-border/50 animate-fade-in"
+            style={{ maxWidth: "400px" }}
+          >
+            <div className="text-center space-y-4">
+              <div className="flex justify-center">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary"></div>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                  Loading Data
+                </h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Fetching real-time analytics...
+                </p>
+              </div>
             </div>
           </div>
         </div>

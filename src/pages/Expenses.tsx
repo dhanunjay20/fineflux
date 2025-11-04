@@ -11,9 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   DollarSign, Plus, TrendingDown, Clock, CheckCircle, XCircle, Calendar, Receipt, Filter, Edit, Trash2, X
 } from "lucide-react";
+import { API_CONFIG } from '@/lib/api-config';
+import { logger } from '@/lib/logger';
 import { useToast } from "@/hooks/use-toast";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 
 const getLocal = (k: string) => {
   const v = localStorage.getItem(k);
@@ -69,11 +71,11 @@ export default function Expenses() {
   const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
-    axios.get(`${API_BASE}/api/organizations/${orgId}/expenses`)
+    axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/expenses`)
       .then(res => setExpenses(res.data))
       .catch(() => setExpenses([]));
 
-    axios.get(`${API_BASE}/api/organizations/${orgId}/expense-categories`)
+    axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/expense-categories`)
       .then(res => {
         setCategories(res.data);
         if (res.data.length && !expenseCat) setExpenseCat(res.data[0].categoryName);
@@ -139,13 +141,13 @@ export default function Expenses() {
       let message = '';
       if (editingCategory) {
         const res = await axios.put(
-          `${API_BASE}/api/organizations/${orgId}/expense-categories/${editingCategory.id}`,
+          `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/expense-categories/${editingCategory.id}`,
           { categoryName: newCategoryName.trim(), organizationId: orgId }
         );
         message = `Category "${res.data.categoryName}" updated.`;
       } else {
         const res = await axios.post(
-          `${API_BASE}/api/organizations/${orgId}/expense-categories`,
+          `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/expense-categories`,
           { categoryName: newCategoryName.trim(), organizationId: orgId }
         );
         message = `Category "${res.data.categoryName}" created.`;
@@ -164,7 +166,7 @@ export default function Expenses() {
   const handleDeleteCategory = async (id: string) => {
     setCategoryLoading(true); setCategoryError('');
     try {
-      await axios.delete(`${API_BASE}/api/organizations/${orgId}/expense-categories/${id}`);
+      await axios.delete(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/expense-categories/${id}`);
       setRefreshToken(v => v + 1);
       toast({ title: "Success", description: "Category deleted.", variant: "success" });
       setDeleteCategoryConfirmId(null);
@@ -204,7 +206,7 @@ export default function Expenses() {
     }
     setExpenseLoading(true);
     try {
-      await axios.post(`${API_BASE}/api/organizations/${orgId}/expenses`, {
+      await axios.post(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/expenses`, {
         description: expenseDesc,
         amount: parseFloat(expenseAmount),
         categoryName: expenseCat,
@@ -226,7 +228,7 @@ export default function Expenses() {
   const handleDeleteExpense = async (id: string) => {
     setDeleteExpenseLoading(true);
     try {
-      await axios.delete(`${API_BASE}/api/organizations/${orgId}/expenses/${id}`);
+      await axios.delete(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/expenses/${id}`);
       setRefreshToken(v => v + 1);
       toast({ title: "Success", description: "Expense deleted.", variant: "success" });
       setDeleteExpenseConfirmId(null);
@@ -557,4 +559,6 @@ export default function Expenses() {
     </div>
   );
 }
+
+
 

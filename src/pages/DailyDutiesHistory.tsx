@@ -10,8 +10,10 @@ import {
   Fuel, CheckCircle, Activity, Calendar, ChevronLeft, ChevronRight,
   Clock, Timer, Target, Search as SearchIcon, ArrowLeft
 } from "lucide-react";
+import { API_CONFIG } from '@/lib/api-config';
+import { logger } from '@/lib/logger';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 const ITEMS_PER_PAGE = 10;
 
 type DateFilterKey = "all" | "today" | "week" | "month" | "custom";
@@ -97,9 +99,9 @@ export default function DailyDutiesHistory() {
     setLoading(true);
     
     Promise.all([
-      axios.get(`${API_BASE}/api/organizations/${orgId}/employee-duties/employee/${empId}`),
-      axios.get(`${API_BASE}/api/organizations/${orgId}/products`),
-      axios.get(`${API_BASE}/api/organizations/${orgId}/guninfo`)
+      axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employee-duties/employee/${empId}`),
+      axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products`),
+      axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/guninfo`)
     ])
       .then(([dutiesRes, productsRes, gunsRes]) => {
         setDuties(Array.isArray(dutiesRes.data) ? dutiesRes.data : []);
@@ -366,3 +368,4 @@ export default function DailyDutiesHistory() {
     </div>
   );
 }
+
