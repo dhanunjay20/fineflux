@@ -131,7 +131,7 @@ export default function Profile() {
     localStorage.removeItem('organizationId');
     localStorage.removeItem('empId');
     localStorage.removeItem('authToken');
-    toast({ title: 'Logged out successfully', variant: 'success' });
+    toast({ title: 'Logged out successfully', variant: 'default' });
     window.location.href = '/login';
   };
 
@@ -151,7 +151,7 @@ export default function Profile() {
 
       setForm(prev => ({ ...prev, profileImageUrl: imageUrl }));
       await saveProfileImage(imageUrl);
-      toast({ title: 'Profile photo updated successfully', variant: 'success' });
+      toast({ title: 'Profile photo updated successfully', variant: 'default' });
 
       if (imageUrl && imageUrl.trim()) {
         localStorage.setItem(PROFILE_URL_KEY, imageUrl);
@@ -189,7 +189,7 @@ export default function Profile() {
       const res = await axios.put(`${API_BASE}/api/organizations/${orgId}/employees/${internalId}`, payload);
       setEmployee(res.data);
       setIsEditing(false);
-      toast({ title: 'Profile updated successfully', variant: 'success' });
+      toast({ title: 'Profile updated successfully', variant: 'default' });
 
       const updatedUrl = res.data?.profileImageUrl;
       if (updatedUrl && updatedUrl.trim()) {
@@ -214,7 +214,7 @@ export default function Profile() {
       });
       setPwdDialogOpen(false);
       setCurrentPwd(''); setNewPwd('');
-      toast({ title: 'Password changed successfully', variant: 'success' });
+      toast({ title: 'Password changed successfully', variant: 'default' });
     } catch {
       toast({ title: 'Password change failed', variant: 'destructive' });
     } finally {
@@ -501,15 +501,18 @@ export default function Profile() {
 
       {/* EDIT MODAL */}
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
-        <DialogContent className="max-w-2xl w-full bg-white rounded-2xl shadow-2xl p-0 border-0">
-          <form onSubmit={e => { e.preventDefault(); handleSave(); }}>
-            <DialogHeader className="space-y-1 px-8 pt-8 pb-2 text-center">
-              <DialogTitle className="text-2xl font-black text-blue-700 tracking-tight mb-1">Edit Profile</DialogTitle>
-              <DialogDescription className="text-base text-slate-500 mb-2">
+        <DialogContent className="sm:max-w-[90vw] md:max-w-[80vw] lg:max-w-3xl max-h-[85vh] overflow-hidden p-0">
+          <form onSubmit={e => { e.preventDefault(); handleSave(); }} className="flex flex-col max-h-[85vh]">
+            <DialogHeader className="px-6 pt-6 pb-4 border-b">
+              <DialogTitle className="flex items-center gap-2 text-xl">
+                <UserCircle className="h-5 w-5 text-primary" />
+                Edit Profile
+              </DialogTitle>
+              <DialogDescription className="mt-1.5">
                 Edit only fields you want to update.
               </DialogDescription>
             </DialogHeader>
-            <div className="max-h-[60vh] overflow-y-auto px-8 pt-2 pb-1">
+            <div className="flex-1 overflow-y-auto px-6 py-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div><Label>First Name</Label>
                   <Input value={form.firstName || ""} onChange={e => handleChange("firstName", e.target.value)} required autoFocus />
@@ -619,16 +622,20 @@ export default function Profile() {
                 </div>
               </div>
             </div>
-            <DialogFooter className="flex flex-col py-6 px-8">
-              <div className="text-xs text-slate-500 text-center pb-4">
-                All changes need to be saved for updates to apply.
-              </div>
-              <div className="flex justify-center gap-4">
-                <Button type="button" variant="outline" onClick={() => setIsEditing(false)} disabled={saving}>Cancel</Button>
-                <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
-                  {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Save Changes
-                </Button>
+            <DialogFooter className="px-6 py-4 border-t bg-muted/30">
+              <div className="flex flex-col sm:flex-row gap-3 w-full">
+                <div className="text-xs text-muted-foreground flex-1 flex items-center">
+                  All changes need to be saved for updates to apply.
+                </div>
+                <div className="flex gap-2 sm:ml-auto">
+                  <Button type="button" variant="outline" onClick={() => setIsEditing(false)} disabled={saving} className="flex-1 sm:flex-none">
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={saving} className="flex-1 sm:flex-none">
+                    {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Save Changes
+                  </Button>
+                </div>
               </div>
             </DialogFooter>
           </form>
@@ -637,38 +644,37 @@ export default function Profile() {
 
       {/* PASSWORD MODAL */}
       <Dialog open={pwdDialogOpen} onOpenChange={setPwdDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-md p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
             <DialogTitle className="flex items-center gap-2 text-xl">
-              <Lock className="h-5 w-5 text-blue-600" />
+              <Lock className="h-5 w-5 text-primary" />
               Change Password
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="mt-1.5">
               Enter your current password and choose a new password
             </DialogDescription>
           </DialogHeader>
-          <form className="space-y-4 pt-4" onSubmit={handlePwdChange}>
+          <form className="space-y-4 px-6 py-4" onSubmit={handlePwdChange}>
             <div className="space-y-2">
-              <Label className="text-sm font-semibold text-slate-700">Current Password</Label>
+              <Label>Current Password</Label>
               <div className="relative">
                 <Input
                   type={showCurrentPwd ? "text" : "password"}
                   value={currentPwd}
                   onChange={e => setCurrentPwd(e.target.value)}
                   required
-                  className="h-11 pr-12 border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
                 <button
                   type="button"
                   onClick={() => setShowCurrentPwd(s => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   tabIndex={-1}>
-                  {showCurrentPwd ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  {showCurrentPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-sm font-semibold text-slate-700">New Password</Label>
+              <Label>New Password</Label>
               <div className="relative">
                 <Input
                   type={showNewPwd ? "text" : "password"}
@@ -676,25 +682,26 @@ export default function Profile() {
                   minLength={6}
                   onChange={e => setNewPwd(e.target.value)}
                   required
-                  className="h-11 pr-12 border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
                 <button
                   type="button"
                   onClick={() => setShowNewPwd(s => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   tabIndex={-1}>
-                  {showNewPwd ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  {showNewPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
-            <DialogFooter className="gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => setPwdDialogOpen(false)} disabled={savingPwd} className="border-slate-300">
-                Cancel
-              </Button>
-              <Button type="submit" disabled={savingPwd} className="bg-blue-600 hover:bg-blue-700">
-                {savingPwd ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                Update Password
-              </Button>
+            <DialogFooter className="pt-2">
+              <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
+                <Button type="button" variant="outline" onClick={() => setPwdDialogOpen(false)} disabled={savingPwd} className="flex-1 sm:flex-none">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={savingPwd} className="flex-1 sm:flex-none">
+                  {savingPwd ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Update
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </DialogContent>

@@ -263,6 +263,35 @@ export default function Borrowers() {
     staleTime: 30_000,
   });
 
+  // Fetch all customer history for total borrowed and recovered stats
+  const fetchAllHistory = async (): Promise<HistoryTransaction[]> => {
+    if (!orgId) return [];
+    try {
+      const url = `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/history`;
+      const res = await axios.get(url, { timeout: 20000 });
+      const data = res.data;
+
+      if (data && typeof data === 'object' && 'content' in data && Array.isArray(data.content)) {
+        return data.content;
+      }
+      if (Array.isArray(data)) {
+        return data;
+      }
+      return [];
+    } catch (err: any) {
+      console.error('Failed to fetch history:', err);
+      return [];
+    }
+  };
+
+  const { data: allHistory = [] } = useQuery({
+    queryKey: ['customerHistory', orgId],
+    queryFn: fetchAllHistory,
+    enabled: !!orgId,
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+  });
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return customers;
@@ -282,6 +311,7 @@ export default function Borrowers() {
       PAID: [] as Customer[],
       OTHER: [] as Customer[]
     };
+    
     for (const c of filtered) {
       const s = norm(c.status);
       if (s === 'OVERDUE') groups.OVERDUE.push(c);
@@ -290,11 +320,39 @@ export default function Borrowers() {
       else if (s === 'PAID') groups.PAID.push(c);
       else groups.OTHER.push(c);
     }
+    
+    // Sort each group: Active customers first, then Inactive customers
+    const sortByLifecycleStatus = (a: Customer, b: Customer) => {
+      const aActive = a.lifecycleStatus === 'ACTIVE' ? 0 : 1;
+      const bActive = b.lifecycleStatus === 'ACTIVE' ? 0 : 1;
+      return aActive - bActive;
+    };
+    
+    groups.OVERDUE.sort(sortByLifecycleStatus);
+    groups.PENDING.sort(sortByLifecycleStatus);
+    groups.PARTIAL.sort(sortByLifecycleStatus);
+    groups.PAID.sort(sortByLifecycleStatus);
+    groups.OTHER.sort(sortByLifecycleStatus);
+    
     return groups;
   }, [filtered]);
 
   const handleToggleLifecycleStatus = async (customer: Customer) => {
     const newStatus = customer.lifecycleStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    
+    // Prevent inactivating customer with pending balance
+    if (newStatus === 'INACTIVE') {
+      const currentBalance = Number(customer.amountBorrowed || 0);
+      if (currentBalance > 0) {
+        toast({
+          title: '❌ Cannot Inactive Customer',
+          description: `This customer has a pending balance of ₹${currentBalance.toLocaleString()}. Please clear the balance before inactivating.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+    
     try {
       await axios.put(
         `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers/${customer.id}/lifecycle-status`,
@@ -304,7 +362,7 @@ export default function Borrowers() {
       toast({
         title: 'Success',
         description: `Borrower status updated to ${newStatus}`,
-        variant: 'success',
+        variant: 'default',
       });
       await refetch();
     } catch (err: any) {
@@ -324,13 +382,34 @@ export default function Borrowers() {
     const pendingCount = customers.filter((c) => (c.status || '').toUpperCase() === 'PENDING').length;
     const partialCount = customers.filter((c) => (c.status || '').toUpperCase() === 'PARTIAL').length;
     const paidCount = customers.filter((c) => (c.status || '').toUpperCase() === 'PAID').length;
+    
+    // Calculate total amount borrowed and recovered from history
+    let historyTotalBorrowed = 0;
+    let historyTotalRecovered = 0;
+    
+    allHistory.forEach((transaction) => {
+      const amount = Number(transaction.transactionAmount) || 0;
+      if (amount < 0) {
+        // Negative amounts are borrowed (Extra Borrowed)
+        historyTotalBorrowed += Math.abs(amount);
+      } else if (amount > 0) {
+        // Positive amounts are payments (recovered)
+        historyTotalRecovered += amount;
+      }
+    });
+    
+    const pendingAmount = historyTotalBorrowed - historyTotalRecovered;
+    
     return [
       { title: 'Total Borrowers', value: total.toString(), change: 'Active records', icon: Users, color: 'text-primary', bgColor: 'bg-primary-soft' },
-      { title: 'Total Borrowed', value: `₹${totalBorrowed.toLocaleString()}`, change: 'Sum of principal', icon: IndianRupee, color: 'text-accent', bgColor: 'bg-accent-soft' },
+      { title: 'Total Borrowed', value: `₹${totalBorrowed.toLocaleString()}`, change: 'Current outstanding', icon: IndianRupee, color: 'text-accent', bgColor: 'bg-accent-soft' },
+      { title: 'Amount Borrowed', value: `₹${historyTotalBorrowed.toLocaleString()}`, change: 'From history', icon: TrendingDown, color: 'text-orange-600', bgColor: 'bg-orange-50' },
+      { title: 'Amount Recovered', value: `₹${historyTotalRecovered.toLocaleString()}`, change: 'From history', icon: TrendingUp, color: 'text-green-600', bgColor: 'bg-green-50' },
+      { title: 'Pending Amount', value: `₹${pendingAmount.toLocaleString()}`, change: 'Borrowed - Recovered', icon: CreditCard, color: 'text-purple-600', bgColor: 'bg-purple-50' },
       { title: 'Overdue', value: overdueCount.toString(), change: 'Need attention', icon: AlertTriangle, color: 'text-destructive', bgColor: 'bg-destructive/10' },
-      { title: 'P/P/P', value: `${pendingCount}/${partialCount}/${paidCount}`, change: 'Pending/Partial/Paid', icon: TrendingUp, color: 'text-success', bgColor: 'bg-success-soft' }
+      { title: 'P/P/P', value: `${pendingCount}/${partialCount}/${paidCount}`, change: 'Pending/Partial/Paid', icon: Clock, color: 'text-blue-600', bgColor: 'bg-blue-50' }
     ];
-  }, [customers]);
+  }, [customers, allHistory]);
 
   const recentEvents = useMemo(() => {
     return customers.map((c) => ({
@@ -412,14 +491,14 @@ export default function Borrowers() {
           payload,
           { timeout: 20000 }
         );
-        toast({ title: 'Success', description: 'Customer details updated successfully!', variant: 'success' });
+        toast({ title: 'Success', description: 'Customer details updated successfully!', variant: 'default' });
       } else {
         await axios.post(
           `${API_BASE}/api/organizations/${encodeURIComponent(orgId)}/customers`,
           payload,
           { timeout: 20000 }
         );
-        toast({ title: 'Success', description: `Borrower created with ID: ${payload.custId}`, variant: 'success' });
+        toast({ title: 'Success', description: `Borrower created with ID: ${payload.custId}`, variant: 'default' });
       }
 
       setForm({
@@ -548,6 +627,8 @@ export default function Borrowers() {
     }
 
     const currentBalance = Number(selectedCustomer?.amountBorrowed || 0);
+    
+    // Prevent payment if no outstanding balance
     if (transactionForm.transactionAmount > 0 && currentBalance <= 0) {
       toast({
         title: 'Cannot Record Payment',
@@ -557,12 +638,14 @@ export default function Borrowers() {
       return;
     }
 
-    if (transactionForm.transactionAmount > currentBalance) {
+    // Prevent payment if amount exceeds current balance
+    if (transactionForm.transactionAmount > 0 && transactionForm.transactionAmount > currentBalance) {
       toast({
-        title: 'Warning',
-        description: `Payment amount (₹${transactionForm.transactionAmount.toLocaleString()}) exceeds outstanding balance (₹${currentBalance.toLocaleString()}). Balance will be set to ₹0.`,
-        variant: 'default'
+        title: '❌ Payment Exceeds Balance',
+        description: `Cannot accept payment of ₹${transactionForm.transactionAmount.toLocaleString()}. Current outstanding balance is only ₹${currentBalance.toLocaleString()}.`,
+        variant: 'destructive'
       });
+      return;
     }
 
     setTransactionSubmitting(true);
@@ -572,7 +655,7 @@ export default function Borrowers() {
         transactionForm,
         { timeout: 20000 }
       );
-      toast({ title: 'Success', description: 'Transaction recorded successfully.', variant: 'success' });
+      toast({ title: 'Success', description: 'Transaction recorded successfully.', variant: 'default' });
       await refetch();
       setTransactionOpen(false);
       if (historyOpen && selectedCustomer?.custId === transactionForm.custId) {

@@ -43,16 +43,17 @@ type Task = {
 
 type Duty = {
   id: string;
-  empId?: string;
-  dutyDate?: string;
-  productId?: string;
-  products?: string[];
-  gunIds?: string[];
-  guns?: string[];
-  shiftStart?: string;
-  shiftEnd?: string;
-  totalHours?: number;
-  status?: "SCHEDULED" | "ACTIVE" | "COMPLETED";
+  organizationId: string;
+  empId: string;
+  dutyDate: string;
+  productIds: string[];
+  gunIds: string[];
+  shiftStart: string;
+  shiftEnd: string;
+  totalHours: number;
+  status: "SCHEDULED" | "ACTIVE" | "COMPLETED";
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 // ---------- IST utilities ----------
@@ -580,6 +581,39 @@ const DailySection: React.FC<{
     refetchOnWindowFocus: true,
   });
 
+  // Fetch products and guns
+  const { data: products = [] } = useQuery({
+    queryKey: ["products", orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/products`);
+      return Array.isArray(res.data) ? res.data : [];
+    },
+    enabled: !!orgId,
+  });
+
+  const { data: guns = [] } = useQuery({
+    queryKey: ["guns", orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/guninfo`);
+      return Array.isArray(res.data) ? res.data : [];
+    },
+    enabled: !!orgId,
+  });
+
+  // Get product name by ID
+  const getProductName = (productId: string) => {
+    const product = products.find((p: any) => p.id === productId);
+    return product?.productName || productId;
+  };
+
+  // Get gun name by ID
+  const getGunName = (gunId: string) => {
+    const gun = guns.find((g: any) => g.id === gunId);
+    return gun?.guns || gunId;
+  };
+
   React.useEffect(() => {
     const handler = () => refetchDuties();
     window.addEventListener("refresh-duties", handler);
@@ -604,10 +638,9 @@ const DailySection: React.FC<{
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter((d: Duty) => {
-        const productsText = Array.isArray(d.products) ? d.products.join(" ").toLowerCase() : "";
-        const gunsText = Array.isArray(d.guns) ? d.guns.join(" ").toLowerCase() : "";
+        const productsText = Array.isArray(d.productIds) ? d.productIds.join(" ").toLowerCase() : "";
+        const gunsText = Array.isArray(d.gunIds) ? d.gunIds.join(" ").toLowerCase() : "";
         return (
-          String(d.productId || "").toLowerCase().includes(q) ||
           productsText.includes(q) ||
           String(d.empId || "").toLowerCase().includes(q) ||
           String(d.dutyDate || "").toLowerCase().includes(q) ||
@@ -797,13 +830,6 @@ const DailySection: React.FC<{
 
           {!fetchingDuties &&
             paginated.map((duty: Duty) => {
-              const productDisplay = duty.productId || (Array.isArray(duty.products) ? duty.products.join(", ") : "—");
-              const gunsCount = Array.isArray(duty.gunIds)
-                ? duty.gunIds.length
-                : Array.isArray(duty.guns)
-                ? duty.guns.length
-                : 0;
-
               return (
                 <div
                   key={duty.id}
@@ -821,42 +847,57 @@ const DailySection: React.FC<{
                         <Badge className={statusBadgeClass(duty.status)}>{duty.status || "SCHEDULED"}</Badge>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm pt-2">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-blue-600" />
-                          <span className="text-muted-foreground">Date:</span>
-                          <span className="font-medium">{duty.dutyDate || "—"}</span>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 text-sm pt-2">
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-blue-600" />
+                            <span className="text-muted-foreground">Date:</span>
+                            <span className="font-medium">{duty.dutyDate || "—"}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-orange-600" />
+                            <span className="text-muted-foreground">Shift:</span>
+                            <span className="font-medium">
+                              {(duty.shiftStart || "—")} - {(duty.shiftEnd || "—")}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Timer className="h-4 w-4 text-green-600" />
+                            <span className="text-muted-foreground">Hours:</span>
+                            <span className="font-medium">
+                              {typeof duty.totalHours === "number"
+                                ? duty.totalHours.toFixed(1)
+                                : calculateHours(duty.shiftStart, duty.shiftEnd)}h
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <Target className="h-4 w-4 text-purple-600" />
-                          <span className="text-muted-foreground">Product:</span>
-                          <span className="font-medium">{productDisplay}</span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-orange-600" />
-                          <span className="text-muted-foreground">Shift:</span>
-                          <span className="font-medium">
-                            {(duty.shiftStart || "—")} - {(duty.shiftEnd || "—")}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <Timer className="h-4 w-4 text-green-600" />
-                          <span className="text-muted-foreground">Hours:</span>
-                          <span className="font-medium">
-                            {typeof duty.totalHours === "number"
-                              ? duty.totalHours.toFixed(1)
-                              : calculateHours(duty.shiftStart, duty.shiftEnd)}h
-                          </span>
-                        </div>
-
-                        {gunsCount > 0 && (
-                          <div className="flex items-center gap-2 col-span-2">
-                            <Fuel className="h-4 w-4 text-red-600" />
-                            <span className="text-muted-foreground">Guns:</span>
-                            <span className="font-medium">{gunsCount} assigned</span>
+                        {/* Products & Guns Assignment */}
+                        {duty.productIds && duty.productIds.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Target className="h-4 w-4 text-purple-600" />
+                              <span className="text-muted-foreground">Assigned Products & Guns:</span>
+                            </div>
+                            <div className="space-y-1.5 pl-6">
+                              {duty.productIds.map((productId, index) => {
+                                const gunId = duty.gunIds[index];
+                                return (
+                                  <div key={index} className="flex items-center gap-2">
+                                    <Badge variant="outline" className="bg-purple-500/10 text-purple-700 border-purple-500/20 text-xs">
+                                      {getProductName(productId)}
+                                    </Badge>
+                                    <span className="text-muted-foreground text-xs">→</span>
+                                    <Badge variant="outline" className="bg-red-500/10 text-red-700 border-red-500/20 text-xs">
+                                      <Fuel className="h-3 w-3 mr-1" />
+                                      {getGunName(gunId)}
+                                    </Badge>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>

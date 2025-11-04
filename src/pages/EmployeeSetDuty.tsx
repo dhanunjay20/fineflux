@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
-import { Search, Eye, Users, UserCheck, Briefcase, ClipboardList, Star, Calendar, X, Mail, Phone, Clock, Filter, Fuel, CheckCircle2, AlertCircle, Target, Loader2 } from "lucide-react";
+import { Search, Eye, Users, UserCheck, Briefcase, ClipboardList, Star, Calendar, X, Mail, Phone, Clock, Filter, Fuel, CheckCircle2, AlertCircle, Target, Loader2, Edit, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -47,14 +47,26 @@ type TaskCreate = {
 };
 
 type DailyDutyCreate = {
-  orgId: string;
+  organizationId: string;
   empId: string;
   dutyDate: string;
-  products: string[];
-  guns: string[];
+  productIds: string[];
+  gunIds: string[];
   shiftStart: string;
   shiftEnd: string;
   status?: string;
+};
+
+type DailyDuty = {
+  id: string;
+  empId: string;
+  employeeName?: string;
+  dutyDate: string;
+  productIds: string[];
+  gunIds: string[];
+  shiftStart: string;
+  shiftEnd: string;
+  status: string;
 };
 
 function formatTime(time?: string) {
@@ -115,6 +127,23 @@ export default function EmployeeSetDuty() {
     },
     enabled: !!orgId,
   });
+
+  // Fetch all duties for the organization
+  const { data: allDuties = [], refetch: refetchDuties } = useQuery({
+    queryKey: ["allDuties", orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employee-duties`);
+      return Array.isArray(res.data) ? res.data : Array.isArray(res.data?.content) ? res.data.content : [];
+    },
+    enabled: !!orgId,
+  });
+
+  // Filter today's duties from all duties
+  const todayDuties = useMemo(() => {
+    const today = getTodayIST();
+    return allDuties.filter((duty: any) => duty.dutyDate === today);
+  }, [allDuties]);
 
   const employees = Array.isArray(employeesRaw)
     ? employeesRaw.filter((e: any) => (e.status ?? "").toLowerCase() === "active")
@@ -186,7 +215,7 @@ export default function EmployeeSetDuty() {
 
   // Daily Duty State
   const [dailyDutyOpen, setDailyDutyOpen] = useState(false);
-  const [dailyDutyForm, setDailyDutyForm] = useState<Omit<DailyDutyCreate, 'orgId' | 'products' | 'guns'>>({
+  const [dailyDutyForm, setDailyDutyForm] = useState<Omit<DailyDutyCreate, 'organizationId' | 'productIds' | 'gunIds'>>({
     empId: "",
     dutyDate: getTodayIST(),
     shiftStart: "",
@@ -196,6 +225,14 @@ export default function EmployeeSetDuty() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [productGuns, setProductGuns] = useState<Record<string, string[]>>({});
   const [validationErr, setValidationErr] = useState<string | null>(null);
+
+  // Edit duty state
+  const [editDutyOpen, setEditDutyOpen] = useState(false);
+  const [editingDuty, setEditingDuty] = useState<DailyDuty | null>(null);
+
+  // Delete duty state
+  const [deleteDutyOpen, setDeleteDutyOpen] = useState(false);
+  const [deletingDuty, setDeletingDuty] = useState<DailyDuty | null>(null);
 
   // Mutation for creating daily duty
   const createDutyMutation = useMutation({
@@ -212,6 +249,8 @@ export default function EmployeeSetDuty() {
         description: `Daily duty assigned to ${currentEmp?.firstName} ${currentEmp?.lastName}`,
       });
       queryClient.invalidateQueries({ queryKey: ["employee-duties", orgId] });
+      queryClient.invalidateQueries({ queryKey: ["allDuties", orgId] });
+      refetchDuties();
       setDailyDutyOpen(false);
       resetDailyForm();
     },
@@ -219,6 +258,66 @@ export default function EmployeeSetDuty() {
       const errorMsg = error?.response?.data?.message || error?.message || "Could not assign daily duty.";
       toast({
         title: "Assignment Failed",
+        description: errorMsg,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation for updating daily duty
+  const updateDutyMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: DailyDutyCreate }) => {
+      const response = await axios.put(
+        `${API_BASE}/api/organizations/${orgId}/employee-duties/${id}`,
+        data
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Daily duty updated successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["employee-duties", orgId] });
+      queryClient.invalidateQueries({ queryKey: ["allDuties", orgId] });
+      refetchDuties();
+      setEditDutyOpen(false);
+      setEditingDuty(null);
+      resetDailyForm();
+    },
+    onError: (error: any) => {
+      const errorMsg = error?.response?.data?.message || error?.message || "Could not update duty.";
+      toast({
+        title: "Update Failed",
+        description: errorMsg,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation for deleting daily duty
+  const deleteDutyMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await axios.delete(
+        `${API_BASE}/api/organizations/${orgId}/employee-duties/${id}`
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Daily duty deleted successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["employee-duties", orgId] });
+      queryClient.invalidateQueries({ queryKey: ["allDuties", orgId] });
+      refetchDuties();
+      setDeleteDutyOpen(false);
+      setDeletingDuty(null);
+    },
+    onError: (error: any) => {
+      const errorMsg = error?.response?.data?.message || error?.message || "Could not delete duty.";
+      toast({
+        title: "Delete Failed",
         description: errorMsg,
         variant: "destructive",
       });
@@ -309,6 +408,90 @@ export default function EmployeeSetDuty() {
     setValidationErr(null);
   }
 
+  function openEditDutyDialog(duty: DailyDuty) {
+    const emp = employees.find((e: Employee) => e.empId === duty.empId);
+    setCurrentEmp(emp || null);
+    setEditingDuty(duty);
+    setDailyDutyForm({
+      empId: duty.empId,
+      dutyDate: duty.dutyDate,
+      shiftStart: duty.shiftStart,
+      shiftEnd: duty.shiftEnd,
+      status: duty.status || "SCHEDULED",
+    });
+    
+    // Set selected products and guns from duty
+    setSelectedProducts(duty.productIds || []);
+    
+    // Group guns by product
+    const gunsByProduct: Record<string, string[]> = {};
+    duty.productIds?.forEach(productName => {
+      const gunsForProduct = (duty.gunIds || []).filter((gunName: string) => {
+        const gun = guns.find((g: any) => g.guns === gunName);
+        return gun?.productName === productName;
+      });
+      gunsByProduct[productName] = gunsForProduct;
+    });
+    setProductGuns(gunsByProduct);
+    
+    setEditDutyOpen(true);
+    setValidationErr(null);
+  }
+
+  function openDeleteDutyDialog(duty: DailyDuty) {
+    setDeletingDuty(duty);
+    setDeleteDutyOpen(true);
+  }
+
+  async function handleUpdateDuty(e: React.FormEvent) {
+    e.preventDefault();
+
+    if (!editingDuty) return;
+
+    if (!dailyDutyForm.empId) {
+      setValidationErr("Employee is required");
+      return;
+    }
+    if (selectedProducts.length === 0) {
+      setValidationErr("At least one product is required");
+      return;
+    }
+    
+    const allGuns = selectedProducts.flatMap(product => productGuns[product] || []);
+    
+    if (allGuns.length === 0) {
+      setValidationErr("At least one gun is required");
+      return;
+    }
+    if (!dailyDutyForm.shiftStart || !dailyDutyForm.shiftEnd) {
+      setValidationErr("Shift start and end times are required");
+      return;
+    }
+
+    setValidationErr(null);
+    
+    const dutyDateFormatted = dayjs(dailyDutyForm.dutyDate).format("YYYY-MM-DD");
+
+    updateDutyMutation.mutate({
+      id: editingDuty.id,
+      data: {
+        organizationId: orgId,
+        empId: dailyDutyForm.empId,
+        dutyDate: dutyDateFormatted,
+        productIds: selectedProducts,
+        gunIds: allGuns,
+        shiftStart: dailyDutyForm.shiftStart,
+        shiftEnd: dailyDutyForm.shiftEnd,
+        status: dailyDutyForm.status || "SCHEDULED"
+      }
+    });
+  }
+
+  async function handleDeleteDuty() {
+    if (!deletingDuty) return;
+    deleteDutyMutation.mutate(deletingDuty.id);
+  }
+
   async function assignSpecialDuty(e: React.FormEvent) {
     e.preventDefault();
     if (!specialDutyForm.taskTitle || !specialDutyForm.assignedToEmpId || !specialDutyForm.priority) {
@@ -352,11 +535,11 @@ export default function EmployeeSetDuty() {
     const dutyDateFormatted = dayjs(dailyDutyForm.dutyDate).format("YYYY-MM-DD");
 
     createDutyMutation.mutate({
-      orgId,
+      organizationId: orgId,
       empId: dailyDutyForm.empId,
       dutyDate: dutyDateFormatted,
-      products: selectedProducts,
-      guns: allGuns,
+      productIds: selectedProducts,
+      gunIds: allGuns,
       shiftStart: dailyDutyForm.shiftStart,
       shiftEnd: dailyDutyForm.shiftEnd,
       status: dailyDutyForm.status || "SCHEDULED"
@@ -480,90 +663,179 @@ export default function EmployeeSetDuty() {
         </CardContent>
       </Card>
 
-      {/* Employee List */}
-      <Card className="card-gradient">
-        <CardHeader>
-          <CardTitle>Active Employees ({filtered.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading && <div className="text-muted-foreground">Loading employees…</div>}
-          {!isLoading && (
-            <div className="space-y-4">
-              {filtered.map((emp: Employee) => {
-                const fullName = `${emp.firstName} ${emp.lastName}`;
-                const start = formatTime(emp.shiftTiming?.start);
-                const end = formatTime(emp.shiftTiming?.end);
-                return (
-                  <div
-                    key={emp.empId}
-                    className="grid gap-3 sm:grid-cols-[1fr_auto] items-start sm:items-center p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-4 min-w-0">
-                      <Avatar className="h-12 w-12 shrink-0">
-                        {emp.profileImageUrl ? (
-                          <AvatarImage src={emp.profileImageUrl} alt={fullName} />
-                        ) : (
-                          <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
-                            {getUserInitials(fullName)}
-                          </AvatarFallback>
-                        )}
-                      </Avatar>
+      {/* Two Column Layout: Active Employees | Today's Duties */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Active Employees */}
+        <Card className="card-gradient">
+          <CardHeader>
+            <CardTitle>Active Employees ({filtered.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading && <div className="text-muted-foreground">Loading employees…</div>}
+            {!isLoading && (
+              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+                {filtered.map((emp: Employee) => {
+                  const fullName = `${emp.firstName} ${emp.lastName}`;
+                  return (
+                    <div
+                      key={emp.empId}
+                      className="p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <Avatar className="h-10 w-10 shrink-0">
+                          {emp.profileImageUrl ? (
+                            <AvatarImage src={emp.profileImageUrl} alt={fullName} />
+                          ) : (
+                            <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-xs">
+                              {getUserInitials(fullName)}
+                            </AvatarFallback>
+                          )}
+                        </Avatar>
 
-                      <div className="space-y-1 min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-semibold text-foreground truncate">{fullName}</h3>
-                          <Badge className="shrink-0">{emp.role}</Badge>
-                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-semibold text-sm text-foreground truncate">{fullName}</h3>
+                            <Badge className="shrink-0 text-xs">{emp.role}</Badge>
+                          </div>
 
-                        <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground min-w-0">
-                          <div className="flex items-center gap-1 min-w-0">
-                            <Mail className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{emp.emailId}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Phone className="h-3 w-3" />
-                            <span>{emp.phoneNumber || "—"}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            <span>Shift: {start && end ? `${start} — ${end}` : "—"}</span>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                              <div className="flex items-center gap-1 min-w-0">
+                                <Mail className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{emp.emailId}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Phone className="h-3 w-3 shrink-0" />
+                                <span>{emp.phoneNumber || "—"}</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full sm:w-auto"
-                        onClick={() => openSpecialDutyDialog(emp)}
-                      >
-                        <Star className="mr-1 h-4 w-4" />
-                        Special Duty
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="w-full sm:w-auto"
-                        onClick={() => openDailyDutyDialog(emp)}
-                      >
-                        <Calendar className="mr-1 h-4 w-4" />
-                        Daily Duty
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 h-8 text-xs"
+                          onClick={() => openSpecialDutyDialog(emp)}
+                        >
+                          <Star className="mr-1 h-3 w-3" />
+                          Special
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="flex-1 h-8 text-xs"
+                          onClick={() => openDailyDutyDialog(emp)}
+                        >
+                          <Calendar className="mr-1 h-3 w-3" />
+                          Daily
+                        </Button>
+                      </div>
                     </div>
+                  );
+                })}
+                {filtered.length === 0 && (
+                  <div className="text-sm text-muted-foreground text-center py-8">
+                    No employees match the current filter.
                   </div>
-                );
-              })}
-              {filtered.length === 0 && (
-                <div className="text-sm text-muted-foreground">
-                  No employees match the current filter.
-                </div>
-              )}
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Today's Assigned Duties */}
+        <Card className="card-gradient border-primary/20">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-primary" />
+                <CardTitle>Today's Duties ({todayDuties.length})</CardTitle>
+              </div>
+              <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
+                {dayjs().tz(IST_TIMEZONE).format("DD MMM")}
+              </Badge>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            {todayDuties.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p className="text-sm">No duties assigned for today</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+                {todayDuties.map((duty: DailyDuty) => {
+                  const emp = employees.find((e: Employee) => e.empId === duty.empId);
+                  const fullName = emp ? `${emp.firstName} ${emp.lastName}` : duty.employeeName || duty.empId;
+                  
+                  return (
+                    <div
+                      key={duty.id}
+                      className="p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors border border-border"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <Avatar className="h-10 w-10 shrink-0">
+                            {emp?.profileImageUrl ? (
+                              <AvatarImage src={emp.profileImageUrl} alt={fullName} />
+                            ) : (
+                              <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-xs">
+                                {getUserInitials(fullName)}
+                              </AvatarFallback>
+                            )}
+                          </Avatar>
+
+                          <div className="space-y-2 min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-semibold text-sm text-foreground">{fullName}</h3>
+                              <Badge variant={duty.status === 'SCHEDULED' ? 'default' : 'secondary'} className="text-xs">
+                                {duty.status}
+                              </Badge>
+                            </div>
+
+                            <div className="space-y-1 text-xs">
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Clock className="h-3 w-3 shrink-0" />
+                                <span>{duty.shiftStart} - {duty.shiftEnd}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Fuel className="h-3 w-3 shrink-0" />
+                                <span>{duty.productIds?.length || 0} Products, {duty.gunIds?.length || 0} Guns</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-1 shrink-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openEditDutyDialog(duty)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => openDeleteDutyDialog(duty)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* SPECIAL DUTY MODAL */}
       {specialDutyOpen && (
@@ -985,6 +1257,352 @@ export default function EmployeeSetDuty() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT DUTY MODAL - Same structure as Daily Duty but for editing */}
+      {editDutyOpen && (
+        <div
+          className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300"
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setEditDutyOpen(false);
+              setValidationErr(null);
+            }
+          }}
+        >
+          <div
+            className="relative bg-background shadow-2xl rounded-2xl w-full max-w-3xl max-h-[95vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* STICKY HEADER */}
+            <div className="sticky top-0 z-10 bg-background border-b px-6 py-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditDutyOpen(false);
+                  setValidationErr(null);
+                }}
+                className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              <div className="flex items-center gap-3 pr-12">
+                {currentEmp && (
+                  <Avatar className="h-12 w-12 ring-2 ring-primary/20">
+                    {currentEmp.profileImageUrl ? (
+                      <AvatarImage src={currentEmp.profileImageUrl} alt={`${currentEmp.firstName} ${currentEmp.lastName}`} />
+                    ) : (
+                      <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white font-bold">
+                        {getUserInitials(`${currentEmp.firstName} ${currentEmp.lastName}`)}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Edit className="h-5 w-5 text-primary shrink-0" />
+                    <h2 className="text-xl font-bold truncate">Edit Daily Duty</h2>
+                  </div>
+                  <p className="text-sm text-muted-foreground truncate">
+                    {currentEmp?.firstName} {currentEmp?.lastName} • {currentEmp?.empId}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* SCROLLABLE CONTENT */}
+            <form onSubmit={handleUpdateDuty} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+                {/* Duty Date */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    <Label htmlFor="editDutyDate" className="font-semibold">Duty Date *</Label>
+                  </div>
+                  <Input
+                    id="editDutyDate"
+                    type="date"
+                    required
+                    min={getTodayIST()}
+                    value={dailyDutyForm.dutyDate}
+                    onChange={(e) => setDailyDutyForm((f) => ({ ...f, dutyDate: e.target.value }))}
+                    className="h-11"
+                  />
+                </div>
+
+                {/* Products Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Fuel className="h-4 w-4 text-primary" />
+                      <Label className="font-semibold">Products *</Label>
+                    </div>
+                    {selectedProducts.length > 0 && (
+                      <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        {selectedProducts.length} selected
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {products.map((product: any) => {
+                      const isSelected = selectedProducts.includes(product.productName);
+                      return (
+                        <div
+                          key={product.productName}
+                          onClick={() => toggleProductSelection(product.productName)}
+                          className={`relative p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${isSelected ? 'border-primary bg-primary/5 shadow-md' : 'border-border hover:border-primary/50 hover:bg-muted/50'}`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`mt-0.5 h-5 w-5 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${isSelected ? 'bg-primary border-primary' : 'border-muted-foreground'}`}>
+                              {isSelected && <CheckCircle2 className="h-3 w-3 text-white" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{product.productName}</p>
+                              <p className="text-xs text-muted-foreground">{product.productType || 'Fuel Product'}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Guns Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Target className="h-4 w-4 text-primary" />
+                      <Label className="font-semibold">Guns *</Label>
+                    </div>
+                    {Object.values(productGuns).flat().length > 0 && (
+                      <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        {Object.values(productGuns).flat().length} selected
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    {selectedProducts.length === 0 ? (
+                      <div className="text-center py-8 border-2 border-dashed rounded-lg bg-muted/30">
+                        <Target className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">Select products first to enable guns</p>
+                      </div>
+                    ) : (
+                      selectedProducts.map(productName => {
+                        const productGunList = guns.filter((gun: any) => gun.productName === productName);
+                        if (productGunList.length === 0) return null;
+                        
+                        return (
+                          <div key={productName} className="space-y-2">
+                            <div className="flex items-center justify-between px-2">
+                              <Label className="text-sm font-medium text-muted-foreground">{productName}</Label>
+                              {productGuns[productName]?.length > 0 && (
+                                <Badge variant="secondary" className="text-xs">{productGuns[productName].length} selected</Badge>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {productGunList.map((gun: any) => {
+                                const isSelected = productGuns[productName]?.includes(gun.guns);
+                                return (
+                                  <div
+                                    key={gun.guns}
+                                    onClick={() => toggleGunSelection(productName, gun.guns)}
+                                    className={`relative p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${isSelected ? 'border-primary bg-primary/5 shadow-md' : 'border-border hover:border-primary/50 hover:bg-muted/50'}`}
+                                  >
+                                    <div className="flex items-start gap-3">
+                                      <div className={`mt-0.5 h-5 w-5 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${isSelected ? 'bg-primary border-primary' : 'border-muted-foreground'}`}>
+                                        {isSelected && <CheckCircle2 className="h-3 w-3 text-white" />}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-medium truncate">{gun.guns}</p>
+                                        <p className="text-xs text-muted-foreground truncate">{gun.serialNumber || 'N/A'}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Shift Times */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-primary" />
+                    <Label className="font-semibold">Shift Timing *</Label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="editShiftStart" className="text-xs text-muted-foreground">Start Time</Label>
+                      <Input
+                        id="editShiftStart"
+                        type="time"
+                        required
+                        value={dailyDutyForm.shiftStart}
+                        onChange={(e) => setDailyDutyForm((f) => ({ ...f, shiftStart: e.target.value }))}
+                        className="h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="editShiftEnd" className="text-xs text-muted-foreground">End Time</Label>
+                      <Input
+                        id="editShiftEnd"
+                        type="time"
+                        required
+                        value={dailyDutyForm.shiftEnd}
+                        onChange={(e) => setDailyDutyForm((f) => ({ ...f, shiftEnd: e.target.value }))}
+                        className="h-11"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Validation Error */}
+                {validationErr && (
+                  <div className="flex items-start gap-3 p-4 rounded-lg bg-destructive/10 border border-destructive/20">
+                    <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                    <p className="text-sm font-semibold text-destructive">{validationErr}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* STICKY FOOTER */}
+              <div className="sticky bottom-0 z-10 bg-background border-t px-6 py-4">
+                <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setEditDutyOpen(false);
+                      setValidationErr(null);
+                    }}
+                    variant="outline"
+                    disabled={updateDutyMutation.isPending}
+                    className="h-11 flex-1 sm:flex-none"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={updateDutyMutation.isPending}
+                    className="btn-gradient-primary h-11 flex-1 sm:flex-none"
+                  >
+                    {updateDutyMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Update Duty
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION DIALOG */}
+      {deleteDutyOpen && deletingDuty && (
+        <div
+          className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300"
+          style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setDeleteDutyOpen(false);
+              setDeletingDuty(null);
+            }
+          }}
+        >
+          <div
+            className="relative bg-background shadow-2xl rounded-2xl w-full max-w-md p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setDeleteDutyOpen(false);
+                setDeletingDuty(null);
+              }}
+              className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-full bg-destructive/10">
+                  <Trash2 className="h-6 w-6 text-destructive" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">Delete Duty</h2>
+                  <p className="text-sm text-muted-foreground">This action cannot be undone</p>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-lg bg-muted/50 space-y-2">
+                <p className="text-sm font-medium">
+                  Are you sure you want to delete this duty assignment?
+                </p>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p><strong>Employee:</strong> {deletingDuty.employeeName || deletingDuty.empId}</p>
+                  <p><strong>Date:</strong> {dayjs(deletingDuty.dutyDate).format("DD MMM YYYY")}</p>
+                  <p><strong>Shift:</strong> {deletingDuty.shiftStart} - {deletingDuty.shiftEnd}</p>
+                  <p><strong>Products:</strong> {deletingDuty.productIds?.length || 0}</p>
+                  <p><strong>Guns:</strong> {deletingDuty.gunIds?.length || 0}</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setDeleteDutyOpen(false);
+                    setDeletingDuty(null);
+                  }}
+                  variant="outline"
+                  disabled={deleteDutyMutation.isPending}
+                  className="flex-1 h-11"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleDeleteDuty}
+                  disabled={deleteDutyMutation.isPending}
+                  variant="destructive"
+                  className="flex-1 h-11"
+                >
+                  {deleteDutyMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Duty
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

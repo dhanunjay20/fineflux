@@ -15,16 +15,17 @@ const ITEMS_PER_PAGE = 6;
 
 type Duty = {
   id: string;
-  empId?: string;
-  dutyDate?: string;
-  productId?: string;
-  products?: string[];
-  gunIds?: string[];
-  guns?: string[];
-  shiftStart?: string;
-  shiftEnd?: string;
+  organizationId: string;
+  empId: string;
+  dutyDate: string;
+  productIds: string[];
+  gunIds: string[];
+  shiftStart: string;
+  shiftEnd: string;
   totalHours?: number;
-  status?: "SCHEDULED" | "ACTIVE" | "COMPLETED";
+  status: "SCHEDULED" | "ACTIVE" | "COMPLETED";
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 type DutyTab = "SCHEDULED" | "ACTIVE" | "COMPLETED";
@@ -36,6 +37,8 @@ export default function DailyDuties() {
   const empId = localStorage.getItem("empId") || "";
 
   const [duties, setDuties] = useState<Duty[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [guns, setGuns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState<DutyTab>("SCHEDULED");
   const [page, setPage] = useState(0);
@@ -77,15 +80,35 @@ export default function DailyDuties() {
     return (hours + minutes / 60).toFixed(1);
   };
 
-  // Fetch duties
+  // Get product name by ID
+  const getProductName = (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    return product?.productName || productId;
+  };
+
+  // Get gun name by ID
+  const getGunName = (gunId: string) => {
+    const gun = guns.find(g => g.id === gunId);
+    return gun?.guns || gunId;
+  };
+
+  // Fetch duties, products, and guns
   useEffect(() => {
     if (!orgId || !empId) return;
     setLoading(true);
-    axios
-      .get(`${API_BASE}/api/organizations/${orgId}/employee-duties/employee/${empId}`)
-      .then((res) => setDuties(Array.isArray(res.data) ? res.data : []))
+    
+    Promise.all([
+      axios.get(`${API_BASE}/api/organizations/${orgId}/employee-duties/employee/${empId}`),
+      axios.get(`${API_BASE}/api/organizations/${orgId}/products`),
+      axios.get(`${API_BASE}/api/organizations/${orgId}/guninfo`)
+    ])
+      .then(([dutiesRes, productsRes, gunsRes]) => {
+        setDuties(Array.isArray(dutiesRes.data) ? dutiesRes.data : []);
+        setProducts(Array.isArray(productsRes.data) ? productsRes.data : []);
+        setGuns(Array.isArray(gunsRes.data) ? gunsRes.data : []);
+      })
       .catch((err) => {
-        console.error("Error fetching duties:", err);
+        console.error("Error fetching data:", err);
         toast({
           title: "Error",
           description: "Failed to load duties. Please try again.",
@@ -299,14 +322,6 @@ export default function DailyDuties() {
 
           {!loading &&
             paginated.map((duty) => {
-              const productDisplay =
-                duty.productId ||
-                (Array.isArray(duty.products) ? duty.products.join(", ") : "—");
-              const gunsCount = Array.isArray(duty.gunIds)
-                ? duty.gunIds.length
-                : Array.isArray(duty.guns)
-                ? duty.guns.length
-                : 0;
               const startDisabled = isFutureDate(duty.dutyDate);
               const isActionLoading = actionLoading === duty.id;
 
@@ -329,36 +344,53 @@ export default function DailyDuties() {
                         </Badge>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm pt-2">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-blue-600" />
-                          <span className="text-muted-foreground">Date:</span>
-                          <span className="font-medium">{duty.dutyDate || "—"}</span>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 text-sm pt-2">
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-blue-600" />
+                            <span className="text-muted-foreground">Date:</span>
+                            <span className="font-medium">{duty.dutyDate || "—"}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-orange-600" />
+                            <span className="text-muted-foreground">Shift:</span>
+                            <span className="font-medium">
+                              {duty.shiftStart || "—"} - {duty.shiftEnd || "—"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Timer className="h-4 w-4 text-green-600" />
+                            <span className="text-muted-foreground">Hours:</span>
+                            <span className="font-medium">
+                              {duty.totalHours || calculateHours(duty.shiftStart, duty.shiftEnd)}h
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Target className="h-4 w-4 text-purple-600" />
-                          <span className="text-muted-foreground">Product:</span>
-                          <span className="font-medium truncate">{productDisplay}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-orange-600" />
-                          <span className="text-muted-foreground">Shift:</span>
-                          <span className="font-medium">
-                            {duty.shiftStart || "—"} - {duty.shiftEnd || "—"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Timer className="h-4 w-4 text-green-600" />
-                          <span className="text-muted-foreground">Hours:</span>
-                          <span className="font-medium">
-                            {duty.totalHours || calculateHours(duty.shiftStart, duty.shiftEnd)}h
-                          </span>
-                        </div>
-                        {gunsCount > 0 && (
-                          <div className="flex items-center gap-2 col-span-2">
-                            <Fuel className="h-4 w-4 text-red-600" />
-                            <span className="text-muted-foreground">Guns:</span>
-                            <span className="font-medium">{gunsCount} assigned</span>
+
+                        {/* Products & Guns Assignment */}
+                        {duty.productIds && duty.productIds.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Target className="h-4 w-4 text-purple-600" />
+                              <span className="text-muted-foreground">Assigned Products & Guns:</span>
+                            </div>
+                            <div className="space-y-1.5 pl-6">
+                              {duty.productIds.map((productId, index) => {
+                                const gunId = duty.gunIds[index];
+                                return (
+                                  <div key={index} className="flex items-center gap-2">
+                                    <Badge variant="outline" className="bg-purple-500/10 text-purple-700 border-purple-500/20 text-xs">
+                                      {getProductName(productId)}
+                                    </Badge>
+                                    <span className="text-muted-foreground text-xs">→</span>
+                                    <Badge variant="outline" className="bg-red-500/10 text-red-700 border-red-500/20 text-xs">
+                                      <Fuel className="h-3 w-3 mr-1" />
+                                      {getGunName(gunId)}
+                                    </Badge>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>

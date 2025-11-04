@@ -170,8 +170,20 @@ export default function Inventory() {
     },
     onSuccess: () => {
       refetchAll();
+      toast({
+        title: "✅ Stock Updated Successfully",
+        description: "Inventory has been updated with the new stock level",
+        variant: "default",
+      });
       setAddModal(false); setStockModal(null);
       setAddProductId(""); setAddValue(""); setStockValue("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "❌ Update Failed",
+        description: error?.response?.data?.message || error?.message || "Failed to update stock",
+        variant: "destructive",
+      });
     }
   });
 
@@ -276,10 +288,24 @@ export default function Inventory() {
       return;
     }
     setStockModal(tank); 
-    setStockValue(""); 
+    setStockValue("");
+    toast({
+      title: "📝 Update Stock",
+      description: `Updating stock for ${tank.productName}`,
+      variant: "default",
+    });
   };
   
-  const openAddModal = () => { setAddModal(true); setAddProductId(""); setAddValue(""); };
+  const openAddModal = () => { 
+    setAddModal(true); 
+    setAddProductId(""); 
+    setAddValue("");
+    toast({
+      title: "➕ Record Purchase",
+      description: "Add fuel to your inventory",
+      variant: "default",
+    });
+  };
   
   const openRefillModal = (tank) => { 
     const isActive = tank.status === true || tank.status === "true" || tank.status === 1 || tank.status === "1";
@@ -292,7 +318,12 @@ export default function Inventory() {
       return;
     }
     setRefillModal(tank); 
-    setRefillDate(tankRefillDates[tank.productId || tank.productName] || ""); 
+    setRefillDate(tankRefillDates[tank.productId || tank.productName] || "");
+    toast({
+      title: "📅 Schedule Refill",
+      description: `Planning refill for ${tank.productName}`,
+      variant: "default",
+    });
   };
 
   const handleAddStock = (e) => {
@@ -307,6 +338,20 @@ export default function Inventory() {
         toast({
           title: "⚠️ Cannot Add Stock",
           description: "This product is inactive. Please activate it first to add stock.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Check if adding stock exceeds tank capacity
+      const currentLevel = Number(selectedTank.currentLevel || 0);
+      const addAmount = Number(addValue);
+      const tankCapacity = Number(selectedTank.tankCapacity || 0);
+      
+      if (tankCapacity > 0 && (currentLevel + addAmount) > tankCapacity) {
+        toast({
+          title: "❌ Exceeds Tank Capacity",
+          description: `Cannot add ${addAmount}L. Current: ${currentLevel}L + New: ${addAmount}L = ${currentLevel + addAmount}L exceeds tank capacity of ${tankCapacity}L.`,
           variant: "destructive",
         });
         return;
@@ -331,6 +376,20 @@ export default function Inventory() {
       return;
     }
     
+    // Check if updating stock exceeds tank capacity
+    const currentLevel = Number(stockModal.currentLevel || 0);
+    const addAmount = Number(stockValue);
+    const tankCapacity = Number(stockModal.tankCapacity || 0);
+    
+    if (tankCapacity > 0 && (currentLevel + addAmount) > tankCapacity) {
+      toast({
+        title: "❌ Exceeds Tank Capacity",
+        description: `Cannot add ${addAmount}L. Current: ${currentLevel}L + New: ${addAmount}L = ${currentLevel + addAmount}L exceeds tank capacity of ${tankCapacity}L.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
     putStockMutation.mutate({ productId: stockModal.productId, amount: Number(stockValue) });
   };
 
@@ -340,6 +399,11 @@ export default function Inventory() {
       ...dates,
       [refillModal.productId || refillModal.productName]: refillDate,
     }));
+    toast({
+      title: "✅ Refill Scheduled",
+      description: `Refill date set for ${refillModal.productName} on ${new Date(refillDate).toLocaleDateString('en-IN')}`,
+      variant: "default",
+    });
     setRefillModal(null);
     setRefillDate("");
   };
@@ -347,6 +411,13 @@ export default function Inventory() {
   const handleReportView = () => {
     const tank = activeTanks.find((p) => p.productId === reportProductId || p.productName === reportProductId);
     setReportProduct(tank || null);
+    if (tank) {
+      toast({
+        title: "📊 Report Generated",
+        description: `Viewing stock report for ${tank.productName}`,
+        variant: "default",
+      });
+    }
   };
 
   const handleReportDownload = () => {
@@ -363,6 +434,11 @@ export default function Inventory() {
     link.download = `StockReport-${reportProduct.productName || reportProduct.productId}.csv`;
     link.click();
     window.URL.revokeObjectURL(url);
+    toast({
+      title: "📥 Download Complete",
+      description: `Stock report for ${reportProduct.productName} downloaded successfully`,
+      variant: "default",
+    });
   };
 
   return (

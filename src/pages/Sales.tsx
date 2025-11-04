@@ -169,23 +169,97 @@ export default function Sales() {
   const { data: employeeDuties = [] } = useQuery({
     queryKey: ["employee-duties", orgId, empId],
     queryFn: async () => {
-      if (!isEmployee) return [];
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/duties?empId=${empId}`);
-      return res.data || [];
+      if (!isEmployee || !empId || !orgId) return [];
+      try {
+        const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employee-duties/employee/${empId}`);
+        return res.data || [];
+      } catch (error: any) {
+        console.error("Failed to fetch employee duties:", error);
+        // Return empty array instead of throwing error
+        return [];
+      }
     },
-    enabled: isEmployee,
+    enabled: isEmployee && !!empId && !!orgId,
+    retry: false,
   });
 
-  // Filter guns based on employee duties (Point 9)
+  // Get active duties only
+  const activeDuties = useMemo(() => {
+    if (!isEmployee) return [];
+    return employeeDuties.filter((d: any) => 
+      d.status === "ACTIVE" || d.status === "active" || d.status === "ASSIGNED" || d.status === "assigned"
+    );
+  }, [isEmployee, employeeDuties]);
+
+  // Build product-gun pairs from active duties
+  const productGunPairs = useMemo(() => {
+    const pairs: Array<{ productId: string; gunId: string; productName?: string; gunName?: string }> = [];
+    
+    activeDuties.forEach((duty: any) => {
+      if (Array.isArray(duty.productIds) && Array.isArray(duty.gunIds)) {
+        // productIds and gunIds are parallel arrays - index matches
+        duty.productIds.forEach((productId: string, index: number) => {
+          const gunId = duty.gunIds[index];
+          if (gunId) {
+            pairs.push({ productId, gunId });
+          }
+        });
+      }
+    });
+    
+    return pairs;
+  }, [activeDuties]);
+
+  // Filter products based on employee's active duties
+  const availableProductsForEmployee = useMemo(() => {
+    if (!isEmployee) return productsActive;
+    
+    // If no active duties, don't allow any product selection
+    if (productGunPairs.length === 0) {
+      return [];
+    }
+    
+    // Get unique assigned product IDs (which might be names or IDs)
+    const assignedProductIds = new Set(productGunPairs.map(p => p.productId));
+    
+    // Filter products - check both id and productName
+    return productsActive.filter((p: any) => 
+      assignedProductIds.has(p.id) || assignedProductIds.has(p.productName)
+    );
+  }, [isEmployee, productsActive, productGunPairs]);
+
+  // Filter guns based on selected product and employee's active duties
   const availableGunsForEmployee = useMemo(() => {
     if (!isEmployee) return guns;
     
-    const assignedGunNames = employeeDuties
-      .filter((d: any) => d.status === "active" || d.status === "assigned")
-      .map((d: any) => d.gunName || d.guns);
+    // If no product selected, return empty
+    if (!form.fuel) return [];
     
-    return guns.filter((g: any) => assignedGunNames.includes(g.guns));
-  }, [isEmployee, guns, employeeDuties]);
+    // Find the selected product
+    const selectedProduct = products.find((p: any) => p.productName === form.fuel);
+    if (!selectedProduct) {
+      return [];
+    }
+    
+    // Get gun IDs/names that are paired with this product in duties
+    const gunIdsForProduct = productGunPairs
+      .filter(pair => 
+        pair.productId === form.fuel || 
+        pair.productId === selectedProduct.id || 
+        pair.productId === selectedProduct.productName
+      )
+      .map(pair => pair.gunId);
+    
+    // Filter guns - only match by gun name (since backend stores gun names in gunIds)
+    const filtered = guns.filter((g: any) => gunIdsForProduct.includes(g.guns));
+    
+    // Deduplicate by gun name to avoid showing same gun twice
+    const uniqueGuns = Array.from(
+      new Map(filtered.map((g: any) => [g.guns, g])).values()
+    );
+    
+    return uniqueGuns;
+  }, [isEmployee, guns, form.fuel, products, productGunPairs]);
 
   const { data: sales = [], isLoading } = useQuery({
     queryKey: ["sales", orgId],
@@ -200,8 +274,22 @@ export default function Sales() {
   });
 
   const filteredGuns = useMemo(
-    () => (!form.fuel ? [] : availableGunsForEmployee.filter((g: any) => g.productName === form.fuel)),
-    [form.fuel, availableGunsForEmployee]
+    () => {
+      if (!form.fuel) return [];
+      
+      if (isEmployee) {
+        // For employees, use the already filtered and deduplicated guns
+        return availableGunsForEmployee;
+      } else {
+        // For non-employees, filter guns by product name and deduplicate
+        const gunsArray = guns.filter((g: any) => g.productName === form.fuel);
+        const uniqueGuns = Array.from(
+          new Map(gunsArray.map((g: any) => [g.guns, g])).values()
+        );
+        return uniqueGuns;
+      }
+    },
+    [form.fuel, isEmployee, availableGunsForEmployee, guns]
   );
 
   // Auto-fill opening stock and price
@@ -210,8 +298,8 @@ export default function Sales() {
     let price = "";
 
     if (form.gun) {
-      const gunObj = availableGunsForEmployee.find(
-        (g: any) => g.guns === form.gun && (!form.fuel || g.productName === form.fuel)
+      const gunObj = filteredGuns.find(
+        (g: any) => g.guns === form.gun
       );
       if (gunObj && typeof gunObj.currentReading !== "undefined")
         openingStock = gunObj.currentReading;
@@ -234,7 +322,7 @@ export default function Sales() {
       testingTotal: "",
       gun: filteredGuns.some((g: any) => g.guns === prev.gun) ? prev.gun : "",
     }));
-  }, [form.gun, form.fuel, availableGunsForEmployee, products, filteredGuns]);
+  }, [form.gun, form.fuel, products, filteredGuns]);
 
   // Calculate sale liters and amount
   useEffect(() => {
@@ -289,7 +377,12 @@ export default function Sales() {
     onSuccess: () => {
       setDeleteSaleId(null);
       queryClient.invalidateQueries({ queryKey: ["sales", orgId] });
-      toast({ title: "Deleted", description: "Sale entry deleted.", variant: "success" });
+      toast({ title: "Deleted", description: "Sale entry deleted.", variant: "default" });
+      
+      // Automatically refresh the page after successful deletion
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000); // 1 second delay to show the toast message
     },
     onError: (error: any) => {
       console.error("❌ Delete Sale Error:", error);
@@ -545,13 +638,13 @@ export default function Sales() {
     const key = entryKey(form);
     const existingKeys = new Set(saleEntries.map(entryKey));
     
-    // Point 7: Check for duplicate gun in batch sales
-    const isDuplicateGun = saleEntries.some((entry) => entry.gun === form.gun);
+    // Point 7: Check for duplicate product+gun combination (same gun can have different products)
+    const isDuplicateProductGun = saleEntries.some((entry) => entry.gun === form.gun && entry.fuel === form.fuel);
     
-    if (isDuplicateGun) {
+    if (isDuplicateProductGun) {
       toast({ 
-        title: "Duplicate Gun Blocked", 
-        description: `Gun "${form.gun}" has already been added to this batch. Same gun cannot be entered twice.`, 
+        title: "Duplicate Entry Blocked", 
+        description: `Product "${form.fuel}" with Gun "${form.gun}" has already been added to this batch.`, 
         variant: "destructive" 
       });
       return;
@@ -562,6 +655,11 @@ export default function Sales() {
       return;
     }
     setSaleEntries((prev) => [...prev, { ...form, cashReceived: "", phonePay: "", creditCard: "", shortCollections: "" }]);
+    toast({ 
+      title: "✓ Added to Batch", 
+      description: `${form.fuel} - Gun ${form.gun} added successfully`, 
+      duration: 2000 
+    });
     setForm(initialFormState);
   };
 
@@ -570,13 +668,13 @@ export default function Sales() {
       const key = entryKey(form);
       const existingKeys = new Set(saleEntries.map(entryKey));
       
-      // Point 7: Check for duplicate gun
-      const isDuplicateGun = saleEntries.some((entry) => entry.gun === form.gun);
+      // Point 7: Check for duplicate product+gun combination (same gun can have different products)
+      const isDuplicateProductGun = saleEntries.some((entry) => entry.gun === form.gun && entry.fuel === form.fuel);
       
-      if (isDuplicateGun) {
+      if (isDuplicateProductGun) {
         toast({ 
-          title: "Duplicate Gun Blocked", 
-          description: `Gun "${form.gun}" has already been added to this batch. Same gun cannot be entered twice.`, 
+          title: "Duplicate Entry Blocked", 
+          description: `Product "${form.fuel}" with Gun "${form.gun}" has already been added to this batch.`, 
           variant: "destructive" 
         });
         setShowSummaryPopup(true);
@@ -585,6 +683,11 @@ export default function Sales() {
       
       if (!existingKeys.has(key)) {
         setSaleEntries((prev) => [...prev, { ...form, cashReceived: "", phonePay: "", creditCard: "", shortCollections: "" }]);
+        toast({ 
+          title: "✓ Added to Batch", 
+          description: `${form.fuel} - Gun ${form.gun} added successfully`, 
+          duration: 2000 
+        });
       }
       setForm(initialFormState);
       setTimeout(() => setShowSummaryPopup(true), 50);
@@ -633,7 +736,7 @@ export default function Sales() {
       setSaleEntries([]);
       setShowSummaryPopup(false);
       setBatchCollectionForm({ totalCash: "", totalUPI: "", totalCard: "" });
-      toast({ title: `${saleEntries.length} sales recorded successfully!`, variant: "success" });
+      toast({ title: `${saleEntries.length} sales recorded successfully!`, variant: "default" });
     } catch (e) {
       toast({ title: "Batch submit failed", variant: "destructive" });
     } finally {
@@ -778,18 +881,19 @@ export default function Sales() {
     const summary = getBatchSummary(saleEntries);
     return (
       <Dialog open={showSummaryPopup} onOpenChange={(open) => setShowSummaryPopup(open)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Fuel className="h-5 w-5" />
-              Sales Batch Summary - Enter Total Collections
-            </DialogTitle>
-            <DialogDescription>
-              Review product-wise sales and enter the total payment collections received
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-[90vw] md:max-w-[80vw] lg:max-w-3xl max-h-[85vh] overflow-hidden p-0">
+          <div className="flex flex-col max-h-[85vh]">
+            <DialogHeader className="px-6 pt-6 pb-4 border-b">
+              <DialogTitle className="flex items-center gap-2 text-xl">
+                <Fuel className="h-5 w-5 text-primary" />
+                Sales Batch Summary
+              </DialogTitle>
+              <DialogDescription className="mt-1.5">
+                Review product-wise sales and enter the total payment collections received
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+          <div className="flex-1 overflow-y-auto space-y-6 px-6 py-4">
             <div>
               <h4 className="font-semibold mb-3 flex items-center gap-2">
                 <List className="h-4 w-4" />
@@ -901,30 +1005,33 @@ export default function Sales() {
             </div>
           </div>
 
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => setShowSummaryPopup(false)}
-              disabled={isSubmittingBatch}
-              className="w-full sm:w-auto"
-            >
-              Back
-            </Button>
-            <Button
-              onClick={handleBatchSubmit}
-              disabled={saleEntries.length === 0 || isSubmittingBatch || summary.short > 10}
-              className="w-full sm:w-auto"
-            >
-              {isSubmittingBatch ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                <>Submit {saleEntries.length} Sales</>
-              )}
-            </Button>
+          <DialogFooter className="px-6 py-4 border-t bg-muted/30">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:ml-auto">
+              <Button
+                variant="outline"
+                onClick={() => setShowSummaryPopup(false)}
+                disabled={isSubmittingBatch}
+                className="w-full sm:w-auto order-2 sm:order-1"
+              >
+                Back
+              </Button>
+              <Button
+                onClick={handleBatchSubmit}
+                disabled={saleEntries.length === 0 || isSubmittingBatch || summary.short > 10}
+                className="w-full sm:w-auto order-1 sm:order-2"
+              >
+                {isSubmittingBatch ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>Submit {saleEntries.length} Sales</>
+                )}
+              </Button>
+            </div>
           </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     );
@@ -954,48 +1061,53 @@ export default function Sales() {
 
       {/* DSR Dialog */}
       <Dialog open={dsrOpen} onOpenChange={(open) => { if (!open) closeDsrDialog(); }}>
-        <DialogContent className="max-w-lg w-[96vw]">
-          <DialogHeader>
-            <DialogTitle>Download DSR Report</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="sm:max-w-lg p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <FileText className="h-5 w-5 text-primary" />
+              Download DSR Report
+            </DialogTitle>
+            <DialogDescription className="mt-1.5">
               Select a date range to download Daily Sales Register report
             </DialogDescription>
           </DialogHeader>
-          <div className="flex gap-2 mb-2">
-            {["today", "week", "month"].map((p) => (
-              <Button key={p} variant={dsrPreset === p ? "default" : "outline"} onClick={() => setDsrPreset(p as any)} className="capitalize flex-1">{p}</Button>
-            ))}
-            <Button variant={dsrPreset === "custom" ? "default" : "outline"} onClick={() => setDsrPreset("custom")} className="flex-1">Custom</Button>
-          </div>
-          {dsrPreset === "custom" && (
-            <div className="flex gap-2 mb-2">
-              <div className="flex-1">
-                <Label>From</Label>
-                <Input type="date" value={from.format("YYYY-MM-DD")} onChange={(e) => setDateRange(([_, oldTo]) => [dayjs(e.target.value), oldTo])} />
-              </div>
-              <div className="flex-1">
-                <Label>To</Label>
-                <Input type="date" value={to.format("YYYY-MM-DD")} onChange={(e) => setDateRange(([oldFrom, _]) => [oldFrom, dayjs(e.target.value)])} />
-              </div>
-              <Button onClick={fetchDSRRecords} disabled={dsrLoading} className="self-end">Apply</Button>
+          <div className="px-6 py-4 space-y-4">
+            <div className="flex gap-2">
+              {["today", "week", "month"].map((p) => (
+                <Button key={p} variant={dsrPreset === p ? "default" : "outline"} onClick={() => setDsrPreset(p as any)} className="capitalize flex-1">{p}</Button>
+              ))}
+              <Button variant={dsrPreset === "custom" ? "default" : "outline"} onClick={() => setDsrPreset("custom")} className="flex-1">Custom</Button>
             </div>
-          )}
-          <div className="flex flex-col items-center gap-3 mt-2">
-            <Button onClick={fetchDSRRecords} disabled={dsrLoading}>
-              {dsrLoading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading...</>) : "Load Records"}
-            </Button>
-            {dsrRecords.length > 0 && (
-              <div className="flex w-full gap-2">
-                <Button className="flex-1" onClick={downloadDSRcsv}><Download className="mr-2 h-4 w-4" />Download CSV</Button>
-                <Button className="flex-1" onClick={downloadDSRpdf}><Download className="mr-2 h-4 w-4" />Download PDF</Button>
+            {dsrPreset === "custom" && (
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Label>From</Label>
+                  <Input type="date" value={from.format("YYYY-MM-DD")} onChange={(e) => setDateRange(([_, oldTo]) => [dayjs(e.target.value), oldTo])} />
+                </div>
+                <div className="flex-1">
+                  <Label>To</Label>
+                  <Input type="date" value={to.format("YYYY-MM-DD")} onChange={(e) => setDateRange(([oldFrom, _]) => [oldFrom, dayjs(e.target.value)])} />
+                </div>
+                <Button onClick={fetchDSRRecords} disabled={dsrLoading} className="self-end">Apply</Button>
               </div>
             )}
-            {dsrRecords.length === 0 && !dsrLoading && (
-              <span className="text-xs text-muted-foreground italic">No records loaded. Set range and click "Load Records" first.</span>
-            )}
+            <div className="flex flex-col items-center gap-3">
+              <Button onClick={fetchDSRRecords} disabled={dsrLoading} className="w-full">
+                {dsrLoading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading...</>) : "Load Records"}
+              </Button>
+              {dsrRecords.length > 0 && (
+                <div className="flex w-full gap-2">
+                  <Button className="flex-1" onClick={downloadDSRcsv}><Download className="mr-2 h-4 w-4" />CSV</Button>
+                  <Button className="flex-1" onClick={downloadDSRpdf}><Download className="mr-2 h-4 w-4" />PDF</Button>
+                </div>
+              )}
+              {dsrRecords.length === 0 && !dsrLoading && (
+                <span className="text-xs text-muted-foreground italic text-center">No records loaded. Set range and click "Load Records" first.</span>
+              )}
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="secondary" onClick={closeDsrDialog}>Close</Button>
+          <DialogFooter className="px-6 py-4 border-t bg-muted/30">
+            <Button variant="outline" onClick={closeDsrDialog} className="w-full sm:w-auto sm:ml-auto">Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1177,6 +1289,21 @@ export default function Sales() {
           <CardContent className="p-6">
             <div className="space-y-6">
 
+              {/* Employee No Duty Warning */}
+              {isEmployee && productGunPairs.length === 0 && (
+                <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-amber-900 dark:text-amber-100">No Active Duty Assigned</p>
+                      <p className="text-sm text-amber-700 dark:text-amber-200 mt-1">
+                        You don't have any active pump duties assigned. Please contact your manager to assign you a duty before recording sales.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Employee ID */}
               <div className="space-y-2">
                 <Label htmlFor="empId" className="text-sm font-semibold flex items-center gap-2">
@@ -1193,12 +1320,12 @@ export default function Sales() {
                     <Droplet className="h-4 w-4 text-blue-600" />
                     Fuel Type *
                   </Label>
-                  <Select value={form.fuel} onValueChange={(val) => setForm((f) => ({ ...f, fuel: val }))}>
+                  <Select value={form.fuel} onValueChange={(val) => setForm((f) => ({ ...f, fuel: val }))} disabled={isEmployee && availableProductsForEmployee.length === 0}>
                     <SelectTrigger id="fuel-type" className="w-full shadow-sm">
-                      <SelectValue placeholder="Select Fuel" />
+                      <SelectValue placeholder={isEmployee && availableProductsForEmployee.length === 0 ? "No assigned products" : "Select Fuel"} />
                     </SelectTrigger>
                     <SelectContent className='z-[10000]'>
-                      {productsActive.map((p: any) => (
+                      {(isEmployee ? availableProductsForEmployee : productsActive).map((p: any) => (
                         <SelectItem key={p.productName} value={p.productName}>{p.productName}</SelectItem>
                       ))}
                     </SelectContent>
@@ -1209,13 +1336,13 @@ export default function Sales() {
                     <Fuel className="h-4 w-4 text-orange-600" />
                     Gun *
                   </Label>
-                  <Select value={form.gun} onValueChange={(val) => setForm((f) => ({ ...f, gun: val }))}>
+                  <Select value={form.gun} onValueChange={(val) => setForm((f) => ({ ...f, gun: val }))} disabled={!form.fuel || (isEmployee && availableGunsForEmployee.length === 0)}>
                     <SelectTrigger id="gun" className="w-full shadow-sm">
-                      <SelectValue placeholder="Select Gun" />
+                      <SelectValue placeholder={isEmployee && availableGunsForEmployee.length === 0 ? "No assigned guns" : "Select Gun"} />
                     </SelectTrigger>
                     <SelectContent className='z-[10000]'>
                       {filteredGuns.map((g: any) => (
-                        <SelectItem key={g.guns} value={g.guns}>{g.guns} ({g.serialNumber})</SelectItem>
+                        <SelectItem key={g.id} value={g.guns}>{g.guns} ({g.serialNumber})</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1407,7 +1534,7 @@ export default function Sales() {
                 <Button
                   type="submit"
                   className="w-full h-12 font-semibold shadow-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={saleCollectionMutation.isPending || submittingRef.current || validationError !== null}
+                  disabled={saleCollectionMutation.isPending || submittingRef.current || validationError !== null || (isEmployee && productGunPairs.length === 0)}
                 >
                   {saleCollectionMutation.isPending ? (
                     <>
@@ -1418,6 +1545,11 @@ export default function Sales() {
                     <>
                       <AlertCircle className="mr-2 h-4 w-4" />
                       Fix Validation Error
+                    </>
+                  ) : isEmployee && productGunPairs.length === 0 ? (
+                    <>
+                      <AlertCircle className="mr-2 h-4 w-4" />
+                      No Active Duty
                     </>
                   ) : (
                     <>
@@ -1435,12 +1567,17 @@ export default function Sales() {
                     variant="default"
                     className="flex-1 h-12 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={handleAddAnotherSale}
-                    disabled={isSubmittingBatch || validationError !== null}
+                    disabled={isSubmittingBatch || validationError !== null || (isEmployee && productGunPairs.length === 0)}
                   >
                     {validationError ? (
                       <>
                         <AlertCircle className="mr-2 h-4 w-4" />
                         Fix Validation Error
+                      </>
+                    ) : isEmployee && productGunPairs.length === 0 ? (
+                      <>
+                        <AlertCircle className="mr-2 h-4 w-4" />
+                        No Active Duty
                       </>
                     ) : (
                       <>
@@ -1453,7 +1590,7 @@ export default function Sales() {
                     type="button"
                     className="flex-1 h-12 font-semibold shadow-lg bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white"
                     onClick={handleShowBatchSummary}
-                    disabled={(saleEntries.length === 0 && !form.fuel) || isSubmittingBatch}
+                    disabled={(saleEntries.length === 0 && !form.fuel) || isSubmittingBatch || (isEmployee && productGunPairs.length === 0)}
                   >
                     <FileText className="mr-2 h-4 w-4" />
                     Show Summary & Submit ({saleEntries.length})
@@ -1546,7 +1683,18 @@ export default function Sales() {
                             variant="ghost"
                             size="icon"
                             title="Delete Sale"
-                            onClick={() => setDeleteSaleId(sale._id || sale.id)}
+                            onClick={() => {
+                              const saleId = sale.id || sale._id;
+                              if (saleId) {
+                                setDeleteSaleId(saleId);
+                              } else {
+                                toast({
+                                  title: "Error",
+                                  description: "Sale ID not found",
+                                  variant: "destructive"
+                                });
+                              }
+                            }}
                             className="bg-red-100 text-destructive mt-1 hover:bg-red-200"
                           >
                             <Trash2 className="h-5 w-5" />
@@ -1656,7 +1804,6 @@ export default function Sales() {
           style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
           onClick={() => {
             setValidationError(null);
-            setForm(initialFormState);
           }}
         >
           <div
@@ -1668,7 +1815,6 @@ export default function Sales() {
               className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-amber-100 dark:hover:bg-amber-900/30 text-muted-foreground hover:text-amber-600 p-2 transition-all backdrop-blur-sm" 
               onClick={() => {
                 setValidationError(null);
-                setForm(initialFormState);
               }}
             >
               <X className="h-5 w-5" />
@@ -1694,7 +1840,6 @@ export default function Sales() {
               <Button 
                 onClick={() => {
                   setValidationError(null);
-                  setForm(initialFormState);
                 }} 
                 className="h-11 px-6 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
               >
