@@ -35,7 +35,6 @@ import {
   ChevronsRight,
 } from "lucide-react";
 import { API_CONFIG } from '@/lib/api-config';
-import { logger } from '@/lib/logger';
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import jsPDF from "jspdf";

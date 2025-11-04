@@ -18,7 +18,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from "@/components/ui/switch";
 import { API_CONFIG, buildOrgEndpoint } from '@/lib/api-config';
-import { logger } from '@/lib/logger';
 
 type Customer = {
   id?: string;
@@ -182,7 +181,6 @@ export default function Borrowers() {
 
   // Effect to log filter changes
   useEffect(() => {
-    logger.debug('📅 Date filter changed:', dateFilter, { customStartDate, customEndDate });
   }, [dateFilter, customStartDate, customEndDate]);
 
   useEffect(() => {
@@ -223,27 +221,19 @@ export default function Borrowers() {
     const url = getDateFilterUrl();
     if (!url) return [];
 
-    logger.debug('🔍 Fetching customers with filter:', dateFilter, 'URL:', url);
 
     try {
       const res = await axios.get(url, { timeout: 20000 });
       const data = res.data;
       
-      logger.debug('✅ Response received:', { 
-        isArray: Array.isArray(data), 
-        hasContent: data && 'content' in data,
-        length: Array.isArray(data) ? data.length : (data?.content?.length || 'N/A')
-      });
 
       // Filter endpoints (today, week, month, range) return List directly
       if (Array.isArray(data)) {
-        logger.debug('📋 Direct array response with', data.length, 'customers');
         return data;
       }
 
       // Default /customers endpoint returns Page with content field
       if (data && typeof data === 'object' && 'content' in data && Array.isArray(data.content)) {
-        logger.debug('📄 Paginated response with', data.content.length, 'customers');
         return data.content;
       }
 
@@ -251,21 +241,19 @@ export default function Borrowers() {
       const candidates = ['data', 'items', 'result', 'results', 'records', 'rows'];
       for (const key of candidates) {
         if (Array.isArray((data as any)?.[key])) {
-          logger.debug('📦 Found array in key:', key);
           return (data as any)[key];
         }
       }
 
       const firstArray = Object.values(data || {}).find((v) => Array.isArray(v)) as Customer[] | undefined;
       if (Array.isArray(firstArray)) {
-        logger.debug('🔎 Found array in object values');
         return firstArray;
       }
 
-      logger.warn('⚠️ No array found in response, returning empty array');
+      console.warn('⚠️ No array found in response, returning empty array');
       return [];
     } catch (err: any) {
-      logger.error('❌ Error fetching customers:', err?.response?.status, err?.response?.data);
+      console.error('❌ Error fetching customers:', err?.response?.status, err?.response?.data);
       toast({
         title: 'Error',
         description: err?.response?.data?.message || err?.message || 'Failed to fetch customers',
@@ -299,7 +287,7 @@ export default function Borrowers() {
       }
       return [];
     } catch (err: any) {
-      logger.error('Failed to fetch history:', err);
+      console.error('Failed to fetch history:', err);
       return [];
     }
   };

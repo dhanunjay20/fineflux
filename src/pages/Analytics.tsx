@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { API_CONFIG } from '@/lib/api-config';
-import { logger } from '@/lib/logger';
 
 // Extend dayjs with timezone support
 dayjs.extend(utc);
@@ -88,13 +87,11 @@ export default function Analytics() {
       try {
         // Use the correct endpoint: sale-history/by-date
         const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sale-history/by-date?from=${fromIso}&to=${toIso}`;
-        logger.debug('Fetching sales from:', url);
         const res = await axios.get(url, { timeout: API_CONFIG.TIMEOUT });
         const data = Array.isArray(res.data) ? res.data : [];
-        logger.debug('Sales data fetched:', data.length, 'records');
         return data;
       } catch (error) {
-        logger.error('Error fetching sales:', error);
+        console.error('Error fetching sales:', error);
         return [];
       }
     },
@@ -131,10 +128,9 @@ export default function Analytics() {
       try {
         const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/expenses`, { timeout: API_CONFIG.TIMEOUT });
         const data = Array.isArray(res.data) ? res.data : [];
-        logger.debug('Expenses data fetched:', data.length, 'records');
         return data;
       } catch (error) {
-        logger.error('Error fetching expenses:', error);
+        console.error('Error fetching expenses:', error);
         return [];
       }
     },
@@ -164,7 +160,6 @@ export default function Analytics() {
     queryFn: async () => {
       try {
         const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/finance-summary/latest`, { timeout: API_CONFIG.TIMEOUT });
-        logger.debug('✅ Finance summary fetched:', res.data);
         
         // Ensure all fields are numbers
         const data = res.data;
@@ -185,7 +180,7 @@ export default function Analytics() {
           total: Number(data.total) || 0,
         };
       } catch (error: any) {
-        logger.error('❌ Error fetching finance summary:', error?.response?.status, error?.response?.data);
+        console.error('❌ Error fetching finance summary:', error?.response?.status, error?.response?.data);
         return null;
       }
     },
@@ -224,7 +219,6 @@ export default function Analytics() {
       return sum + liters;
     }, 0);
 
-    logger.debug('KPIs calculated:', { totalRevenue, totalExpenses, netProfit, totalLiters });
 
     return { 
       totalRevenue: Math.round(totalRevenue * 100) / 100, 
@@ -283,7 +277,6 @@ export default function Analytics() {
       }))
       .sort((a, b) => a.timestamp - b.timestamp);
 
-    logger.debug('Monthly sales data:', result);
     return result.slice(-6); // Last 6 months
   }, [salesHistory, expenses]);
 
@@ -306,7 +299,6 @@ export default function Analytics() {
       }))
       .sort((a, b) => b.value - a.value); // Sort by revenue descending
 
-    logger.debug('Fuel type data:', result);
     return result;
   }, [salesHistory]);
 
@@ -354,7 +346,6 @@ export default function Analytics() {
       return dayData;
     });
 
-    logger.debug('Daily sales data:', result);
     return result;
   }, [salesHistory]);
 
@@ -381,7 +372,6 @@ export default function Analytics() {
       name: productsMap.get(key) || key.charAt(0).toUpperCase() + key.slice(1)
     }));
 
-    logger.debug('Unique products:', products);
     return products;
   }, [dailySalesData]);
 

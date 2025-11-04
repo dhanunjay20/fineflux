@@ -11,7 +11,6 @@ import {
   Clock, Timer, Target, Search as SearchIcon, ArrowLeft
 } from "lucide-react";
 import { API_CONFIG } from '@/lib/api-config';
-import { logger } from '@/lib/logger';
 
 // Removed - using API_CONFIG
 const ITEMS_PER_PAGE = 10;

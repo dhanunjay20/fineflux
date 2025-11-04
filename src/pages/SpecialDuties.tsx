@@ -17,7 +17,6 @@ import {
   Search as SearchIcon,
 } from "lucide-react";
 import { API_CONFIG } from '@/lib/api-config';
-import { logger } from '@/lib/logger';
 import { useNavigate } from "react-router-dom";
 
 // Removed - using API_CONFIG

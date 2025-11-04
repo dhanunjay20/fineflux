@@ -13,7 +13,6 @@ import {
   Database, X, CalendarDays, Fuel, Droplets, Zap
 } from 'lucide-react';
 import { API_CONFIG } from '@/lib/api-config';
-import { logger } from '@/lib/logger';
 import { useToast } from '@/components/ui/use-toast';
 
 // Removed - using API_CONFIG

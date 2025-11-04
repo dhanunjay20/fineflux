@@ -2,7 +2,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { API_CONFIG } from '@/lib/api-config';
-import { logger } from '@/lib/logger';
 
 export type UserRole = 'owner' | 'manager' | 'employee';
 

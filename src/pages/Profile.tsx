@@ -12,7 +12,6 @@ import {
   AlertCircle, CheckCircle2, Home, UserCircle, LogOut
 } from 'lucide-react';
 import { API_CONFIG } from '@/lib/api-config';
-import { logger } from '@/lib/logger';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";

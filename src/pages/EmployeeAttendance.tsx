@@ -17,7 +17,6 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { API_CONFIG } from '@/lib/api-config';
-import { logger } from '@/lib/logger';
 import { format } from "date-fns";
 
 // Backend DTOs matching your Java backend
@@ -89,7 +88,7 @@ export default function EmployeeAttendance() {
       username = user.username || user.name || user.email || "";
     }
   } catch (error) {
-    logger.error("Failed to parse user from storage:", error);
+    console.error("Failed to parse user from storage:", error);
   }
 
   // Format date to LocalDateTime string in IST (ISO 8601 format for Java backend)
@@ -111,7 +110,6 @@ export default function EmployeeAttendance() {
   // Fetch today's attendance and all records - useCallback to prevent infinite loops
   const fetchAttendance = useCallback(async () => {
     if (!orgId || !empId) {
-      logger.debug("Missing orgId or empId");
       return;
     }
     
@@ -145,7 +143,7 @@ export default function EmployeeAttendance() {
 
       setTodayAttendance(todayRecord || null);
     } catch (error: any) {
-      logger.error("Failed to fetch attendance:", error);
+      console.error("Failed to fetch attendance:", error);
       
       // Don't show error toast on initial load if no records exist
       if (error.response?.status !== 404) {
@@ -177,7 +175,7 @@ export default function EmployeeAttendance() {
         description: "Missing required information. Please login again.",
         variant: "destructive",
       });
-      logger.error("Missing credentials:", { orgId, empId, username });
+      console.error("Missing credentials:", { orgId, empId, username });
       return;
     }
 
@@ -203,12 +201,6 @@ export default function EmployeeAttendance() {
         checkIn: checkInTime,
       };
 
-      logger.debug("Check-in request (IST):", {
-        url: `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/attendance`,
-        payload: createDTO,
-        checkInTime,
-        localTime: now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-      });
 
       // POST to backend
       const response = await axios.post<EmployeeAttendanceResponseDTO>(
@@ -221,7 +213,6 @@ export default function EmployeeAttendance() {
         }
       );
 
-      logger.debug("Check-in response:", response.data);
       
       setTodayAttendance(response.data);
       toast({
@@ -232,9 +223,9 @@ export default function EmployeeAttendance() {
       // Refresh to get latest data with calculated metrics
       await fetchAttendance();
     } catch (error: any) {
-      logger.error("Check-in failed - Full error:", error);
-      logger.error("Error response:", error.response?.data);
-      logger.error("Error status:", error.response?.status);
+      console.error("Check-in failed - Full error:", error);
+      console.error("Error response:", error.response?.data);
+      console.error("Error status:", error.response?.status);
       
       let errorMessage = "Failed to check in. Please try again.";
       
@@ -291,12 +282,6 @@ export default function EmployeeAttendance() {
         breakIn: breakInTime,
       };
 
-      logger.debug("Break-in request (IST):", {
-        url: `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/attendance/${todayAttendance.id}`,
-        payload: updateDTO,
-        breakInTime,
-        localTime: now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-      });
 
       // PUT to backend
       const response = await axios.put<EmployeeAttendanceResponseDTO>(
@@ -304,9 +289,6 @@ export default function EmployeeAttendance() {
         updateDTO
       );
 
-      logger.debug("Break-in response:", response.data);
-      logger.debug("Break-in response breakIn field:", response.data.breakIn);
-      logger.debug("Break-in response breakOut field:", response.data.breakOut);
       
       setTodayAttendance(response.data);
       toast({
@@ -317,8 +299,8 @@ export default function EmployeeAttendance() {
       // Refresh to get latest calculated metrics
       await fetchAttendance();
     } catch (error: any) {
-      logger.error("Break-in failed - Full error:", error);
-      logger.error("Error response:", error.response?.data);
+      console.error("Break-in failed - Full error:", error);
+      console.error("Error response:", error.response?.data);
       
       toast({
         title: "Break Start Failed",
@@ -363,12 +345,6 @@ export default function EmployeeAttendance() {
         breakOut: breakOutTime,
       };
 
-      logger.debug("Break-out request (IST):", {
-        url: `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/attendance/${todayAttendance.id}`,
-        payload: updateDTO,
-        breakOutTime,
-        localTime: now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-      });
 
       // PUT to backend
       const response = await axios.put<EmployeeAttendanceResponseDTO>(
@@ -376,7 +352,6 @@ export default function EmployeeAttendance() {
         updateDTO
       );
 
-      logger.debug("Break-out response:", response.data);
       
       setTodayAttendance(response.data);
       toast({
@@ -387,8 +362,8 @@ export default function EmployeeAttendance() {
       // Refresh to get latest calculated metrics
       await fetchAttendance();
     } catch (error: any) {
-      logger.error("Break-out failed - Full error:", error);
-      logger.error("Error response:", error.response?.data);
+      console.error("Break-out failed - Full error:", error);
+      console.error("Error response:", error.response?.data);
       
       toast({
         title: "Break End Failed",
@@ -448,12 +423,6 @@ export default function EmployeeAttendance() {
         checkOut: checkOutTime,
       };
 
-      logger.debug("Check-out request (IST):", {
-        url: `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/attendance/${todayAttendance.id}`,
-        payload: updateDTO,
-        checkOutTime,
-        localTime: now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-      });
 
       // PUT to backend
       const response = await axios.put<EmployeeAttendanceResponseDTO>(
@@ -461,7 +430,6 @@ export default function EmployeeAttendance() {
         updateDTO
       );
 
-      logger.debug("Check-out response:", response.data);
       
       setTodayAttendance(response.data);
       toast({
@@ -472,8 +440,8 @@ export default function EmployeeAttendance() {
       // Refresh to get final calculated metrics
       await fetchAttendance();
     } catch (error: any) {
-      logger.error("Check-out failed - Full error:", error);
-      logger.error("Error response:", error.response?.data);
+      console.error("Check-out failed - Full error:", error);
+      console.error("Error response:", error.response?.data);
       
       toast({
         title: "Check-out Failed",
@@ -547,14 +515,6 @@ export default function EmployeeAttendance() {
         : null;
 
       // Debug logging
-      logger.debug("Live timer calculation:", {
-        checkInTime: todayAttendance.checkIn,
-        breakInTime: todayAttendance.breakIn,
-        breakOutTime: todayAttendance.breakOut,
-        checkOutTime: todayAttendance.checkOut,
-        parsedBreakIn: breakInTime?.toLocaleString('en-IN'),
-        parsedBreakOut: breakOutTime?.toLocaleString('en-IN'),
-      });
 
       if (checkInTime) {
         // Calculate total elapsed time
@@ -571,7 +531,6 @@ export default function EmployeeAttendance() {
           
           const breakTime = calculateDuration(breakInTime, breakEnd);
           setLiveBreakTime(breakTime);
-          logger.debug("Break time calculated:", breakTime, "Duration ms:", breakDuration);
         } else {
           setLiveBreakTime("00:00:00");
         }
@@ -586,7 +545,7 @@ export default function EmployeeAttendance() {
         setLiveWorkingTime(`${String(workingHours).padStart(2, "0")}:${String(workingMinutes).padStart(2, "0")}:${String(workingSeconds).padStart(2, "0")}`);
       }
     } catch (error) {
-      logger.error("Error calculating live time:", error);
+      console.error("Error calculating live time:", error);
     }
   }, [todayAttendance, currentTime]);
 

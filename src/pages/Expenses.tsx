@@ -12,7 +12,6 @@ import {
   DollarSign, Plus, TrendingDown, Clock, CheckCircle, XCircle, Calendar, Receipt, Filter, Edit, Trash2, X
 } from "lucide-react";
 import { API_CONFIG } from '@/lib/api-config';
-import { logger } from '@/lib/logger';
 import { useToast } from "@/hooks/use-toast";
 
 // Removed - using API_CONFIG

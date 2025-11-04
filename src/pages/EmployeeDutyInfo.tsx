@@ -8,7 +8,6 @@ import {
   History, Clock, Calendar, Activity, Play, Fuel, Target
 } from 'lucide-react';
 import { API_CONFIG } from '@/lib/api-config';
-import { logger } from '@/lib/logger';
 
 // Removed - using API_CONFIG
 const ITEMS_PER_PAGE = 5;
@@ -82,7 +81,7 @@ export default function EmployeeDutyInfo() {
         setProducts(Array.isArray(productsRes.data) ? productsRes.data : []);
         setGuns(Array.isArray(gunsRes.data) ? gunsRes.data : []);
       } catch (error) {
-        logger.error('Error fetching duties:', error);
+        console.error('Error fetching duties:', error);
       } finally {
         setLoading(false);
       }
@@ -154,7 +153,7 @@ export default function EmployeeDutyInfo() {
       );
       setDailyDuties(ds => ds.map(d => (d.id === dutyId ? { ...d, status: newStatus } : d)));
     } catch (error) {
-      logger.error('Error updating daily duty:', error);
+      console.error('Error updating daily duty:', error);
     }
   };
 

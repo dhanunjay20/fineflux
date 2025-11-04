@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarDays, Fuel, Droplets, Edit2, Plus, Trash2, X, Archive, TrendingUp, TrendingDown, PackageCheck, Database } from "lucide-react";
 import { API_CONFIG } from '@/lib/api-config';
-import { logger } from '@/lib/logger';
 import { useToast } from "@/components/ui/use-toast";
 
 // Removed - using API_CONFIG

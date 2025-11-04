@@ -20,7 +20,6 @@ import {
   Fuel, Plus, TrendingUp, AlertTriangle, RefreshCw, BarChart3, Calendar, X, Download, Eye, History, PackageOpen, Trash2, Loader2,
 } from "lucide-react";
 import { API_CONFIG } from "@/lib/api-config";
-import { logger } from "@/lib/logger";
 
 // Removed - using API_CONFIG
 const LOW_STOCK_PHONE = "9640206605";
@@ -85,7 +84,6 @@ export default function Inventory() {
       const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products`;
       const res = await axios.get(url);
       const productList = Array.isArray(res.data) ? res.data : [];
-      logger.debug('Products API Response:', productList);
       return productList;
     }
   });
@@ -97,12 +95,6 @@ export default function Inventory() {
     const status = prod?.active ?? prod?.status ?? inv.status ?? true;
     
     // Debug logging
-    logger.debug('Product:', prod?.productName, {
-      prodActive: prod?.active,
-      prodStatus: prod?.status,
-      invStatus: inv.status,
-      finalStatus: status
-    });
     
     return {
       ...inv,

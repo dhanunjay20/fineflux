@@ -9,7 +9,6 @@ import {
   ChevronRight, Clock, Calendar, Fuel, Target, Activity, Search as SearchIcon
 } from 'lucide-react';
 import { API_CONFIG } from '@/lib/api-config';
-import { logger } from '@/lib/logger';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import React from "react";
@@ -105,7 +104,7 @@ export default function EmployeeTaskHistory() {
       ]);
       setDailyDuties(dd);
     }).catch(err => {
-      logger.error('Error loading task history:', err);
+      console.error('Error loading task history:', err);
     }).finally(() => setLoading(false));
   }, [orgId, empId]);  // [memory:10]
 

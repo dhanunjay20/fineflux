@@ -25,7 +25,6 @@ import {
   UserCheck,
 } from "lucide-react";
 import { API_CONFIG } from '@/lib/api-config';
-import { logger } from '@/lib/logger';
 
 // Removed - using API_CONFIG
 

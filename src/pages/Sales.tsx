@@ -11,7 +11,6 @@ import { useNavigate } from "react-router-dom";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { API_CONFIG } from "@/lib/api-config";
-import { logger } from "@/lib/logger";
 import {
   Select,
   SelectTrigger,
@@ -173,7 +172,7 @@ export default function Sales() {
         const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employee-duties/employee/${empId}`, { timeout: API_CONFIG.TIMEOUT });
         return res.data || [];
       } catch (error: any) {
-        logger.error("Failed to fetch employee duties:", error);
+        console.error("Failed to fetch employee duties:", error);
         // Return empty array instead of throwing error
         return [];
       }
@@ -384,7 +383,7 @@ export default function Sales() {
       }, 1000); // 1 second delay to show the toast message
     },
     onError: (error: any) => {
-      logger.error("❌ Delete Sale Error:", error);
+      console.error("❌ Delete Sale Error:", error);
       toast({
         title: "Delete Failed",
         description: error?.response?.data?.message || "Failed to delete sale entry.",
@@ -446,8 +445,6 @@ export default function Sales() {
         creditCard: Number(input.creditCard) || 0,
       };
 
-      logger.debug("📤 Sending Sale DTO:", saleDTO);
-      logger.debug("📤 Sending Collection DTO:", collectionDTO);
 
       try {
         const saleResponse = await axios.post(
@@ -455,18 +452,16 @@ export default function Sales() {
           saleDTO,
           { timeout: API_CONFIG.TIMEOUT }
         );
-        logger.debug("✅ Sale created:", saleResponse.data);
 
         const collectionResponse = await axios.post(
           `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/collections`,
           collectionDTO,
           { timeout: API_CONFIG.TIMEOUT }
         );
-        logger.debug("✅ Collection created:", collectionResponse.data);
 
         return { success: true };
       } catch (error: any) {
-        logger.error("❌ Sale/Collection Error:", error);
+        console.error("❌ Sale/Collection Error:", error);
 
         let errorMessage = "Unable to process your sale request. Please check all fields and try again.";
         let errorTitle = "Sale Recording Failed";
@@ -504,7 +499,7 @@ export default function Sales() {
       }
     },
     onError: (error: any) => {
-      logger.error("❌ Mutation Error:", error);
+      console.error("❌ Mutation Error:", error);
       
       // Parse enhanced error message
       let title = "Failed to Record Sale";
@@ -628,7 +623,7 @@ export default function Sales() {
     try {
       await saleCollectionMutation.mutateAsync(form);
     } catch (error) {
-      logger.error("Submit error:", error);
+      console.error("Submit error:", error);
     } finally {
       submittingRef.current = false;
     }

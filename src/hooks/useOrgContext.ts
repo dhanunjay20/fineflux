@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { logger } from '@/lib/logger';
 
 /**
  * Custom hook to access organization and employee context from localStorage
@@ -26,7 +25,7 @@ export const useOrgContext = () => {
         const user = JSON.parse(userStr);
         setUsername(user.username || '');
       } catch (error) {
-        logger.error('Failed to parse user from storage:', error);
+        console.error('Failed to parse user from storage:', error);
       }
     }
   }, []);
