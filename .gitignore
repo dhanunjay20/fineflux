@@ -23,12 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 
-
-# 1. Move .env to project root (not src/)
-Move-Item src\.env .env
-
-# 2. Update .gitignore
-Add-Content .gitignore "`n.env`n.env.local`n.env.production`n"
-
-# 3. Verify not committed
-git status
+# Environment variables
+.env
+.env.local
+.env.production
+.env.*.local
