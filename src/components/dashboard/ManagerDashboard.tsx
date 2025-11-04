@@ -99,12 +99,13 @@ export function ManagerDashboard() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] sm:items-center gap-3">
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold text-foreground">Manager Dashboard</h1>
           <p className="text-muted-foreground">Daily operations and team management</p>
         </div>
-        <div className="flex gap-2">
+
+        <div className="flex flex-wrap gap-2 justify-start sm:justify-end mt-2 sm:mt-0 shrink-0">
           <Button variant="outline">
             <Calendar className="mr-2 h-4 w-4" />
             Today's Schedule
@@ -115,6 +116,7 @@ export function ManagerDashboard() {
           </Button>
         </div>
       </div>
+
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

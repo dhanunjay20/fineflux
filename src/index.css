@@ -354,3 +354,12 @@
     transform: scale(1);
   }
 }
+
+@keyframes progress-bar {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}

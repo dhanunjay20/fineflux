@@ -400,25 +400,29 @@ export default function Reports() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Reports & Analytics</h1>
-          <p className="text-muted-foreground">Generate and download business reports</p>
+      {/* Header: stack on mobile to avoid overlap */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground truncate">
+            Reports & Analytics
+          </h1>
+          <p className="text-sm md:text-base text-muted-foreground">
+            Generate and download business reports
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-start sm:justify-end">
+          <Button variant="outline" className="w-full sm:w-auto">
             <Filter className="mr-2 h-4 w-4" />
             Filter Reports
           </Button>
-          <Button className="btn-gradient-primary">
+          <Button className="btn-gradient-primary w-full sm:w-auto">
             <FileText className="mr-2 h-4 w-4" />
             Custom Report
           </Button>
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats: unchanged, already responsive */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
@@ -426,8 +430,8 @@ export default function Reports() {
             <Card key={stat.title} className="stat-card hover-lift">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
+                  <div className="space-y-2 min-w-0">
+                    <p className="text-sm font-medium text-muted-foreground truncate">{stat.title}</p>
                     <div className="space-y-1">
                       <p className="text-2xl font-bold text-foreground">{stat.value}</p>
                       <p className="text-xs text-muted-foreground">{stat.change}</p>
@@ -514,13 +518,17 @@ export default function Reports() {
             <CardTitle>Quick Report Templates</CardTitle>
           </CardHeader>
           <CardContent>
+            {/* Stack cards on mobile; ensure text wraps and buttons wrap */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {reportTypes.map((report) => {
                 const Icon = report.icon;
                 return (
-                  <div key={report.id} className="p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer">
+                  <div
+                    key={report.id}
+                    className="p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                  >
                     <div className="flex items-start gap-3">
-                      <div className={`${report.bgColor} p-2 rounded-lg`}>
+                      <div className={`${report.bgColor} p-2 rounded-lg shrink-0`}>
                         <Icon className={`h-5 w-5 ${report.color}`} />
                       </div>
                       <div className="flex-1 space-y-1">
@@ -562,12 +570,13 @@ export default function Reports() {
       {/* Recent Reports */}
       <Card className="card-gradient">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          {/* Header actions wrap on mobile */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
               Recent Reports
             </CardTitle>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto">
               View All
             </Button>
           </div>
@@ -575,19 +584,22 @@ export default function Reports() {
         <CardContent>
           <div className="space-y-3">
             {recentReports.map((report) => (
-              <div key={report.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className="bg-primary-soft p-2 rounded-lg">
+              <div
+                key={report.id}
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="bg-primary-soft p-2 rounded-lg shrink-0">
                     <FileText className="h-4 w-4 text-primary" />
                   </div>
-                  <div>
-                    <p className="font-medium text-foreground">{report.name}</p>
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground truncate">{report.name}</p>
                     <p className="text-sm text-muted-foreground">
                       Generated on {formatDate(report.generatedDate)} • {report.size}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 sm:self-end">
                   {getFormatBadge(report.format)}
                   <div className="flex gap-2">
                     <Button 

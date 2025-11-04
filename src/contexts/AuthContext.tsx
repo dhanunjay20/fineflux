@@ -1,9 +1,12 @@
+// AuthContext.tsx
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 
 export type UserRole = 'owner' | 'manager' | 'employee';
 
 export interface User {
+  profileImageUrl: string;
+  username: string;
   id: string;
   name: string;
   role: UserRole;
@@ -26,24 +29,26 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Use Vite env for API; ensure .env defines VITE_API_LOGIN_URL
 const API_LOGIN =
   import.meta.env.VITE_API_LOGIN_URL ||
-  'http://localhost:8080/api/auth/login';
+  'https://finflux-64307221061.asia-south1.run.app/api/auth/login';
 
-// Backend response from POST /api/auth/login
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  'https://finflux-64307221061.asia-south1.run.app';
+
+const PROFILE_URL_KEY = 'profileImageUrl';
+
 type ApiResponse = {
   id: string;
   username: string;
   role: string;
-  organizationId?: string; // new
-  empId?: string;          // new
+  organizationId?: string;
+  empId?: string;
   email?: string;
   token?: string;
-  // add other fields if backend returns them
 };
 
-// Robust normalizer: trim + lowercase and map to allowed roles
 function normalizeRole(r?: string): UserRole {
   const v = String(r ?? '').trim().toLowerCase();
   if (v === 'owner' || v === 'manager' || v === 'employee') return v as UserRole;
@@ -55,7 +60,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const controllerRef = useRef<AbortController | null>(null);
 
-  // Initialize from storage on mount
   useEffect(() => {
     const fromSession = sessionStorage.getItem('petrol_bunk_user');
     const fromLocal = localStorage.getItem('petrol_bunk_user');
@@ -75,21 +79,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (username: string, password: string, remember = false): Promise<boolean> => {
     setIsLoading(true);
 
-    // cancel any in-flight login
     try { controllerRef.current?.abort(); } catch {}
     const controller = new AbortController();
     controllerRef.current = controller;
 
     try {
-      // Backend handles authentication; send JSON payload { username, password }
       const res = await axios.post<ApiResponse>(
         API_LOGIN,
         { username, password },
         {
           timeout: 10000,
           signal: controller.signal,
-          withCredentials: true, // enable if backend issues session cookies
-          // headers: { 'Content-Type': 'application/json' }, // Axios sets this for plain objects
+          withCredentials: true,
         }
       );
 
@@ -99,29 +100,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const nextUser: User = {
         id: String(data.id ?? username),
         name: data.username ?? username,
-        role, // already lowercase and validated
+        role,
         email: data.email,
         employeeId: data.id ? String(data.id) : undefined,
-        organizationId: data.organizationId ?? undefined, // save org
-        empId: data.empId ?? undefined,                   // save emp id
+        organizationId: data.organizationId ?? undefined,
+        empId: data.empId ?? undefined,
         token: data.token,
+        profileImageUrl: '', // will set below
+        username: username
       };
 
       const storage = remember ? localStorage : sessionStorage;
       storage.setItem('petrol_bunk_user', JSON.stringify(nextUser));
       storage.setItem('isLoggedIn', 'true');
-      storage.setItem('role', role); // persisted in lowercase
+      storage.setItem('role', role);
 
-      // Convenience keys for other features that read org/emp directly (e.g., creation forms)
       if (nextUser.organizationId) localStorage.setItem('organizationId', nextUser.organizationId);
       if (nextUser.empId) localStorage.setItem('empId', nextUser.empId);
-
       localStorage.setItem('loginTime', Date.now().toString());
+
+      // Fetch profile image immediately after login and update localStorage before navigation
+      if (nextUser.organizationId && nextUser.empId) {
+        try {
+          const employeeRes = await axios.get(
+            `${API_BASE}/api/organizations/${nextUser.organizationId}/employees?page=0&size=100`
+          );
+          const items = Array.isArray(employeeRes.data?.content)
+            ? employeeRes.data.content
+            : Array.isArray(employeeRes.data)
+              ? employeeRes.data
+              : [];
+          const emp = items.find((x: any) => x.empId === nextUser.empId);
+          if (emp && emp.profileImageUrl) {
+            localStorage.setItem(PROFILE_URL_KEY, emp.profileImageUrl);
+            nextUser.profileImageUrl = emp.profileImageUrl;
+          } else {
+            localStorage.removeItem(PROFILE_URL_KEY);
+          }
+        } catch {
+          localStorage.removeItem(PROFILE_URL_KEY);
+        }
+      }
 
       setUser(nextUser);
       return true;
     } catch (error: any) {
-      // Treat any 401 as invalid credentials; other errors as generic failure
       if (axios.isAxiosError(error) && error.response?.status === 401) {
         return false;
       }
@@ -140,8 +163,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('petrol_bunk_user');
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('role');
-    localStorage.removeItem('organizationId'); 
-    localStorage.removeItem('empId');          
+    localStorage.removeItem('organizationId');
+    localStorage.removeItem('empId');
+    localStorage.removeItem(PROFILE_URL_KEY);
   };
 
   return (

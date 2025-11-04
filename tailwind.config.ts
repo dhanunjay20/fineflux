@@ -96,10 +96,19 @@ export default {
             height: "0",
           },
         },
+        "progress-bar": {
+          from: {
+            width: "100%",
+          },
+          to: {
+            width: "0%",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "progress-bar": "progress-bar 3s linear forwards",
       },
     },
   },

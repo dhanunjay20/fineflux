@@ -18,7 +18,8 @@ export function Toaster() {
           </Toast>
         );
       })}
-      <ToastViewport />
+      {/* Z-index increased here */}
+      <ToastViewport className="z-[100000]" />
     </ToastProvider>
   );
 }
