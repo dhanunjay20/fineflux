@@ -129,9 +129,9 @@ export default function Documents() {
       const data = new FormData();
       data.append("file", file);
       
-      console.error("Uploading file:", {
+      console.log("📤 Uploading file:", {
         name: file.name,
-        size: file.size,
+        size: `${(file.size / 1024).toFixed(2)} KB`,
         type: file.type,
         orgId
       });
@@ -139,34 +139,58 @@ export default function Documents() {
       const res = await axios.post(
         `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/upload`,
         data,
-        { headers: { "Content-Type": "multipart/form-data" } }
+        { 
+          headers: { "Content-Type": "multipart/form-data" },
+          timeout: 60000 // 60 second timeout for large files
+        }
       );
       
-      console.error("Upload response:", res.data);
+      console.log("✅ Upload successful:", res.data);
       
-      // Backend returns { fileUrl: "...", fileName: "...", uploadedAt: "..." }
-      const fileUrl = res.data?.fileUrl || res.data;
+      // Backend now returns just the fileUrl as a string
+      const fileUrl = typeof res.data === 'string' ? res.data : res.data?.fileUrl || res.data;
+      
+      if (!fileUrl) {
+        throw new Error("No file URL received from server");
+      }
+      
       setForm(f => ({ ...f, file, fileUrl }));
-      toast({ title: "Success", description: "File uploaded successfully!" });
+      toast({ 
+        title: "Success", 
+        description: `File "${file.name}" uploaded successfully!`,
+        variant: "default" 
+      });
     } catch (error: any) {
-      console.error("Upload error details:", {
+      console.error("❌ Upload failed:", {
         status: error?.response?.status,
         statusText: error?.response?.statusText,
         data: error?.response?.data,
         message: error?.message
       });
       
-      // Log the full error response for debugging
-      if (error?.response?.data) {
-        console.error("Backend error message:", error.response.data.message || JSON.stringify(error.response.data, null, 2));
+      // Determine user-friendly error message
+      let errorMessage = "Failed to upload file. Please try again.";
+      
+      if (error?.response?.status === 500) {
+        errorMessage = "Server error while uploading file. Please check if Google Cloud Storage is configured correctly.";
+      } else if (error?.response?.status === 413) {
+        errorMessage = "File is too large. Maximum size is 10MB.";
+      } else if (error?.response?.status === 400) {
+        errorMessage = error?.response?.data?.message || "Invalid file format or request.";
+      } else if (error?.code === 'ECONNABORTED') {
+        errorMessage = "Upload timeout. Please try with a smaller file.";
+      } else if (error?.message) {
+        errorMessage = error.message;
       }
       
-      const errorMessage = error?.response?.data?.message || error?.message || "Failed to upload file. Check console for details.";
       toast({ 
-        title: "Upload Error", 
+        title: "Upload Failed", 
         description: errorMessage, 
         variant: "destructive" 
       });
+      
+      // Reset file input
+      e.target.value = '';
       setForm(f => ({ ...f, file: null, fileUrl: "" }));
     } finally {
       setUploading(false);

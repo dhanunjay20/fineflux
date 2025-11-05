@@ -75,7 +75,7 @@ interface InventoryItem {
   status: string;
 }
 
-type DatePreset = "latest" | "today" | "week" | "month" | "custom";
+type DatePreset = "latest" | "today" | "week" | "month" | "all" | "custom";
 
 // ============ Constants ============
 // Removed - using API_CONFIG
@@ -95,6 +95,9 @@ const rangeForPreset = (preset: DatePreset): [Dayjs, Dayjs] => {
       return [today.startOf("week"), today.endOf("week")];
     case "month":
       return [today.startOf("month"), today.endOf("month")];
+    case "all":
+      // Return a very wide range to get all records
+      return [today.subtract(10, "year"), today.endOf("day")];
     default:
       return [today.subtract(1, "year"), today.endOf("day")];
   }
@@ -451,6 +454,7 @@ const DateRangeSelector = ({
     { id: "today", label: "Today", icon: Clock },
     { id: "week", label: "This Week", icon: CalendarIcon },
     { id: "month", label: "This Month", icon: CalendarIcon },
+    { id: "all", label: "All Records", icon: FileText },
   ] as const;
 
   return (
@@ -675,6 +679,14 @@ export default function SalesHistory() {
   } = useQuery({
     queryKey: ["sale-history", orgId, fromIso, toIso, preset],
     queryFn: async () => {
+      // For "all" preset, fetch from /sale-history endpoint without date filters
+      if (preset === "all") {
+        const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sale-history`;
+        const res = await axios.get<SaleRecord[]>(url);
+        return Array.isArray(res.data) ? res.data : [];
+      }
+      
+      // For other presets, use date filtering
       const params = `from=${fromIso}&to=${toIso}`;
       const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sale-history/by-date?${params}`;
       const res = await axios.get<SaleRecord[]>(url);

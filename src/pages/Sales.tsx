@@ -136,7 +136,9 @@ export default function Sales() {
   const [isSubmittingBatch, setIsSubmittingBatch] = useState(false);
   const submittingRef = useRef(false);
   const isBatchRef = useRef(false);
-
+  
+  // Track submitted product-gun combinations to prevent duplicates before data refreshes (using ref for synchronous updates)
+  const submittedSalesRef = useRef<Set<string>>(new Set());
 
   const [batchCollectionForm, setBatchCollectionForm] = useState({
     totalCash: "",
@@ -265,9 +267,7 @@ export default function Sales() {
   const { data: sales = [], isLoading } = useQuery({
     queryKey: ["sales", orgId],
     queryFn: async () => {
-      console.log("🔄 Fetching sales for orgId:", orgId);
       const response = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sales`);
-      console.log("📊 Sales fetched:", response.data?.length || 0, "records");
       return response.data || [];
     },
     refetchOnMount: true,
@@ -278,9 +278,7 @@ export default function Sales() {
   const { data: collections = [] } = useQuery({
     queryKey: ["collections", orgId],
     queryFn: async () => {
-      console.log("🔄 Fetching collections for orgId:", orgId);
       const response = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/collections`);
-      console.log("💰 Collections fetched:", response.data?.length || 0, "records");
       return response.data || [];
     },
     refetchOnMount: true,
@@ -382,7 +380,6 @@ export default function Sales() {
   const [validationError, setValidationError] = useState<{ title: string; message: string } | null>(null);
   const deleteSaleMutation = useMutation({
     mutationFn: async (saleId: string) => {
-      console.log("🗑️ Deleting sale:", saleId);
       const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sales/${saleId}`;
       
       const response = await axios.delete(url, {
@@ -392,11 +389,9 @@ export default function Sales() {
         timeout: API_CONFIG.TIMEOUT,
       });
       
-      console.log("✅ Delete response:", response.status);
       return response.data;
     },
     onSuccess: () => {
-      console.log("✅ Sale deleted successfully, invalidating queries");
       setDeleteSaleId(null);
       
       // Invalidate and refetch all related queries
@@ -514,7 +509,6 @@ export default function Sales() {
       }
     },
     onSuccess: () => {
-      console.log("✅ Sale submitted successfully, invalidating queries...");
       
       // Invalidate and refetch queries immediately
       queryClient.invalidateQueries({ queryKey: ["sales", orgId] });
@@ -522,7 +516,10 @@ export default function Sales() {
       queryClient.invalidateQueries({ queryKey: ["guninfo", orgId] });
       
       // Force immediate refetch
-      queryClient.refetchQueries({ queryKey: ["sales", orgId] });
+      queryClient.refetchQueries({ queryKey: ["sales", orgId] }).then(() => {
+        // Clear submitted sales tracking after data is refreshed
+        submittedSalesRef.current.clear();
+      });
       queryClient.refetchQueries({ queryKey: ["collections", orgId] });
 
       if (!isBatchRef.current) {
@@ -653,13 +650,39 @@ export default function Sales() {
       toast({ title: "Batch mode is active", description: "Use Show Summary & Submit.", variant: "destructive" });
       return;
     }
+
+    // Create unique key for this product-gun combination
+    const saleKey = `${form.fuel}-${form.gun}`;
+    
+    // Check if this product+gun combination already exists in today's sales OR was just submitted
+    // NOTE: Backend returns productName and guns fields, not productId/gunId
+    const isDuplicateInTodaySales = todaySalesRaw.some((sale: any) => {
+      return sale.guns === form.gun && sale.productName === form.fuel;
+    });
+    
+    const isDuplicateJustSubmitted = submittedSalesRef.current.has(saleKey);
+    
+    if (isDuplicateInTodaySales || isDuplicateJustSubmitted) {
+      toast({ 
+        title: "Duplicate Sale Blocked", 
+        description: `A sale record already exists for Product "${form.fuel}" with Gun "${form.gun}" today.`, 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     submittingRef.current = true;
     isBatchRef.current = false;
+
+    // Add to submitted sales tracking BEFORE the mutation (synchronous with ref)
+    submittedSalesRef.current.add(saleKey);
 
     try {
       await saleCollectionMutation.mutateAsync(form);
     } catch (error) {
       console.error("Submit error:", error);
+      // Remove from submitted sales if error occurred
+      submittedSalesRef.current.delete(saleKey);
     } finally {
       submittingRef.current = false;
     }
@@ -669,6 +692,21 @@ export default function Sales() {
     if (!isFormValid(form, true)) return;
     const key = entryKey(form);
     const existingKeys = new Set(saleEntries.map(entryKey));
+    
+    // Check if this product+gun combination already exists in today's sales
+    // NOTE: Backend returns productName and guns fields
+    const isDuplicateInTodaySales = todaySalesRaw.some((sale: any) => 
+      sale.guns === form.gun && sale.productName === form.fuel
+    );
+    
+    if (isDuplicateInTodaySales) {
+      toast({ 
+        title: "Duplicate Sale Blocked", 
+        description: `A sale record already exists for Product "${form.fuel}" with Gun "${form.gun}" today.`, 
+        variant: "destructive" 
+      });
+      return;
+    }
     
     // Point 7: Check for duplicate product+gun combination (same gun can have different products)
     const isDuplicateProductGun = saleEntries.some((entry) => entry.gun === form.gun && entry.fuel === form.fuel);
@@ -699,6 +737,22 @@ export default function Sales() {
     if (form.fuel && isFormValid(form, true)) {
       const key = entryKey(form);
       const existingKeys = new Set(saleEntries.map(entryKey));
+      
+      // Check if this product+gun combination already exists in today's sales
+      // NOTE: Backend returns productName and guns fields
+      const isDuplicateInTodaySales = todaySalesRaw.some((sale: any) => 
+        sale.guns === form.gun && sale.productName === form.fuel
+      );
+      
+      if (isDuplicateInTodaySales) {
+        toast({ 
+          title: "Duplicate Sale Blocked", 
+          description: `A sale record already exists for Product "${form.fuel}" with Gun "${form.gun}" today.`, 
+          variant: "destructive" 
+        });
+        setShowSummaryPopup(true);
+        return;
+      }
       
       // Point 7: Check for duplicate product+gun combination (same gun can have different products)
       const isDuplicateProductGun = saleEntries.some((entry) => entry.gun === form.gun && entry.fuel === form.fuel);
@@ -874,13 +928,6 @@ export default function Sales() {
 
   const todaySalesRaw = useMemo(() => {
     const filtered = sales.filter((s: any) => isWithin(s.dateTime)).slice().reverse();
-    console.log("📅 Today's Sales Raw:", {
-      totalSales: sales.length,
-      todayFiltered: filtered.length,
-      userRole,
-      orgId,
-      empId
-    });
     return filtered;
   }, [sales, userRole, orgId, empId]);
   const todaysCollections = useMemo(() => collections.filter((c: any) => isWithin(c.dateTime)), [collections]);
@@ -1743,7 +1790,6 @@ export default function Sales() {
                               e.stopPropagation(); // Prevent opening details dialog
                               // MongoDB uses _id as primary key
                               const saleId = sale._id || sale.id;
-                              console.log("🗑️ Deleting sale:", { saleId, sale });
                               if (saleId) {
                                 setDeleteSaleId(saleId);
                               } else {
