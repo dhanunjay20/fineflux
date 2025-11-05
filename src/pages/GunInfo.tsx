@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Edit, Box, Archive, Barcode, Fuel, Activity, TrendingUp, AlertCircle, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Trash2, Edit, Box, Archive, Barcode, Fuel, Activity, TrendingUp, AlertCircle, ChevronDown, ChevronUp, X, Zap } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { API_CONFIG } from "@/lib/api-config";
 
@@ -32,6 +32,26 @@ const getUsedSerialNumbers = (guns, productName, ignoreId) =>
         (!ignoreId || (g.id || g._id) !== ignoreId)
     )
     .map((g) => g.serialNumber);
+
+// Get consistent color for product name
+const getProductColor = (productName: string) => {
+  const colors = [
+    { bg: "bg-blue-500", text: "text-white", border: "border-blue-500" },
+    { bg: "bg-emerald-500", text: "text-white", border: "border-emerald-500" },
+    { bg: "bg-purple-500", text: "text-white", border: "border-purple-500" },
+    { bg: "bg-orange-500", text: "text-white", border: "border-orange-500" },
+    { bg: "bg-pink-500", text: "text-white", border: "border-pink-500" },
+    { bg: "bg-cyan-500", text: "text-white", border: "border-cyan-500" },
+    { bg: "bg-indigo-500", text: "text-white", border: "border-indigo-500" },
+    { bg: "bg-rose-500", text: "text-white", border: "border-rose-500" },
+    { bg: "bg-teal-500", text: "text-white", border: "border-teal-500" },
+    { bg: "bg-amber-500", text: "text-white", border: "border-amber-500" },
+  ];
+  
+  // Generate consistent index based on product name
+  const hash = productName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return colors[hash % colors.length];
+};
 
 const GunInfo = () => {
   const orgId = localStorage.getItem("organizationId") || "ORG-DEV-001";
@@ -652,7 +672,9 @@ const GunInfo = () => {
               ) : (
                 <>
                   <div className="grid grid-cols-1 gap-4">
-                    {pagedGuns.map((gun: any) => (
+                    {pagedGuns.map((gun: any) => {
+                      const productColor = getProductColor(gun.productName);
+                      return (
                       <div
                         key={gun.id || gun._id}
                         className="group p-5 rounded-xl bg-gradient-to-br from-muted/30 to-muted/10 hover:from-muted/50 hover:to-muted/30 transition-all duration-300 border border-border hover:border-primary/50 hover:shadow-lg"
@@ -660,12 +682,15 @@ const GunInfo = () => {
                         <div className="flex items-center justify-between gap-4">
                           <div className="flex-1 min-w-0 space-y-4">
                             <div className="flex items-center gap-3 flex-wrap">
-                              <div className="flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-full">
-                                <Fuel className="h-4 w-4 text-primary" />
-                                <span className="font-bold text-primary">{gun.guns}</span>
-                              </div>
-                              <Badge variant="outline" className="font-medium">
-                                {gun.productName}
+                              <Badge className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white px-3 py-1.5 rounded-full border-0 shadow-md">
+                                <Zap className="h-4 w-4" />
+                                <span className="font-bold">{gun.guns}</span>
+                              </Badge>
+                              <Badge 
+                                className={`flex items-center gap-2 ${productColor.bg} ${productColor.text} px-3 py-1.5 rounded-full border-0 shadow-md`}
+                              >
+                                <Fuel className="h-4 w-4" />
+                                <span className="font-medium">{gun.productName}</span>
                               </Badge>
                               <span className="ml-2 text-xs px-2 py-1 bg-muted rounded">
                                 <b>EmpID:</b> {gun.empId || "—"}
@@ -722,7 +747,8 @@ const GunInfo = () => {
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   {filteredGuns.length > GUNS_PER_PAGE && (
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6 pt-4 border-t border-border">

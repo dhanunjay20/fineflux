@@ -41,6 +41,7 @@ import {
   Layers,
   Trash2,
   X,
+  Eye,
 } from "lucide-react";
 import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone";
@@ -1780,31 +1781,46 @@ export default function Sales() {
                         <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                           ₹{(sale.salesInRupees || 0).toLocaleString()}
                         </p>
-                        {/* Point 3: Delete button only for latest sale and hidden for employees */}
-                        {index === 0 && !isEmployee && (
+                        <div className="flex gap-1 mt-1 justify-end">
+                          {/* Eye icon to view details */}
                           <Button
                             variant="ghost"
                             size="icon"
-                            title="Delete Sale"
+                            title="View Details"
                             onClick={(e) => {
-                              e.stopPropagation(); // Prevent opening details dialog
-                              // MongoDB uses _id as primary key
-                              const saleId = sale._id || sale.id;
-                              if (saleId) {
-                                setDeleteSaleId(saleId);
-                              } else {
-                                toast({
-                                  title: "Error",
-                                  description: "Sale ID not found. Please refresh the page.",
-                                  variant: "destructive"
-                                });
-                              }
+                              e.stopPropagation();
+                              setSelectedSale(sale);
                             }}
-                            className="bg-red-100 text-destructive mt-1 hover:bg-red-200"
+                            className="h-8 w-8 bg-blue-100 text-blue-600 hover:bg-blue-200"
                           >
-                            <Trash2 className="h-5 w-5" />
+                            <Eye className="h-4 w-4" />
                           </Button>
-                        )}
+                          {/* Point 3: Delete button only for latest sale and hidden for employees */}
+                          {index === 0 && !isEmployee && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Delete Sale"
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent opening details dialog
+                                // MongoDB uses _id as primary key
+                                const saleId = sale._id || sale.id;
+                                if (saleId) {
+                                  setDeleteSaleId(saleId);
+                                } else {
+                                  toast({
+                                    title: "Error",
+                                    description: "Sale ID not found. Please refresh the page.",
+                                    variant: "destructive"
+                                  });
+                                }
+                              }}
+                              className="h-8 w-8 bg-red-100 text-destructive hover:bg-red-200"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
