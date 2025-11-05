@@ -80,16 +80,22 @@ export default function Analytics() {
   const fromIso = from.startOf('day').utc().format('YYYY-MM-DDTHH:mm:ss');
   const toIso = to.endOf('day').utc().format('YYYY-MM-DDTHH:mm:ss');
 
-  // Fetch Sales with real-time updates - CORRECTED ENDPOINT
+  // Fetch Sales with real-time updates - UPDATED TO USE SALES API
   const { data: salesData = [], isLoading: loadingSales, isFetching: fetchingSales, refetch: refetchSales } = useQuery({
     queryKey: ['sales-analytics', orgId, fromIso, toIso],
     queryFn: async () => {
       try {
-        // Use the correct endpoint: sale-history/by-date
-        const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sale-history/by-date?from=${fromIso}&to=${toIso}`;
+        // Use the sales API endpoint instead of sale-history
+        const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sales`;
         const res = await axios.get(url, { timeout: API_CONFIG.TIMEOUT });
         const data = Array.isArray(res.data) ? res.data : [];
-        return data;
+        
+        // Filter by date range on the client side
+        return data.filter((sale: any) => {
+          if (!sale.dateTime) return false;
+          const saleDate = dayjs(sale.dateTime).tz('Asia/Kolkata');
+          return saleDate.isAfter(from.subtract(1, 'day')) && saleDate.isBefore(to.add(1, 'day'));
+        });
       } catch (error) {
         console.error('Error fetching sales:', error);
         return [];

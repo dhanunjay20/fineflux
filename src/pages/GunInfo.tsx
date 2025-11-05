@@ -327,7 +327,7 @@ const GunInfo = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="productName" className="text-xs uppercase text-muted-foreground">
-                    Product Name *
+                    Product Name <span className="text-red-500">*</span>
                   </Label>
                   <Select
                     value={addForm.productName}
@@ -348,7 +348,7 @@ const GunInfo = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="guns" className="text-xs uppercase text-muted-foreground">
-                    Gun Name/Number *
+                    Gun Name/Number <span className="text-red-500">*</span>
                   </Label>
                   <Select
                     value={addForm.guns}
@@ -400,7 +400,7 @@ const GunInfo = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="serialNumber" className="text-xs uppercase text-muted-foreground">
-                    Serial Number *
+                    Serial Number <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="serialNumber"
@@ -414,7 +414,7 @@ const GunInfo = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="currentReading" className="text-xs uppercase text-muted-foreground">
-                    Current Reading (Liters) *
+                    Current Reading (Liters) <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="currentReading"
@@ -482,7 +482,7 @@ const GunInfo = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="productName" className="text-xs uppercase text-muted-foreground">
-                      Product Name *
+                      Product Name <span className="text-red-500">*</span>
                     </Label>
                     <Select
                       value={editForm.productName}
@@ -503,7 +503,7 @@ const GunInfo = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="guns" className="text-xs uppercase text-muted-foreground">
-                      Gun Name/Number *
+                      Gun Name/Number <span className="text-red-500">*</span>
                     </Label>
                     <Select
                       value={editForm.guns}
@@ -555,7 +555,7 @@ const GunInfo = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="serialNumber" className="text-xs uppercase text-muted-foreground">
-                      Serial Number *
+                      Serial Number <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="serialNumber"
@@ -569,7 +569,7 @@ const GunInfo = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="currentReading" className="text-xs uppercase text-muted-foreground">
-                      Current Reading (Liters) *
+                      Current Reading (Liters) <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="currentReading"

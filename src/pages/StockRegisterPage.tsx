@@ -103,7 +103,7 @@ export default function StockRegister() {
       const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/stock-register`;
       return (await axios.post(url, req)).data;
     },
-    onSuccess: () => { refetch(); handleCloseModal(); toast({ title: "Entry added!", variant: "success" }); },
+    onSuccess: () => { refetch(); handleCloseModal(); toast({ title: "Entry added!", variant: "default" }); },
     onError: () => { toast({ title: "Failed to add entry", variant: "destructive" }); },
   });
 
@@ -124,7 +124,7 @@ export default function StockRegister() {
       const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/stock-register/${body.id}`;
       return (await axios.put(url, req)).data;
     },
-    onSuccess: () => { refetch(); handleCloseModal(); toast({ title: "Entry updated!", variant: "success" }); },
+    onSuccess: () => { refetch(); handleCloseModal(); toast({ title: "Entry updated!", variant: "default" }); },
     onError: () => { toast({ title: "Failed to update entry", variant: "destructive" }); },
   });
 
@@ -133,7 +133,7 @@ export default function StockRegister() {
       const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/stock-register/${id}`;
       return (await axios.delete(url)).data;
     },
-    onSuccess: () => { refetch(); setDeleteTarget(null); setConfirmOpen(false); toast({ title: "Entry deleted!", variant: "success" }); },
+    onSuccess: () => { refetch(); setDeleteTarget(null); setConfirmOpen(false); toast({ title: "Entry deleted!", variant: "default" }); },
     onError: () => { toast({ title: "Failed to delete entry", variant: "destructive" }); },
   });
 

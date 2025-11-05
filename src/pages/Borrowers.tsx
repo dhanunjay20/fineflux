@@ -250,10 +250,8 @@ export default function Borrowers() {
         return firstArray;
       }
 
-      console.warn('⚠️ No array found in response, returning empty array');
       return [];
     } catch (err: any) {
-      console.error('❌ Error fetching customers:', err?.response?.status, err?.response?.data);
       toast({
         title: 'Error',
         description: err?.response?.data?.message || err?.message || 'Failed to fetch customers',
@@ -287,7 +285,6 @@ export default function Borrowers() {
       }
       return [];
     } catch (err: any) {
-      console.error('Failed to fetch history:', err);
       return [];
     }
   };

@@ -1033,6 +1033,3 @@ export default function SalesHistory() {
     </div>
   );
 }
-
-
-

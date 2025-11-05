@@ -144,6 +144,9 @@ export default function Sales() {
     totalCard: "",
   });
 
+  // State for sale details popup
+  const [selectedSale, setSelectedSale] = useState<any>(null);
+
   const { data: products = [] } = useQuery({
     queryKey: ["products", orgId],
     queryFn: async () =>
@@ -261,14 +264,28 @@ export default function Sales() {
 
   const { data: sales = [], isLoading } = useQuery({
     queryKey: ["sales", orgId],
-    queryFn: async () =>
-      (await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sales`)).data || [],
+    queryFn: async () => {
+      console.log("🔄 Fetching sales for orgId:", orgId);
+      const response = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sales`);
+      console.log("📊 Sales fetched:", response.data?.length || 0, "records");
+      return response.data || [];
+    },
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    staleTime: 0, // Always consider data stale to ensure fresh fetches
   });
 
   const { data: collections = [] } = useQuery({
     queryKey: ["collections", orgId],
-    queryFn: async () =>
-      (await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/collections`)).data || [],
+    queryFn: async () => {
+      console.log("🔄 Fetching collections for orgId:", orgId);
+      const response = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/collections`);
+      console.log("💰 Collections fetched:", response.data?.length || 0, "records");
+      return response.data || [];
+    },
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 
   const filteredGuns = useMemo(
@@ -365,28 +382,40 @@ export default function Sales() {
   const [validationError, setValidationError] = useState<{ title: string; message: string } | null>(null);
   const deleteSaleMutation = useMutation({
     mutationFn: async (saleId: string) => {
+      console.log("🗑️ Deleting sale:", saleId);
       const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sales/${saleId}`;
-      await axios.delete(url, {
+      
+      const response = await axios.delete(url, {
         headers: {
-          "X-Employee-Id": empId || "",
+          "X-Employee-Id": empId || "SYSTEM",
         },
+        timeout: API_CONFIG.TIMEOUT,
       });
+      
+      console.log("✅ Delete response:", response.status);
+      return response.data;
     },
     onSuccess: () => {
+      console.log("✅ Sale deleted successfully, invalidating queries");
       setDeleteSaleId(null);
-      queryClient.invalidateQueries({ queryKey: ["sales", orgId] });
-      toast({ title: "Deleted", description: "Sale entry deleted.", variant: "default" });
       
-      // Automatically refresh the page after successful deletion
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000); // 1 second delay to show the toast message
+      // Invalidate and refetch all related queries
+      queryClient.invalidateQueries({ queryKey: ["sales", orgId] });
+      queryClient.invalidateQueries({ queryKey: ["collections", orgId] });
+      queryClient.refetchQueries({ queryKey: ["sales", orgId] });
+      
+      toast({ 
+        title: "✅ Deleted Successfully", 
+        description: "Sale entry has been deleted.", 
+        variant: "default" 
+      });
     },
     onError: (error: any) => {
       console.error("❌ Delete Sale Error:", error);
+      const errorMessage = error?.response?.data?.message || error?.message || "Failed to delete sale entry.";
       toast({
-        title: "Delete Failed",
-        description: error?.response?.data?.message || "Failed to delete sale entry.",
+        title: "❌ Delete Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -485,9 +514,16 @@ export default function Sales() {
       }
     },
     onSuccess: () => {
+      console.log("✅ Sale submitted successfully, invalidating queries...");
+      
+      // Invalidate and refetch queries immediately
       queryClient.invalidateQueries({ queryKey: ["sales", orgId] });
       queryClient.invalidateQueries({ queryKey: ["collections", orgId] });
       queryClient.invalidateQueries({ queryKey: ["guninfo", orgId] });
+      
+      // Force immediate refetch
+      queryClient.refetchQueries({ queryKey: ["sales", orgId] });
+      queryClient.refetchQueries({ queryKey: ["collections", orgId] });
 
       if (!isBatchRef.current) {
         setForm(initialFormState);
@@ -836,7 +872,17 @@ export default function Sales() {
     return d.isSameOrAfter(start) && d.isSameOrBefore(end);
   };
 
-  const todaySalesRaw = useMemo(() => sales.filter((s: any) => isWithin(s.dateTime)).slice().reverse(), [sales]);
+  const todaySalesRaw = useMemo(() => {
+    const filtered = sales.filter((s: any) => isWithin(s.dateTime)).slice().reverse();
+    console.log("📅 Today's Sales Raw:", {
+      totalSales: sales.length,
+      todayFiltered: filtered.length,
+      userRole,
+      orgId,
+      empId
+    });
+    return filtered;
+  }, [sales, userRole, orgId, empId]);
   const todaysCollections = useMemo(() => collections.filter((c: any) => isWithin(c.dateTime)), [collections]);
 
   const collectionSummary = useMemo(() => {
@@ -1628,8 +1674,22 @@ export default function Sales() {
                 </div>
               ) : (
                 todaySales.map((sale: any, index: number) => (
-                  <div key={sale._id || sale.id || `${sale.productName}-${sale.guns}-${index}`} className="group relative overflow-hidden rounded-xl border border-border/50 bg-gradient-to-br from-background to-muted/20 p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:border-primary/50">
+                  <div 
+                    key={sale._id || sale.id || `${sale.productName}-${sale.guns}-${index}`} 
+                    className="group relative overflow-hidden rounded-xl border border-border/50 bg-gradient-to-br from-background to-muted/20 p-4 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-primary/50 cursor-pointer hover:scale-[1.01]"
+                    onClick={() => setSelectedSale(sale)}
+                    title="Click to view full sale details"
+                  >
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-600" />
+                    
+                    {/* Hover indicator */}
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <Badge variant="secondary" className="text-xs">
+                        <FileText className="h-3 w-3 mr-1" />
+                        View Details
+                      </Badge>
+                    </div>
+
                     <div className="flex items-center justify-between gap-4 ml-3">
                       <div className="flex items-center gap-4 flex-1">
                         <div className="shrink-0 p-3 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg">
@@ -1679,14 +1739,17 @@ export default function Sales() {
                             variant="ghost"
                             size="icon"
                             title="Delete Sale"
-                            onClick={() => {
-                              const saleId = sale.id || sale._id;
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent opening details dialog
+                              // MongoDB uses _id as primary key
+                              const saleId = sale._id || sale.id;
+                              console.log("🗑️ Deleting sale:", { saleId, sale });
                               if (saleId) {
                                 setDeleteSaleId(saleId);
                               } else {
                                 toast({
                                   title: "Error",
-                                  description: "Sale ID not found",
+                                  description: "Sale ID not found. Please refresh the page.",
                                   variant: "destructive"
                                 });
                               }
@@ -1899,6 +1962,235 @@ export default function Sales() {
         </CardContent>
       </Card>
       )}
+
+      {/* Sale Details Dialog */}
+      <Dialog open={!!selectedSale} onOpenChange={(open) => !open && setSelectedSale(null)}>
+        <DialogContent className="max-w-3xl max-h-[95vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="px-6 py-4 border-b shrink-0">
+            <DialogTitle className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600">
+                <FileText className="h-5 w-5 text-white" />
+              </div>
+              Sale Details
+            </DialogTitle>
+            <DialogDescription>
+              Complete information about this sale transaction
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedSale && (
+            <>
+              <div className="space-y-6 px-6 py-4 overflow-y-auto flex-1">
+              {/* Header Info */}
+              <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 p-4 border border-blue-200/50 dark:border-blue-800/50">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Date & Time</p>
+                    <p className="text-lg font-semibold">
+                      {selectedSale.dateTime 
+                        ? dayjs(selectedSale.dateTime).tz("Asia/Kolkata").format("DD MMM YYYY, hh:mm A")
+                        : "N/A"}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-lg px-3 py-1">
+                    {selectedSale.productName}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <User className="h-4 w-4" />
+                  <span>Employee: <strong className="text-foreground">{selectedSale.empId}</strong></span>
+                </div>
+              </div>
+
+              {/* Product & Gun Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2 p-4 rounded-lg bg-muted/50 border">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Droplet className="h-4 w-4 text-blue-600" />
+                    <span>Product</span>
+                  </div>
+                  <p className="text-xl font-bold text-foreground">{selectedSale.productName}</p>
+                </div>
+                <div className="space-y-2 p-4 rounded-lg bg-muted/50 border">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Fuel className="h-4 w-4 text-orange-600" />
+                    <span>Gun</span>
+                  </div>
+                  <p className="text-xl font-bold text-foreground">{selectedSale.guns}</p>
+                </div>
+              </div>
+
+              {/* Stock Details */}
+              <div>
+                <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                  <Target className="h-4 w-4 text-primary" />
+                  Stock Readings
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800">
+                    <p className="text-xs text-muted-foreground mb-1">Opening Stock</p>
+                    <p className="text-lg font-bold text-green-700 dark:text-green-400">
+                      {selectedSale.openingStock?.toFixed(3)} L
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
+                    <p className="text-xs text-muted-foreground mb-1">Closing Stock</p>
+                    <p className="text-lg font-bold text-blue-700 dark:text-blue-400">
+                      {selectedSale.closingStock?.toFixed(3)} L
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+                    <p className="text-xs text-muted-foreground mb-1">Testing</p>
+                    <p className="text-lg font-bold text-amber-700 dark:text-amber-400">
+                      {(selectedSale.testingTotal || 0).toFixed(3)} L
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800">
+                    <p className="text-xs text-muted-foreground mb-1">Net Sale</p>
+                    <p className="text-lg font-bold text-purple-700 dark:text-purple-400">
+                      {selectedSale.salesInLiters?.toFixed(3)} L
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Price & Amount */}
+              <div>
+                <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                  <IndianRupee className="h-4 w-4 text-primary" />
+                  Pricing & Amount
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border border-green-200 dark:border-green-800">
+                    <p className="text-sm text-muted-foreground mb-1">Price per Liter</p>
+                    <p className="text-2xl font-bold text-green-700 dark:text-green-400">
+                      ₹{selectedSale.price?.toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border border-blue-200 dark:border-blue-800">
+                    <p className="text-sm text-muted-foreground mb-1">Total Sale Amount</p>
+                    <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">
+                      ₹{selectedSale.salesInRupees?.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Collection Details */}
+              <div>
+                <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                  <Wallet className="h-4 w-4 text-primary" />
+                  Collection Details
+                </h3>
+                <div className="rounded-lg bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/20 dark:to-green-950/20 p-4 border border-emerald-200 dark:border-emerald-800">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Banknote className="h-3 w-3" />
+                        <span>Cash Received</span>
+                      </div>
+                      <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
+                        ₹{(selectedSale.cashReceived || 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Smartphone className="h-3 w-3" />
+                        <span>UPI/PhonePe</span>
+                      </div>
+                      <p className="text-lg font-bold text-blue-700 dark:text-blue-400">
+                        ₹{(selectedSale.phonePay || 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <CreditCard className="h-3 w-3" />
+                        <span>Credit Card</span>
+                      </div>
+                      <p className="text-lg font-bold text-purple-700 dark:text-purple-400">
+                        ₹{(selectedSale.creditCard || 0).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <Separator className="my-3" />
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-semibold text-muted-foreground">Total Collected:</span>
+                    <span className="text-xl font-bold text-emerald-700 dark:text-emerald-400">
+                      ₹{((selectedSale.cashReceived || 0) + (selectedSale.phonePay || 0) + (selectedSale.creditCard || 0)).toLocaleString()}
+                    </span>
+                  </div>
+                  {/* Short Collection Warning */}
+                  {(() => {
+                    const totalCollected = (selectedSale.cashReceived || 0) + (selectedSale.phonePay || 0) + (selectedSale.creditCard || 0);
+                    const shortAmount = (selectedSale.salesInRupees || 0) - totalCollected;
+                    if (shortAmount > 0) {
+                      return (
+                        <div className="mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4 text-amber-600" />
+                            <div className="flex-1">
+                              <p className="text-xs font-semibold text-amber-900 dark:text-amber-100">Short Collection</p>
+                              <p className="text-sm font-bold text-amber-700 dark:text-amber-300">
+                                ₹{shortAmount.toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              </div>
+
+              {/* Calculation Summary */}
+              <div className="rounded-lg bg-muted/50 p-4 border">
+                <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-primary" />
+                  Calculation Summary
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Opening Stock:</span>
+                    <span className="font-semibold">{selectedSale.openingStock?.toFixed(3)} L</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Closing Stock:</span>
+                    <span className="font-semibold">- {selectedSale.closingStock?.toFixed(3)} L</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Testing:</span>
+                    <span className="font-semibold">- {(selectedSale.testingTotal || 0).toFixed(3)} L</span>
+                  </div>
+                  <Separator className="my-2" />
+                  <div className="flex justify-between text-base">
+                    <span className="font-semibold">Net Sale:</span>
+                    <span className="font-bold text-primary">{selectedSale.salesInLiters?.toFixed(3)} L</span>
+                  </div>
+                  <div className="flex justify-between text-base">
+                    <span className="font-semibold">Rate:</span>
+                    <span className="font-bold">× ₹{selectedSale.price?.toFixed(2)}</span>
+                  </div>
+                  <Separator className="my-2" />
+                  <div className="flex justify-between text-lg">
+                    <span className="font-bold">Total Amount:</span>
+                    <span className="font-bold text-blue-600 dark:text-blue-400">
+                      ₹{selectedSale.salesInRupees?.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              </div>
+
+              <DialogFooter className="border-t px-6 py-4 shrink-0 bg-background">
+                <Button variant="outline" onClick={() => setSelectedSale(null)} className="w-full sm:w-auto">
+                  Close
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

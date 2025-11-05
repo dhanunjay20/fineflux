@@ -102,8 +102,23 @@ export default function Products() {
       const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products`;
       return (await axios.post(url, dto)).data;
     },
-    onSuccess: () => { refetch(); closeModal(); toast({ title: "Product added successfully!", variant: "success" }); },
-    onError: () => { toast({ title: "Failed to add product", variant: "destructive" }); }
+    onSuccess: () => {
+      refetch();
+      closeModal();
+      toast({
+        title: "✅ Success",
+        description: "Product added successfully!",
+        variant: "default",
+      });
+    },
+    onError: (error: any) => {
+      console.error("Create product error:", error);
+      toast({
+        title: "❌ Error",
+        description: error?.response?.data?.message || "Failed to add product. Please try again.",
+        variant: "destructive",
+      });
+    }
   });
 
   // PATCH: Invalidate Inventory on Product Update
@@ -124,9 +139,20 @@ export default function Products() {
       refetch();
       queryClient.invalidateQueries({ queryKey: ['inventories', orgId] }); // Auto-refresh inventories!
       closeModal();
-      toast({ title: "Product updated successfully!", variant: "success" });
+      toast({
+        title: "✅ Success",
+        description: "Product updated successfully!",
+        variant: "default",
+      });
     },
-    onError: () => { toast({ title: "Failed to update product", variant: "destructive" }); }
+    onError: (error: any) => {
+      console.error("Update product error:", error);
+      toast({
+        title: "❌ Error",
+        description: error?.response?.data?.message || "Failed to update product. Please try again.",
+        variant: "destructive",
+      });
+    }
   });
 
   const deleteMutation = useMutation({
@@ -134,8 +160,24 @@ export default function Products() {
       const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products/${id}`;
       return (await axios.delete(url)).data;
     },
-    onSuccess: () => { refetch(); setDeleteTarget(null); setConfirmOpen(false); toast({ title: "Product deleted successfully!", variant: "success" }); },
-    onError: () => { toast({ title: "Failed to delete product", variant: "destructive" }); }
+    onSuccess: () => {
+      refetch();
+      setDeleteTarget(null);
+      setConfirmOpen(false);
+      toast({
+        title: "✅ Success",
+        description: "Product deleted successfully!",
+        variant: "default",
+      });
+    },
+    onError: (error: any) => {
+      console.error("Delete product error:", error);
+      toast({
+        title: "❌ Error",
+        description: error?.response?.data?.message || "Failed to delete product. Please try again.",
+        variant: "destructive",
+      });
+    }
   });
 
   const toggleStatusMutation = useMutation({
@@ -147,12 +189,20 @@ export default function Products() {
       const newStatus = !variables.currentStatus;
       refetch();
       queryClient.invalidateQueries({ queryKey: ['inventories', orgId] });
-      toast({ 
-        title: `Product status updated to ${newStatus ? 'Active' : 'Inactive'}`, 
-        variant: "success" 
+      toast({
+        title: "✅ Status Updated",
+        description: `Product is now ${newStatus ? 'Active' : 'Inactive'}`,
+        variant: "default",
       });
     },
-    onError: () => { toast({ title: "Failed to update product status", variant: "destructive" }); }
+    onError: (error: any) => {
+      console.error("Toggle status error:", error);
+      toast({
+        title: "❌ Error",
+        description: error?.response?.data?.message || "Failed to update product status. Please try again.",
+        variant: "destructive",
+      });
+    }
   });
 
   function closeModal() {
@@ -188,17 +238,49 @@ export default function Products() {
   };
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.productName) { toast({ title: "Please select a product name", variant: "destructive" }); return; }
+    
+    if (!form.productName) {
+      toast({
+        title: "⚠️ Validation Error",
+        description: "Please select a product name",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     const nameExists = products.some(
       (p: any) =>
         p.productName?.toLowerCase() === form.productName.trim().toLowerCase() &&
         (!editId || p.id !== editId)
     );
-    if (nameExists) { toast({ title: "Product already exists", variant: "destructive" }); return; }
-    if (!form.price || Number(form.price) <= 0) { toast({ title: "Please enter a valid price", variant: "destructive" }); return; }
-    if (form.tankCapacity !== "" && form.currentLevel !== "" && parseFloat(form.currentLevel) > parseFloat(form.tankCapacity)) {
-      toast({ title: "Invalid stock level", description: "Current level cannot exceed tank capacity", variant: "destructive" }); return;
+    
+    if (nameExists) {
+      toast({
+        title: "⚠️ Duplicate Product",
+        description: "A product with this name already exists",
+        variant: "destructive",
+      });
+      return;
     }
+    
+    if (!form.price || Number(form.price) <= 0) {
+      toast({
+        title: "⚠️ Invalid Price",
+        description: "Please enter a valid price greater than 0",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (form.tankCapacity !== "" && form.currentLevel !== "" && parseFloat(form.currentLevel) > parseFloat(form.tankCapacity)) {
+      toast({
+        title: "⚠️ Invalid Stock Level",
+        description: "Current level cannot exceed tank capacity",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (editId) updateMutation.mutate({ ...form, id: editId });
     else createMutation.mutate(form);
   };

@@ -112,19 +112,61 @@ export default function Documents() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    // Validate file size (10MB limit to match backend)
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      toast({ 
+        title: "File Too Large", 
+        description: "File size exceeds 10MB limit. Please choose a smaller file.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     setUploading(true);
     try {
       const data = new FormData();
       data.append("file", file);
+      
+      console.error("Uploading file:", {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        orgId
+      });
+      
       const res = await axios.post(
         `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/upload`,
         data,
         { headers: { "Content-Type": "multipart/form-data" } }
       );
-      setForm(f => ({ ...f, file, fileUrl: res.data }));
+      
+      console.error("Upload response:", res.data);
+      
+      // Backend returns { fileUrl: "...", fileName: "...", uploadedAt: "..." }
+      const fileUrl = res.data?.fileUrl || res.data;
+      setForm(f => ({ ...f, file, fileUrl }));
       toast({ title: "Success", description: "File uploaded successfully!" });
-    } catch {
-      toast({ title: "Upload Error", description: "Failed to upload file", variant: "destructive" });
+    } catch (error: any) {
+      console.error("Upload error details:", {
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+        data: error?.response?.data,
+        message: error?.message
+      });
+      
+      // Log the full error response for debugging
+      if (error?.response?.data) {
+        console.error("Backend error message:", error.response.data.message || JSON.stringify(error.response.data, null, 2));
+      }
+      
+      const errorMessage = error?.response?.data?.message || error?.message || "Failed to upload file. Check console for details.";
+      toast({ 
+        title: "Upload Error", 
+        description: errorMessage, 
+        variant: "destructive" 
+      });
       setForm(f => ({ ...f, file: null, fileUrl: "" }));
     } finally {
       setUploading(false);
