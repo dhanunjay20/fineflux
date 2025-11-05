@@ -299,13 +299,20 @@ const exportToPDF = (
 const SaleRecordCard = ({ record, index, inventory }: { record: SaleRecord; index: number; inventory: InventoryItem[] }) => {
   const [expanded, setExpanded] = useState(false);
 
+  // Check if all payment methods are zero
+  const hasNoPayments = record.cashReceived === 0 && record.phonePay === 0 && record.creditCard === 0;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.03, 0.3) }}
     >
-      <Card className="overflow-hidden border border-border/60 shadow-sm">
+      <Card className={`overflow-hidden border shadow-sm ${
+        hasNoPayments 
+          ? 'border-orange-400 dark:border-orange-600 bg-orange-50/50 dark:bg-orange-950/20' 
+          : 'border-border/60'
+      }`}>
         <CardContent className="p-3 sm:p-4">
           {/* Header: Product + Total */}
           <div className="flex items-start justify-between gap-3">
@@ -334,6 +341,15 @@ const SaleRecordCard = ({ record, index, inventory }: { record: SaleRecord; inde
                   <User className="h-3 w-3" />
                   {record.empId}
                 </Badge>
+                {hasNoPayments && (
+                  <Badge
+                    variant="destructive"
+                    className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] sm:text-xs bg-orange-500 hover:bg-orange-600"
+                  >
+                    <AlertCircle className="h-3 w-3" />
+                    Sale Deleted
+                  </Badge>
+                )}
               </div>
             </div>
             <div className="text-right shrink-0">
@@ -683,7 +699,9 @@ export default function SalesHistory() {
       if (preset === "all") {
         const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sale-history`;
         const res = await axios.get<SaleRecord[]>(url);
-        return Array.isArray(res.data) ? res.data : [];
+        const data = Array.isArray(res.data) ? res.data : [];
+        // Sort by dateTime descending (latest first)
+        return data.sort((a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime());
       }
       
       // For other presets, use date filtering
@@ -692,12 +710,15 @@ export default function SalesHistory() {
       const res = await axios.get<SaleRecord[]>(url);
       const data = Array.isArray(res.data) ? res.data : [];
       
+      // Sort by dateTime descending (latest first)
+      const sortedData = data.sort((a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime());
+      
       // For "latest" preset, return only the latest 10 records
       if (preset === "latest") {
-        return data.slice(0, 10);
+        return sortedData.slice(0, 10);
       }
       
-      return data;
+      return sortedData;
     },
     refetchOnWindowFocus: false,
   });
