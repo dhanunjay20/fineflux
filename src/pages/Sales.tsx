@@ -196,7 +196,6 @@ export default function Sales() {
         const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employee-duties/employee/${empId}`, { timeout: API_CONFIG.TIMEOUT });
         return res.data || [];
       } catch (error: any) {
-        console.error("Failed to fetch employee duties:", error);
         // Return empty array instead of throwing error
         return [];
       }
@@ -284,17 +283,52 @@ export default function Sales() {
   };
 
   const availableGunsForEmployee = useMemo(() => {
-    // Keep behavior consistent: show guns for selected product for employees
-    if (!isEmployee) return guns;
+    if (!isEmployee) {
+      // For non-employees, show all guns for selected product
+      return findGunsForProduct(form.fuel);
+    }
+    
+    // For employees, only show guns they're assigned to for the selected product
     if (!form.fuel) return [];
-    return findGunsForProduct(form.fuel);
+    
+    const allGunsForProduct = findGunsForProduct(form.fuel);
+    
+    // If no active duties, no guns available
+    if (productGunPairs.length === 0) {
+      return [];
+    }
+    
+    // Get assigned gun IDs for this product
+    const assignedGunIds = new Set(
+      productGunPairs
+        .filter(pair => {
+          // Match by product ID or product name
+          const pv = String(form.fuel).trim().toLowerCase();
+          const pid = String(pair.productId || "").trim().toLowerCase();
+          return pid === pv;
+        })
+        .map(pair => String(pair.gunId || "").trim().toLowerCase())
+    );
+    
+
+    
+    // Filter guns to only show assigned ones
+    const filtered = allGunsForProduct.filter((g: any) => {
+      const gunId = String(g.id || g._id || "").trim().toLowerCase();
+      const gunName = String(g.guns || "").trim().toLowerCase();
+      
+      // Check if this gun is in the assigned list (by ID or name)
+      const matches = assignedGunIds.has(gunId) || assignedGunIds.has(gunName);
+      return matches;
+    });
+    
+    return filtered;
   }, [isEmployee, guns, form.fuel, products, productGunPairs]);
 
   const { data: sales = [], isLoading } = useQuery({
     queryKey: ["sales", orgId],
     queryFn: async () => {
       const response = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sales`);
-      console.log("Fetched Sales Data:", response.data);
       return response.data || [];
     },
     refetchOnMount: true,
@@ -353,8 +387,8 @@ export default function Sales() {
       const gunObj = filteredGuns.find(
         (g: any) => g.guns === form.gun
       );
-      if (gunObj && typeof gunObj.currentReading !== "undefined")
-        openingStock = gunObj.currentReading;
+      if (gunObj && typeof (gunObj as any).currentReading !== "undefined")
+        openingStock = (gunObj as any).currentReading;
     }
     if (form.fuel) {
       const prod = products.find((p: any) => p.productName === form.fuel);
@@ -446,12 +480,7 @@ export default function Sales() {
         variant: "default"
       });
     },
-    onError: (error: any) => {
-      console.error("❌ Delete Sale Error:", error);
-      console.error("❌ Error Response:", error?.response?.data);
-      console.error("❌ Error Status:", error?.response?.status);
-      console.error("❌ Error Headers:", error?.response?.headers);
-      
+    onError: (error: any) => {      
       const errorMessage = error?.response?.data?.message || error?.message || "Failed to delete sale entry.";
       toast({
         title: "❌ Delete Failed",
@@ -530,7 +559,6 @@ export default function Sales() {
 
         return { success: true };
       } catch (error: any) {
-        console.error("❌ Sale/Collection Error:", error);
 
         let errorMessage = "Unable to process your sale request. Please check all fields and try again.";
         let errorTitle = "Sale Recording Failed";
@@ -577,7 +605,6 @@ export default function Sales() {
       }
     },
     onError: (error: any) => {
-      console.error("❌ Mutation Error:", error);
 
       // Parse enhanced error message
       let title = "Failed to Record Sale";
@@ -702,7 +729,6 @@ export default function Sales() {
     try {
       await saleCollectionMutation.mutateAsync(form);
     } catch (error) {
-      console.error("Submit error:", error);
     } finally {
       submittingRef.current = false;
     }

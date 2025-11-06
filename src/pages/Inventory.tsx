@@ -148,6 +148,10 @@ export default function Inventory() {
     { productId: string; amount: number }
   >({
     mutationFn: async ({ productId, amount }) => {
+      if (!empId) {
+        throw new Error("Employee ID is required to update inventory");
+      }
+      
       const tank = tankList.find((inv: any) => inv.productId === productId) || {};
       const dto = {
         currentLevel: Number(amount),
@@ -157,7 +161,9 @@ export default function Inventory() {
         status: tank.status ?? true,
         tankCapacity: tank.tankCapacity,
       };
-      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/inventories/${productId}`;
+      
+      // Updated URL to match backend: /inventories/{productId}/employees/{empId}
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/inventories/${productId}/employees/${empId}`;
       await axios.put(url, dto);
       return { productId, amount };
     },

@@ -224,7 +224,7 @@ export default function InventoryHistory() {
               {!isFirstEntry && hasDecrease && (
                 <Badge className={`${badgeClass} font-semibold px-2.5 py-0.5`}>
                   <TrendingDown className="h-3 w-3 mr-1" />
-                  Decreased
+                  Sale
                 </Badge>
               )}
               

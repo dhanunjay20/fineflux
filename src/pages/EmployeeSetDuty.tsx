@@ -416,18 +416,23 @@ export default function EmployeeSetDuty() {
       status: duty.status || "SCHEDULED",
     });
     
-    // Set selected products and guns from duty
-    setSelectedProducts(duty.productIds || []);
-    
-    // Group guns by product
+    // Reconstruct product-gun mapping from parallel arrays
     const gunsByProduct: Record<string, string[]> = {};
-    duty.productIds?.forEach(productName => {
-      const gunsForProduct = (duty.gunIds || []).filter((gunName: string) => {
-        const gun = guns.find((g: any) => g.guns === gunName);
-        return gun?.productName === productName;
-      });
-      gunsByProduct[productName] = gunsForProduct;
+    const uniqueProducts = new Set<string>();
+    
+    // productIds and gunIds are parallel arrays
+    (duty.productIds || []).forEach((productName, index) => {
+      const gunName = duty.gunIds?.[index];
+      if (gunName) {
+        uniqueProducts.add(productName);
+        if (!gunsByProduct[productName]) {
+          gunsByProduct[productName] = [];
+        }
+        gunsByProduct[productName].push(gunName);
+      }
     });
+    
+    setSelectedProducts(Array.from(uniqueProducts));
     setProductGuns(gunsByProduct);
     
     setEditDutyOpen(true);
@@ -478,14 +483,26 @@ export default function EmployeeSetDuty() {
     
     const dutyDateFormatted = dayjs(dailyDutyForm.dutyDate).format("YYYY-MM-DD");
 
+    // Build parallel arrays: each product-gun pair gets its own entry
+    const parallelProductIds: string[] = [];
+    const parallelGunIds: string[] = [];
+    
+    selectedProducts.forEach(productName => {
+      const gunsForProduct = productGuns[productName] || [];
+      gunsForProduct.forEach(gunName => {
+        parallelProductIds.push(productName);
+        parallelGunIds.push(gunName);
+      });
+    });
+
     updateDutyMutation.mutate({
       id: editingDuty.id,
       data: {
         organizationId: orgId,
         empId: dailyDutyForm.empId,
         dutyDate: dutyDateFormatted,
-        productIds: selectedProducts,
-        gunIds: allGuns,
+        productIds: parallelProductIds,
+        gunIds: parallelGunIds,
         shiftStart: dailyDutyForm.shiftStart,
         shiftEnd: dailyDutyForm.shiftEnd,
         status: dailyDutyForm.status || "SCHEDULED"
@@ -540,12 +557,24 @@ export default function EmployeeSetDuty() {
     // Format date properly for backend (LocalDate expects YYYY-MM-DD)
     const dutyDateFormatted = dayjs(dailyDutyForm.dutyDate).format("YYYY-MM-DD");
 
+    // Build parallel arrays: each product-gun pair gets its own entry
+    const parallelProductIds: string[] = [];
+    const parallelGunIds: string[] = [];
+    
+    selectedProducts.forEach(productName => {
+      const gunsForProduct = productGuns[productName] || [];
+      gunsForProduct.forEach(gunName => {
+        parallelProductIds.push(productName);
+        parallelGunIds.push(gunName);
+      });
+    });
+
     createDutyMutation.mutate({
       organizationId: orgId,
       empId: dailyDutyForm.empId,
       dutyDate: dutyDateFormatted,
-      productIds: selectedProducts,
-      gunIds: allGuns,
+      productIds: parallelProductIds,
+      gunIds: parallelGunIds,
       shiftStart: dailyDutyForm.shiftStart,
       shiftEnd: dailyDutyForm.shiftEnd,
       status: dailyDutyForm.status || "SCHEDULED"
@@ -1845,6 +1874,3 @@ export default function EmployeeSetDuty() {
     </div>
   );
 }
-
-
-
