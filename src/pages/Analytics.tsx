@@ -2,16 +2,11 @@ import { useState, useMemo, useTransition, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import dayjs from 'dayjs';
-import utc from 'dayjs/plugin/utc';
-import timezone from 'dayjs/plugin/timezone';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { API_CONFIG } from '@/lib/api-config';
 
-// Extend dayjs with timezone support
-dayjs.extend(utc);
-dayjs.extend(timezone);
 import { 
   CalendarDays, 
   IndianRupee, 
@@ -61,7 +56,7 @@ export default function Analytics() {
 
   // Calculate date range based on selection
   const getDateRange = () => {
-    const now = dayjs().tz('Asia/Kolkata');
+    const now = dayjs();
     switch (timeRange) {
       case '7d':
         return { from: now.subtract(7, 'day'), to: now };
@@ -77,8 +72,8 @@ export default function Analytics() {
   };
 
   const { from, to } = getDateRange();
-  const fromIso = from.startOf('day').utc().format('YYYY-MM-DDTHH:mm:ss');
-  const toIso = to.endOf('day').utc().format('YYYY-MM-DDTHH:mm:ss');
+  const fromIso = from.startOf('day').format('YYYY-MM-DDTHH:mm:ss');
+  const toIso = to.endOf('day').format('YYYY-MM-DDTHH:mm:ss');
 
   // Fetch Sales with real-time updates - UPDATED TO USE SALES API
   const { data: salesData = [], isLoading: loadingSales, isFetching: fetchingSales, refetch: refetchSales } = useQuery({
@@ -93,7 +88,7 @@ export default function Analytics() {
         // Filter by date range on the client side
         return data.filter((sale: any) => {
           if (!sale.dateTime) return false;
-          const saleDate = dayjs(sale.dateTime).tz('Asia/Kolkata');
+          const saleDate = dayjs(sale.dateTime);
           return saleDate.isAfter(from.subtract(1, 'day')) && saleDate.isBefore(to.add(1, 'day'));
         });
       } catch (error) {
@@ -241,7 +236,7 @@ export default function Analytics() {
     // Aggregate sales by month
     salesHistory.forEach(sale => {
       if (!sale.dateTime) return;
-      const saleDate = dayjs(sale.dateTime).tz('Asia/Kolkata');
+      const saleDate = dayjs(sale.dateTime);
       const month = saleDate.format('MMM YYYY'); // Changed to full year format
       if (!monthlyMap[month]) {
         monthlyMap[month] = { 
@@ -258,7 +253,7 @@ export default function Analytics() {
     // Aggregate expenses by month - expenses already filtered
     expenses.forEach(exp => {
       if (!exp.expenseDate) return;
-      const expDate = dayjs(exp.expenseDate).tz('Asia/Kolkata');
+      const expDate = dayjs(exp.expenseDate);
       const month = expDate.format('MMM YYYY'); // Changed to full year format
       if (!monthlyMap[month]) {
         monthlyMap[month] = { 
@@ -308,18 +303,18 @@ export default function Analytics() {
     return result;
   }, [salesHistory]);
 
-  // Daily Sales (Last 7 days - Bar Chart) - FIXED with IST timezone
+  // Daily Sales (Last 7 days - Bar Chart) - FIXED with timezone
   const dailySalesData = useMemo(() => {
-    const today = dayjs().tz('Asia/Kolkata');
+    const today = dayjs();
     const last7Days = Array.from({ length: 7 }, (_, i) => today.subtract(6 - i, 'day'));
     
     const result = last7Days.map(day => {
       const dayStr = day.format('DD MMM');
       
-      // Filter sales for this specific day in IST
+      // Filter sales for this specific day
       const daySales = salesHistory.filter(s => {
         if (!s.dateTime) return false;
-        const saleDate = dayjs(s.dateTime).tz('Asia/Kolkata');
+        const saleDate = dayjs(s.dateTime);
         return saleDate.isSame(day, 'day');
       });
       
@@ -812,7 +807,7 @@ export default function Analytics() {
           <CardHeader>
             <CardTitle>Daily Sales (Last 7 Days)</CardTitle>
             <CardDescription>
-              Sales from {dayjs().tz('Asia/Kolkata').subtract(6, 'day').format('DD MMM')} to {dayjs().tz('Asia/Kolkata').format('DD MMM')}
+              Sales from {dayjs().subtract(6, 'day').format('DD MMM')} to {dayjs().format('DD MMM')}
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -10,19 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-import timezone from "dayjs/plugin/timezone";
 import { Search, Eye, Users, UserCheck, Briefcase, ClipboardList, Star, Calendar, X, Mail, Phone, Clock, Filter, Fuel, CheckCircle2, AlertCircle, Target, Loader2, Edit, Trash2 } from "lucide-react";
 import { API_CONFIG } from '@/lib/api-config';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
-
-// Enable timezone support
-dayjs.extend(utc);
-dayjs.extend(timezone);
-
-// Removed - using API_CONFIG
-const IST_TIMEZONE = "Asia/Kolkata";
 
 type Employee = {
   empId: string;
@@ -74,8 +65,8 @@ function formatTime(time?: string) {
   return time || "";
 }
 
-// Get current IST date
-const getTodayIST = () => dayjs().tz(IST_TIMEZONE).format("YYYY-MM-DD");
+// Get current date
+const getToday = () => dayjs().format("YYYY-MM-DD");
 
 export default function EmployeeSetDuty() {
   const { toast } = useToast();
@@ -142,7 +133,7 @@ export default function EmployeeSetDuty() {
 
   // Filter today's duties from all duties
   const todayDuties = useMemo(() => {
-    const today = getTodayIST();
+    const today = getToday();
     return allDuties.filter((duty: any) => duty.dutyDate === today);
   }, [allDuties]);
 
@@ -211,14 +202,14 @@ export default function EmployeeSetDuty() {
     priority: "medium",
     shift: "",
     assignedToEmpId: "",
-    dueDate: dayjs().tz(IST_TIMEZONE).add(1, "day").format("YYYY-MM-DD"),
+    dueDate: dayjs().add(1, "day").format("YYYY-MM-DD"),
   });
 
   // Daily Duty State
   const [dailyDutyOpen, setDailyDutyOpen] = useState(false);
   const [dailyDutyForm, setDailyDutyForm] = useState<Omit<DailyDutyCreate, 'organizationId' | 'productIds' | 'gunIds'>>({
     empId: "",
-    dutyDate: getTodayIST(),
+    dutyDate: getToday(),
     shiftStart: "",
     shiftEnd: "",
     status: "SCHEDULED",
@@ -360,7 +351,7 @@ export default function EmployeeSetDuty() {
   function resetDailyForm() {
     setDailyDutyForm({
       empId: "",
-      dutyDate: getTodayIST(),
+      dutyDate: getToday(),
       shiftStart: "",
       shiftEnd: "",
       status: "SCHEDULED",
@@ -378,7 +369,7 @@ export default function EmployeeSetDuty() {
       priority: "medium",
       shift: "",
       assignedToEmpId: "",
-      dueDate: dayjs().tz(IST_TIMEZONE).add(1, "day").format("YYYY-MM-DD"),
+      dueDate: dayjs().add(1, "day").format("YYYY-MM-DD"),
     });
   }
 
@@ -391,7 +382,7 @@ export default function EmployeeSetDuty() {
       description: "",
       priority: "medium",
       shift: "",
-      dueDate: dayjs().tz(IST_TIMEZONE).add(1, "day").format("YYYY-MM-DD"),
+      dueDate: dayjs().add(1, "day").format("YYYY-MM-DD"),
     });
     setSpecialDutyOpen(true);
     setDailyDutyOpen(false);
@@ -401,7 +392,7 @@ export default function EmployeeSetDuty() {
     setCurrentEmp(emp);
     setDailyDutyForm({
       empId: emp.empId,
-      dutyDate: getTodayIST(),
+      dutyDate: getToday(),
       shiftStart: emp.shiftTiming?.start || "06:00",
       shiftEnd: emp.shiftTiming?.end || "18:00",
       status: "SCHEDULED",
@@ -621,7 +612,7 @@ export default function EmployeeSetDuty() {
             Assign special tasks or daily pump duties to team members
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Current IST Time: {dayjs().tz(IST_TIMEZONE).format("DD MMM YYYY, hh:mm A")}
+            Current Time: {dayjs().format("DD MMM YYYY, hh:mm A")}
           </p>
         </div>
         <Button className="btn-gradient-primary" onClick={() => navigate('/all-employee-tasks')}>
@@ -770,7 +761,7 @@ export default function EmployeeSetDuty() {
                 <CardTitle>Today's Duties ({todayDuties.length})</CardTitle>
               </div>
               <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
-                {dayjs().tz(IST_TIMEZONE).format("DD MMM")}
+                {dayjs().format("DD MMM")}
               </Badge>
             </div>
           </CardHeader>
@@ -962,7 +953,7 @@ export default function EmployeeSetDuty() {
                 <Input
                   type="date"
                   required
-                  min={getTodayIST()}
+                  min={getToday()}
                   value={specialDutyForm.dueDate}
                   onChange={(e) => setSpecialDutyForm((f) => ({ ...f, dueDate: e.target.value }))}
                   className="h-11"
@@ -1059,14 +1050,14 @@ export default function EmployeeSetDuty() {
                     id="dutyDate"
                     type="date"
                     required
-                    min={getTodayIST()}
+                    min={getToday()}
                     value={dailyDutyForm.dutyDate}
                     onChange={(e) => setDailyDutyForm((f) => ({ ...f, dutyDate: e.target.value }))}
                     className="h-11"
                   />
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    Minimum date: {dayjs().tz(IST_TIMEZONE).format("DD MMM YYYY")} (IST)
+                    Minimum date: {dayjs().format("DD MMM YYYY")} 
                   </p>
                 </div>
 
@@ -1364,7 +1355,7 @@ export default function EmployeeSetDuty() {
                     id="editDutyDate"
                     type="date"
                     required
-                    min={getTodayIST()}
+                    min={getToday()}
                     value={dailyDutyForm.dutyDate}
                     onChange={(e) => setDailyDutyForm((f) => ({ ...f, dutyDate: e.target.value }))}
                     className="h-11"
@@ -1854,4 +1845,6 @@ export default function EmployeeSetDuty() {
     </div>
   );
 }
+
+
 
