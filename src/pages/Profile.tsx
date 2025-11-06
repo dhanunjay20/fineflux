@@ -11,14 +11,15 @@ import {
   Briefcase, MapPin, Users, Building, Eye, EyeOff, Loader2, Save, X,
   AlertCircle, CheckCircle2, Home, UserCircle, LogOut
 } from 'lucide-react';
+import { API_CONFIG } from '@/lib/api-config';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 const CLOUDINARY_UPLOAD_URL = import.meta.env.VITE_CLOUDINARY_UPLOAD_URL || 'https://api.cloudinary.com/v1_1/dosyyvmtb/auto/upload';
-const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_PROFILE_UPLOAD_PRESET || 'Profile_Pictures';
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_PROFILE_UPLOAD_PRESET || import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'Profile_Pictures';
 const PROFILE_URL_KEY = "profileImageUrl";
 const INDIAN_STATES = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
@@ -77,14 +78,14 @@ export default function Profile() {
     const load = async () => {
       setLoading(true); setError(null);
       try {
-        const listUrl = `${API_BASE}/api/organizations/${orgId}/employees?page=0&size=200`;
+        const listUrl = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employees?page=0&size=200`;
         const listRes = await axios.get(listUrl, { timeout: 15000 });
         const items = Array.isArray(listRes.data?.content) ? listRes.data.content : Array.isArray(listRes.data) ? listRes.data : [];
         const match = items.find((x: any) => x.empId === empId);
         if (!match) throw new Error('Employee not found');
         const id = match.id;
         setInternalId(id);
-        const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employees/${id}`, { timeout: 15000 });
+        const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employees/${id}`, { timeout: 15000 });
         if (cancelled) return;
         const data: EmployeeResponse = res.data;
 
@@ -138,28 +139,40 @@ export default function Profile() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) { toast({ title: 'Invalid file type', variant: 'destructive' }); return; }
-    if (file.size > 5 * 1024 * 1024) { toast({ title: 'File too large (max 5MB)', variant: 'destructive' }); return; }
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Invalid File', description: 'Select an image file.', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'Too large', description: 'Must be less than 5MB.', variant: 'destructive' });
+      return;
+    }
     setUploadingImage(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-      formData.append('folder', 'Profile_Photos');
-      const res = await axios.post(CLOUDINARY_UPLOAD_URL, formData);
-      const imageUrl = res.data.secure_url;
+      const data = new FormData();
+      data.append('file', file);
+      data.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      data.append('folder', 'Profile_Photos');
+      const res = await axios.post(CLOUDINARY_UPLOAD_URL, data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const imageUrl = res.data?.secure_url;
+      if (!imageUrl) throw new Error('No image URL returned from Cloudinary');
 
-      setForm(prev => ({ ...prev, profileImageUrl: imageUrl }));
+      // Save image URL to DB via backend
       await saveProfileImage(imageUrl);
-      toast({ title: 'Profile photo updated successfully', variant: 'default' });
+
+      // Update avatar only after upload success
+      setForm(prev => ({ ...prev, profileImageUrl: imageUrl }));
+      setEmployee(prev => prev ? { ...prev, profileImageUrl: imageUrl } : prev);
+
+      toast({ title: 'Uploaded!' });
 
       if (imageUrl && imageUrl.trim()) {
         localStorage.setItem(PROFILE_URL_KEY, imageUrl);
       } else {
         localStorage.removeItem(PROFILE_URL_KEY);
       }
-    } catch {
-      toast({ title: 'Upload failed', variant: 'destructive' });
+    } catch (err) {
+      toast({ title: 'Upload failed', description: err?.response?.data?.error?.message || String(err), variant: 'destructive' });
     } finally {
       setUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -168,7 +181,7 @@ export default function Profile() {
 
   const saveProfileImage = async (imageUrl: string) => {
     if (!employee || !internalId) return;
-    const res = await axios.put(`${API_BASE}/api/organizations/${orgId}/employees/${internalId}`, {
+    const res = await axios.put(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employees/${internalId}`, {
       empId: employee.empId, organizationId: employee.organizationId, profileImageUrl: imageUrl
     });
     setEmployee(res.data);
@@ -186,7 +199,7 @@ export default function Profile() {
     setSaving(true);
     try {
       const payload = { ...form, empId: employee.empId, organizationId: employee.organizationId };
-      const res = await axios.put(`${API_BASE}/api/organizations/${orgId}/employees/${internalId}`, payload);
+      const res = await axios.put(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employees/${internalId}`, payload);
       setEmployee(res.data);
       setIsEditing(false);
       toast({ title: 'Profile updated successfully', variant: 'default' });
@@ -209,7 +222,7 @@ export default function Profile() {
     if (!currentPwd || !newPwd) { toast({ title: 'All fields required', variant: 'destructive' }); return; }
     setSavingPwd(true);
     try {
-      await axios.put(`${API_BASE}/api/organizations/${orgId}/employees/${employee?.id}/change-password`, {
+      await axios.put(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employees/${employee?.id}/change-password`, {
         empId: employee?.empId, currentPassword: currentPwd, newPassword: newPwd
       });
       setPwdDialogOpen(false);
@@ -259,16 +272,16 @@ export default function Profile() {
 
         {/* Header Card */}
         <Card className="mb-8 overflow-hidden border-0 shadow-xl bg-white">
-          <div className="h-32 bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500" />
+          <div className="h-32 bg-gradient-to-r from-blue-600 via-cyan-500 to-purple-500" />
           <CardContent className="px-6 pb-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-end gap-6 -mt-16">
               {/* Avatar */}
               <div className="relative">
-                <Avatar className="h-32 w-32 border-4 border-white shadow-2xl ring-4 ring-blue-100">
+                <Avatar className="h-32 w-32 border-4 border-white shadow-2xl ring-4 ring-slate-100">
                   {profileUrl ? (
                     <AvatarImage src={profileUrl} alt={fullName} className="object-cover" />
                   ) : (
-                    <AvatarFallback className="text-3xl font-bold bg-gradient-to-br from-blue-600 to-cyan-500 text-white">
+                    <AvatarFallback className="text-3xl font-bold bg-gradient-to-br from-slate-600 to-slate-500 text-white">
                       {getUserInitials(fullName || employee.empId || 'U')}
                     </AvatarFallback>
                   )}
@@ -277,19 +290,19 @@ export default function Profile() {
                   size="icon"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploadingImage}
-                  className="absolute bottom-0 right-0 h-10 w-10 rounded-full bg-white shadow-lg border-2 border-blue-100 hover:bg-blue-50 hover:border-blue-200"
+                  className="absolute bottom-0 right-0 h-10 w-10 rounded-full bg-white shadow-lg border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
                 >
-                  {uploadingImage ? <Loader2 className="h-5 w-5 animate-spin text-blue-600" /> : <Camera className="h-5 w-5 text-blue-600" />}
+                  {uploadingImage ? <Loader2 className="h-5 w-5 animate-spin text-slate-600" /> : <Camera className="h-5 w-5 text-slate-600" />}
                 </Button>
               </div>
               {/* Info */}
               <div className="flex-1 pt-4">
                 <h1 className="text-3xl font-bold text-slate-900 mb-2">{fullName || 'Employee'}</h1>
                 <p className="text-slate-600 mb-3">
-                  <span className="font-medium">Employee ID:</span> <span className="text-blue-600 font-semibold">{employee.empId}</span>
+                  <span className="font-medium">Employee ID:</span> <span className="text-slate-700 font-semibold">{employee.empId}</span>
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <Badge className="px-3 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200">
+                  <Badge className="px-3 py-1 bg-orange-600 text-white hover:bg-orange-700 border border-orange-300">
                     <Briefcase className="h-3 w-3 mr-1.5" />
                     {employee.role || 'No Role'}
                   </Badge>
@@ -307,7 +320,7 @@ export default function Profile() {
               <div className="grid grid-cols-2 gap-2 pt-4 sm:flex sm:flex-row">
                 {!isEditing ? (
                   <>
-                    <Button onClick={() => setIsEditing(true)} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700">
+                    <Button onClick={() => setIsEditing(true)} className="w-full sm:w-auto">
                       <Edit3 className="h-4 w-4 mr-2" />
                       Edit Profile
                     </Button>
@@ -342,8 +355,8 @@ export default function Profile() {
         <Card className="border-0 shadow-lg mt-8">
           <CardHeader className="border-b bg-slate-50/50">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                <User className="h-5 w-5 text-blue-600" />
+              <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center border border-slate-300">
+                <User className="h-5 w-5 text-slate-700" />
               </div>
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Personal Information</h2>

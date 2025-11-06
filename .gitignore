@@ -23,4 +23,17 @@ dist-ssr
 *.sln
 *.sw?
 
+# Environment variables
+.env
+.env.local
+.env.production
+.env.*.local
 
+# Google Cloud Service Account Keys
+fineflux-db8790196c53.json
+*-service-account.json
+*.json
+!package.json
+!package-lock.json
+!tsconfig*.json
+!components.json

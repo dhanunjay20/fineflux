@@ -2,15 +2,11 @@ import { useState, useMemo, useTransition, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import dayjs from 'dayjs';
-import utc from 'dayjs/plugin/utc';
-import timezone from 'dayjs/plugin/timezone';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { API_CONFIG } from '@/lib/api-config';
 
-// Extend dayjs with timezone support
-dayjs.extend(utc);
-dayjs.extend(timezone);
 import { 
   CalendarDays, 
   IndianRupee, 
@@ -46,7 +42,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
 const RUPEE = '₹';
 
 // Indian number format helper
@@ -61,7 +56,7 @@ export default function Analytics() {
 
   // Calculate date range based on selection
   const getDateRange = () => {
-    const now = dayjs().tz('Asia/Kolkata');
+    const now = dayjs();
     switch (timeRange) {
       case '7d':
         return { from: now.subtract(7, 'day'), to: now };
@@ -77,21 +72,25 @@ export default function Analytics() {
   };
 
   const { from, to } = getDateRange();
-  const fromIso = from.startOf('day').utc().format('YYYY-MM-DDTHH:mm:ss');
-  const toIso = to.endOf('day').utc().format('YYYY-MM-DDTHH:mm:ss');
+  const fromIso = from.startOf('day').format('YYYY-MM-DDTHH:mm:ss');
+  const toIso = to.endOf('day').format('YYYY-MM-DDTHH:mm:ss');
 
-  // Fetch Sales with real-time updates - CORRECTED ENDPOINT
+  // Fetch Sales with real-time updates - UPDATED TO USE SALES API
   const { data: salesData = [], isLoading: loadingSales, isFetching: fetchingSales, refetch: refetchSales } = useQuery({
     queryKey: ['sales-analytics', orgId, fromIso, toIso],
     queryFn: async () => {
       try {
-        // Use the correct endpoint: sale-history/by-date
-        const url = `${API_BASE}/api/organizations/${orgId}/sale-history/by-date?from=${fromIso}&to=${toIso}`;
-        console.log('Fetching sales from:', url);
-        const res = await axios.get(url);
+        // Use the sales API endpoint instead of sale-history
+        const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sales`;
+        const res = await axios.get(url, { timeout: API_CONFIG.TIMEOUT });
         const data = Array.isArray(res.data) ? res.data : [];
-        console.log('Sales data fetched:', data.length, 'records');
-        return data;
+        
+        // Filter by date range on the client side
+        return data.filter((sale: any) => {
+          if (!sale.dateTime) return false;
+          const saleDate = dayjs(sale.dateTime);
+          return saleDate.isAfter(from.subtract(1, 'day')) && saleDate.isBefore(to.add(1, 'day'));
+        });
       } catch (error) {
         console.error('Error fetching sales:', error);
         return [];
@@ -128,9 +127,8 @@ export default function Analytics() {
     queryKey: ['expenses-analytics', orgId],
     queryFn: async () => {
       try {
-        const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/expenses`);
+        const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/expenses`, { timeout: API_CONFIG.TIMEOUT });
         const data = Array.isArray(res.data) ? res.data : [];
-        console.log('Expenses data fetched:', data.length, 'records');
         return data;
       } catch (error) {
         console.error('Error fetching expenses:', error);
@@ -162,8 +160,7 @@ export default function Analytics() {
     queryKey: ['finance-summary-latest', orgId],
     queryFn: async () => {
       try {
-        const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/finance-summary/latest`);
-        console.log('✅ Finance summary fetched:', res.data);
+        const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/finance-summary/latest`, { timeout: API_CONFIG.TIMEOUT });
         
         // Ensure all fields are numbers
         const data = res.data;
@@ -223,7 +220,6 @@ export default function Analytics() {
       return sum + liters;
     }, 0);
 
-    console.log('KPIs calculated:', { totalRevenue, totalExpenses, netProfit, totalLiters });
 
     return { 
       totalRevenue: Math.round(totalRevenue * 100) / 100, 
@@ -240,7 +236,7 @@ export default function Analytics() {
     // Aggregate sales by month
     salesHistory.forEach(sale => {
       if (!sale.dateTime) return;
-      const saleDate = dayjs(sale.dateTime).tz('Asia/Kolkata');
+      const saleDate = dayjs(sale.dateTime);
       const month = saleDate.format('MMM YYYY'); // Changed to full year format
       if (!monthlyMap[month]) {
         monthlyMap[month] = { 
@@ -257,7 +253,7 @@ export default function Analytics() {
     // Aggregate expenses by month - expenses already filtered
     expenses.forEach(exp => {
       if (!exp.expenseDate) return;
-      const expDate = dayjs(exp.expenseDate).tz('Asia/Kolkata');
+      const expDate = dayjs(exp.expenseDate);
       const month = expDate.format('MMM YYYY'); // Changed to full year format
       if (!monthlyMap[month]) {
         monthlyMap[month] = { 
@@ -282,7 +278,6 @@ export default function Analytics() {
       }))
       .sort((a, b) => a.timestamp - b.timestamp);
 
-    console.log('Monthly sales data:', result);
     return result.slice(-6); // Last 6 months
   }, [salesHistory, expenses]);
 
@@ -305,22 +300,21 @@ export default function Analytics() {
       }))
       .sort((a, b) => b.value - a.value); // Sort by revenue descending
 
-    console.log('Fuel type data:', result);
     return result;
   }, [salesHistory]);
 
-  // Daily Sales (Last 7 days - Bar Chart) - FIXED with IST timezone
+  // Daily Sales (Last 7 days - Bar Chart) - FIXED with timezone
   const dailySalesData = useMemo(() => {
-    const today = dayjs().tz('Asia/Kolkata');
+    const today = dayjs();
     const last7Days = Array.from({ length: 7 }, (_, i) => today.subtract(6 - i, 'day'));
     
     const result = last7Days.map(day => {
       const dayStr = day.format('DD MMM');
       
-      // Filter sales for this specific day in IST
+      // Filter sales for this specific day
       const daySales = salesHistory.filter(s => {
         if (!s.dateTime) return false;
-        const saleDate = dayjs(s.dateTime).tz('Asia/Kolkata');
+        const saleDate = dayjs(s.dateTime);
         return saleDate.isSame(day, 'day');
       });
       
@@ -353,7 +347,6 @@ export default function Analytics() {
       return dayData;
     });
 
-    console.log('Daily sales data:', result);
     return result;
   }, [salesHistory]);
 
@@ -380,7 +373,6 @@ export default function Analytics() {
       name: productsMap.get(key) || key.charAt(0).toUpperCase() + key.slice(1)
     }));
 
-    console.log('Unique products:', products);
     return products;
   }, [dailySalesData]);
 
@@ -658,11 +650,26 @@ export default function Analytics() {
 
       {/* Loading overlay when fetching */}
       {(isPending || fetchingSales) && (
-        <div className="fixed inset-0 bg-background/50 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-card p-6 rounded-lg shadow-lg">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Loading real-time data...</p>
+        <div 
+          className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md"
+          style={{ margin: 0, padding: "1rem", minHeight: "100vh", minWidth: "100vw" }}
+        >
+          <div
+            className="relative bg-background shadow-2xl rounded-xl sm:rounded-2xl p-8 flex flex-col border border-border/50 animate-fade-in"
+            style={{ maxWidth: "400px" }}
+          >
+            <div className="text-center space-y-4">
+              <div className="flex justify-center">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary"></div>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                  Loading Data
+                </h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Fetching real-time analytics...
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -800,7 +807,7 @@ export default function Analytics() {
           <CardHeader>
             <CardTitle>Daily Sales (Last 7 Days)</CardTitle>
             <CardDescription>
-              Sales from {dayjs().tz('Asia/Kolkata').subtract(6, 'day').format('DD MMM')} to {dayjs().tz('Asia/Kolkata').format('DD MMM')}
+              Sales from {dayjs().subtract(6, 'day').format('DD MMM')} to {dayjs().format('DD MMM')}
             </CardDescription>
           </CardHeader>
           <CardContent>

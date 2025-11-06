@@ -19,8 +19,9 @@ import {
 import {
   Fuel, Plus, TrendingUp, AlertTriangle, RefreshCw, BarChart3, Calendar, X, Download, Eye, History, PackageOpen, Trash2, Loader2,
 } from "lucide-react";
+import { API_CONFIG } from "@/lib/api-config";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 const LOW_STOCK_PHONE = "9640206605";
 
 function formatDateTime(dateStr?: string) {
@@ -38,7 +39,7 @@ function useLatestInventories(orgId, products) {
   const queries = products.map(prod => ({
     queryKey: ["inventory-latest", orgId, prod.id],
     queryFn: async () => {
-      const url = `${API_BASE}/api/organizations/${orgId}/inventories/${prod.id}/latest`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/inventories/${prod.id}/latest`;
       try {
         const res = await axios.get(url);
         return { ...res.data, productId: prod.id };
@@ -80,10 +81,9 @@ export default function Inventory() {
   const { data: products = [], isLoading: isLoadingProducts, refetch: refetchProducts } = useQuery({
     queryKey: ["products", orgId],
     queryFn: async () => {
-      const url = `${API_BASE}/api/organizations/${orgId}/products`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products`;
       const res = await axios.get(url);
       const productList = Array.isArray(res.data) ? res.data : [];
-      console.log('Products API Response:', productList);
       return productList;
     }
   });
@@ -95,12 +95,6 @@ export default function Inventory() {
     const status = prod?.active ?? prod?.status ?? inv.status ?? true;
     
     // Debug logging
-    console.log('Product:', prod?.productName, {
-      prodActive: prod?.active,
-      prodStatus: prod?.status,
-      invStatus: inv.status,
-      finalStatus: status
-    });
     
     return {
       ...inv,
@@ -129,7 +123,7 @@ export default function Inventory() {
       if (!sentAlertRef.current.has(key)) {
         try {
           setSmsState(s => ({ ...s, [key]: "Sending..." }));
-          await axios.post(`${API_BASE}/api/send-sms`, {
+          await axios.post(`${API_CONFIG.BASE_URL}/api/send-sms`, {
             phone: LOW_STOCK_PHONE,
             message: `Low Stock Alert: ${tank.productName}, Stock: ${tank.currentLevel}`,
           });
@@ -154,17 +148,22 @@ export default function Inventory() {
     { productId: string; amount: number }
   >({
     mutationFn: async ({ productId, amount }) => {
+      if (!empId) {
+        throw new Error("Employee ID is required to update inventory");
+      }
+      
       const tank = tankList.find((inv: any) => inv.productId === productId) || {};
       const dto = {
         currentLevel: Number(amount),
         totalCapacity: tank.totalCapacity,
         stockValue: tank.stockValue,
-        empId: tank.empId,
         metric: tank.metric,
         status: tank.status ?? true,
         tankCapacity: tank.tankCapacity,
       };
-      const url = `${API_BASE}/api/organizations/${orgId}/inventories/${productId}`;
+      
+      // Updated URL to match backend: /inventories/{productId}/employees/{empId}
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/inventories/${productId}/employees/${empId}`;
       await axios.put(url, dto);
       return { productId, amount };
     },
@@ -189,7 +188,7 @@ export default function Inventory() {
 
   const deleteInventoryMutation = useMutation({
     mutationFn: async (inventoryId: string) => {
-      const url = `${API_BASE}/api/organizations/${orgId}/inventories/${inventoryId}`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/inventories/${inventoryId}`;
       await axios.delete(url, {
         headers: {
           "X-Employee-Id": empId || "",
@@ -1107,3 +1106,5 @@ export default function Inventory() {
     </div>
   );
 }
+
+

@@ -15,10 +15,9 @@ import {
   Calendar,
   Clock,
 } from "lucide-react";
+import { API_CONFIG } from '@/lib/api-config';
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 const DEFAULT_PAGE_SIZE = 10;
 
 type SpecialTask = {
@@ -57,7 +56,7 @@ export default function SpecialDutiesHistory() {
     setLoading(true);
     axios
       .get(
-        `${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=completed`
+        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/tasks/employee/${empId}?status=completed`
       )
       .then((res) => setTasks(Array.isArray(res.data) ? res.data : []))
       .finally(() => setLoading(false));
@@ -437,3 +436,4 @@ export default function SpecialDutiesHistory() {
     </div>
   );
 }
+

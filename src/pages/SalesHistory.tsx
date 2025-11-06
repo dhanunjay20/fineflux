@@ -34,6 +34,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
+import { API_CONFIG } from '@/lib/api-config';
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import jsPDF from "jspdf";
@@ -74,12 +75,10 @@ interface InventoryItem {
   status: string;
 }
 
-type DatePreset = "latest" | "today" | "week" | "month" | "custom";
+type DatePreset = "latest" | "today" | "week" | "month" | "all" | "custom";
 
 // ============ Constants ============
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 const RUPEE = "\u20B9";
 const RECORDS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
@@ -96,6 +95,9 @@ const rangeForPreset = (preset: DatePreset): [Dayjs, Dayjs] => {
       return [today.startOf("week"), today.endOf("week")];
     case "month":
       return [today.startOf("month"), today.endOf("month")];
+    case "all":
+      // Return a very wide range to get all records
+      return [today.subtract(10, "year"), today.endOf("day")];
     default:
       return [today.subtract(1, "year"), today.endOf("day")];
   }
@@ -297,13 +299,20 @@ const exportToPDF = (
 const SaleRecordCard = ({ record, index, inventory }: { record: SaleRecord; index: number; inventory: InventoryItem[] }) => {
   const [expanded, setExpanded] = useState(false);
 
+  // Check if all payment methods are zero
+  const hasNoPayments = record.cashReceived === 0 && record.phonePay === 0 && record.creditCard === 0;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.03, 0.3) }}
     >
-      <Card className="overflow-hidden border border-border/60 shadow-sm">
+      <Card className={`overflow-hidden border shadow-sm ${
+        hasNoPayments 
+          ? 'border-orange-400 dark:border-orange-600 bg-orange-50/50 dark:bg-orange-950/20' 
+          : 'border-border/60'
+      }`}>
         <CardContent className="p-3 sm:p-4">
           {/* Header: Product + Total */}
           <div className="flex items-start justify-between gap-3">
@@ -332,6 +341,15 @@ const SaleRecordCard = ({ record, index, inventory }: { record: SaleRecord; inde
                   <User className="h-3 w-3" />
                   {record.empId}
                 </Badge>
+                {hasNoPayments && (
+                  <Badge
+                    variant="destructive"
+                    className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] sm:text-xs bg-orange-500 hover:bg-orange-600"
+                  >
+                    <AlertCircle className="h-3 w-3" />
+                    Sale Deleted
+                  </Badge>
+                )}
               </div>
             </div>
             <div className="text-right shrink-0">
@@ -452,6 +470,7 @@ const DateRangeSelector = ({
     { id: "today", label: "Today", icon: Clock },
     { id: "week", label: "This Week", icon: CalendarIcon },
     { id: "month", label: "This Month", icon: CalendarIcon },
+    { id: "all", label: "All Records", icon: FileText },
   ] as const;
 
   return (
@@ -676,17 +695,30 @@ export default function SalesHistory() {
   } = useQuery({
     queryKey: ["sale-history", orgId, fromIso, toIso, preset],
     queryFn: async () => {
+      // For "all" preset, fetch from /sale-history endpoint without date filters
+      if (preset === "all") {
+        const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sale-history`;
+        const res = await axios.get<SaleRecord[]>(url);
+        const data = Array.isArray(res.data) ? res.data : [];
+        // Sort by dateTime descending (latest first)
+        return data.sort((a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime());
+      }
+      
+      // For other presets, use date filtering
       const params = `from=${fromIso}&to=${toIso}`;
-      const url = `${API_BASE}/api/organizations/${orgId}/sale-history/by-date?${params}`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sale-history/by-date?${params}`;
       const res = await axios.get<SaleRecord[]>(url);
       const data = Array.isArray(res.data) ? res.data : [];
       
+      // Sort by dateTime descending (latest first)
+      const sortedData = data.sort((a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime());
+      
       // For "latest" preset, return only the latest 10 records
       if (preset === "latest") {
-        return data.slice(0, 10);
+        return sortedData.slice(0, 10);
       }
       
-      return data;
+      return sortedData;
     },
     refetchOnWindowFocus: false,
   });
@@ -695,7 +727,7 @@ export default function SalesHistory() {
   const { data: inventory = [] } = useQuery({
     queryKey: ["inventory", orgId],
     queryFn: async () => {
-      const url = `${API_BASE}/api/organizations/${orgId}/inventory`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/inventory`;
       const res = await axios.get<InventoryItem[]>(url);
       return Array.isArray(res.data) ? res.data : [];
     },
@@ -1034,4 +1066,3 @@ export default function SalesHistory() {
     </div>
   );
 }
-

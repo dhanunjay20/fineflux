@@ -7,30 +7,58 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Edit, Box, Archive, Barcode, Fuel, Activity, TrendingUp, AlertCircle, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Trash2, Edit, Box, Archive, Barcode, Fuel, Activity, TrendingUp, AlertCircle, ChevronDown, ChevronUp, X, Zap } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { API_CONFIG } from "@/lib/api-config";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
 const GUNS_PER_PAGE = 4;
 const ALL_GUN_OPTIONS = Array.from({ length: 20 }, (_, i) => `G${i + 1}`);
 
-const getUsedGunNames = (guns, productName, ignoreId) =>
-  guns
-    .filter(
-      (g) =>
-        g.productName === productName &&
-        (!ignoreId || (g.id || g._id) !== ignoreId)
-    )
-    .map((g) => g.guns);
+const getProductColor = (productName: string) => {
+  const colors = [
+    { bg: "bg-blue-500", text: "text-white", border: "border-blue-500" },
+    { bg: "bg-emerald-500", text: "text-white", border: "border-emerald-500" },
+    { bg: "bg-purple-500", text: "text-white", border: "border-purple-500" },
+    { bg: "bg-orange-500", text: "text-white", border: "border-orange-500" },
+    { bg: "bg-pink-500", text: "text-white", border: "border-pink-500" },
+    { bg: "bg-cyan-500", text: "text-white", border: "border-cyan-500" },
+    { bg: "bg-indigo-500", text: "text-white", border: "border-indigo-500" },
+    { bg: "bg-rose-500", text: "text-white", border: "border-rose-500" },
+    { bg: "bg-teal-500", text: "text-white", border: "border-teal-500" },
+    { bg: "bg-amber-500", text: "text-white", border: "border-amber-500" },
+  ];
+  const hash = productName?.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return colors[hash % colors.length];
+};
 
-const getUsedSerialNumbers = (guns, productName, ignoreId) =>
-  guns
-    .filter(
-      (g) =>
-        g.productName === productName &&
-        (!ignoreId || (g.id || g._id) !== ignoreId)
-    )
-    .map((g) => g.serialNumber);
+const GUN_COLORS_ARRAY = [
+  "bg-blue-500 text-white",
+  "bg-green-500 text-white",
+  "bg-purple-500 text-white",
+  "bg-rose-500 text-white",
+  "bg-amber-500 text-white",
+  "bg-orange-500 text-white",
+  "bg-cyan-500 text-white",
+  "bg-indigo-500 text-white",
+  "bg-pink-500 text-white",
+  "bg-teal-500 text-white",
+  "bg-red-500 text-white",
+  "bg-sky-500 text-white",
+  "bg-lime-500 text-black",
+  "bg-violet-500 text-white",
+  "bg-emerald-500 text-white",
+  "bg-yellow-500 text-black",
+  "bg-fuchsia-500 text-white",
+  "bg-blue-800 text-white",
+  "bg-slate-500 text-white",
+  "bg-orange-700 text-white",
+];
+
+const getGunColor = (gunName: string) => {
+  const gunNum = parseInt(gunName.replace("G", ""));
+  return GUN_COLORS_ARRAY[(gunNum - 1) % GUN_COLORS_ARRAY.length];
+};
+
 
 const GunInfo = () => {
   const orgId = localStorage.getItem("organizationId") || "ORG-DEV-001";
@@ -38,49 +66,50 @@ const GunInfo = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  // PRODUCTS Query
   const { data: products = [] } = useQuery({
     queryKey: ["products", orgId],
     queryFn: async () => {
-      const url = `${API_BASE}/api/organizations/${orgId}/products`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products`;
       const res = await axios.get(url);
       return Array.isArray(res.data) ? res.data : [];
     },
   });
 
-  const [addForm, setAddForm] = useState({
-    productName: "",
-    guns: "",
-    serialNumber: "",
-    currentReading: "",
+  // GUNS Query
+  const { data: guns = [], isLoading } = useQuery({
+    queryKey: ["guninfo", orgId],
+    queryFn: async () => {
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/guninfo`;
+      const res = await axios.get(url);
+      return Array.isArray(res.data) ? res.data : [];
+    },
   });
-  const [editForm, setEditForm] = useState({
-    productName: "",
-    guns: "",
-    serialNumber: "",
-    currentReading: "",
-  });
+
+  // FORM STATES
+  const [addForm, setAddForm] = useState({ productName: "", guns: "", serialNumber: "", currentReading: "" });
+  const [editForm, setEditForm] = useState({ productName: "", guns: "", serialNumber: "", currentReading: "" });
   const [editId, setEditId] = useState<string | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [gunDropdownLimit, setGunDropdownLimit] = useState(4);
 
-  const { data: guns = [], isLoading } = useQuery({
-    queryKey: ["guninfo", orgId],
-    queryFn: async () => {
-      const url = `${API_BASE}/api/organizations/${orgId}/guninfo`;
-      const res = await axios.get(url);
-      return Array.isArray(res.data) ? res.data : [];
-    },
-  });
+  // Toggle gun dropdown expansion
+  const handleGunDropdownExpansion = () => {
+    setGunDropdownLimit((limit) => {
+      if (limit === 4) return 10;
+      if (limit === 10) return 20;
+      return 4;
+    });
+  };
 
-  // Gun name & serial filtering logic for "Add" and "Edit"
+  // ---- Computeds for gun name and serial number validation ----
   const usedGunNamesAdd = useMemo(
-    () => getUsedGunNames(guns, addForm.productName, undefined),
-    [guns, addForm.productName]
-  );
-  const usedSerialNumbersAdd = useMemo(
-    () => getUsedSerialNumbers(guns, addForm.productName, undefined),
+    () =>
+      guns
+        .filter((g) => g.productName === addForm.productName)
+        .map((g) => g.guns),
     [guns, addForm.productName]
   );
   const availableGunNamesAdd = useMemo(
@@ -91,13 +120,23 @@ const GunInfo = () => {
     () => availableGunNamesAdd.slice(0, gunDropdownLimit),
     [availableGunNamesAdd, gunDropdownLimit]
   );
+  const usedSerialsAdd = useMemo(
+    () =>
+      guns
+        .filter((g) => g.productName === addForm.productName)
+        .map((g) => g.serialNumber),
+    [guns, addForm.productName]
+  );
 
   const usedGunNamesEdit = useMemo(
-    () => getUsedGunNames(guns, editForm.productName, editId),
-    [guns, editForm.productName, editId]
-  );
-  const usedSerialNumbersEdit = useMemo(
-    () => getUsedSerialNumbers(guns, editForm.productName, editId),
+    () =>
+      guns
+        .filter(
+          (g) =>
+            g.productName === editForm.productName &&
+            (g.id || g._id) !== editId
+        )
+        .map((g) => g.guns),
     [guns, editForm.productName, editId]
   );
   const availableGunNamesEdit = useMemo(
@@ -108,87 +147,45 @@ const GunInfo = () => {
     () => availableGunNamesEdit.slice(0, gunDropdownLimit),
     [availableGunNamesEdit, gunDropdownLimit]
   );
-
-  const handleGunDropdownExpansion = () => {
-    if (gunDropdownLimit === 4) setGunDropdownLimit(10);
-    else if (gunDropdownLimit === 10) setGunDropdownLimit(20);
-    else setGunDropdownLimit(4);
-  };
-
-  const filteredGuns = useMemo(() => {
-    if (!searchQuery.trim()) return guns;
-    const q = searchQuery.toLowerCase();
-    return guns.filter(
-      (gun: any) =>
-        gun.guns?.toLowerCase().includes(q) ||
-        gun.productName?.toLowerCase().includes(q) ||
-        gun.serialNumber?.toLowerCase().includes(q)
-    );
-  }, [guns, searchQuery]);
-
-  const totalPages = Math.ceil(filteredGuns.length / GUNS_PER_PAGE) || 1;
-  useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages);
-    if (filteredGuns.length === 0 && currentPage !== 1) setCurrentPage(1);
-  }, [filteredGuns.length, totalPages, currentPage]);
-
-  const pagedGuns = filteredGuns.slice(
-    (currentPage - 1) * GUNS_PER_PAGE,
-    currentPage * GUNS_PER_PAGE
+  const usedSerialsEdit = useMemo(
+    () =>
+      guns
+        .filter(
+          (g) =>
+            g.productName === editForm.productName &&
+            (g.id || g._id) !== editId
+        )
+        .map((g) => g.serialNumber),
+    [guns, editForm.productName, editId]
   );
 
-  const statCards = useMemo(() => {
-    const totalProducts = products.length;
-    const totalGuns = guns.length;
-    const totalReading = guns.reduce((sum: number, g: any) => sum + (g.currentReading || 0), 0);
-    const avgReading = totalGuns ? totalReading / totalGuns : 0;
-    return [
-      { title: "Total Products", value: totalProducts, change: "Available fuel types", icon: Box, bg: "bg-primary-soft", color: "text-primary" },
-      { title: "Active Guns", value: totalGuns, change: "Registered dispensers", icon: Fuel, bg: "bg-success-soft", color: "text-success" },
-      { title: "Total Reading", value: totalReading.toLocaleString(), change: "Cumulative liters", icon: Activity, bg: "bg-accent-soft", color: "text-accent" },
-      { title: "Avg Reading", value: avgReading.toFixed(2), change: "Per gun average", icon: TrendingUp, bg: "bg-warning-soft", color: "text-warning" },
-    ];
-  }, [products, guns]);
-
-  // Add Gun Mutation
+  // Mutation Handlers
   const createMutation = useMutation({
     mutationFn: async (payload: typeof addForm) => {
-      const url = `${API_BASE}/api/organizations/${orgId}/guninfo`;
-      return (
-        await axios.post(url, {
-          organizationId: orgId,
-          empId,
-          productName: payload.productName,
-          guns: payload.guns,
-          serialNumber: payload.serialNumber,
-          currentReading: Number(payload.currentReading),
-        })
-      ).data;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/guninfo`;
+      return (await axios.post(url, {
+        organizationId: orgId,
+        empId,
+        ...payload,
+        currentReading: Number(payload.currentReading),
+      })).data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guninfo", orgId] });
       setAddForm({ productName: "", guns: "", serialNumber: "", currentReading: "" });
       toast({ title: "Success", description: "Gun added successfully!", variant: "default" });
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to add gun info.", variant: "destructive" });
-    },
+    onError: () => toast({ title: "Error", description: "Failed to add gun info.", variant: "destructive" }),
   });
-
-  // Edit Gun Mutation
   const updateMutation = useMutation({
     mutationFn: async (payload: typeof editForm & { id: string }) => {
-      const url = `${API_BASE}/api/organizations/${orgId}/guninfo/${payload.id}`;
-      return (
-        await axios.put(url, {
-          empId,
-          productName: payload.productName,
-          guns: payload.guns,
-          serialNumber: payload.serialNumber,
-          currentReading: Number(payload.currentReading),
-          organizationId: orgId,
-        })
-      ).data;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/guninfo/${payload.id}`;
+      return (await axios.put(url, {
+        empId,
+        ...payload,
+        currentReading: Number(payload.currentReading),
+        organizationId: orgId,
+      })).data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guninfo", orgId] });
@@ -197,36 +194,66 @@ const GunInfo = () => {
       setEditModalOpen(false);
       toast({ title: "Success", description: "Gun updated successfully!", variant: "default" });
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to update gun info.", variant: "destructive" });
-    },
+    onError: () => toast({ title: "Error", description: "Failed to update gun info.", variant: "destructive" }),
   });
-
-  // Delete Gun Mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const url = `${API_BASE}/api/organizations/${orgId}/guninfo/${id}`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/guninfo/${id}`;
       await axios.delete(url);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guninfo", orgId] });
       setCurrentPage((p) => {
-        const newTotal = filteredGuns.length - 1;
+        const newTotal = guns.length - 1;
         const newPages = Math.max(1, Math.ceil(newTotal / GUNS_PER_PAGE));
         return Math.min(p, newPages);
       });
       toast({ title: "Success", description: "Gun deleted successfully!", variant: "default" });
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to delete gun info.", variant: "destructive" });
-    },
+    onError: () => toast({ title: "Error", description: "Failed to delete gun info.", variant: "destructive" }),
   });
+
+  // ------- STRONG VALIDATION -------
+  const handleAddSubmit = (e: any) => {
+    e.preventDefault();
+    if (!addForm.productName || !addForm.guns || !addForm.serialNumber || addForm.currentReading === "") {
+      toast({ title: "Validation Error", description: "All fields are required!", variant: "destructive" });
+      return;
+    }
+    // Gun name per product
+    if (usedGunNamesAdd.includes(addForm.guns)) {
+      toast({ title: "Validation Error", description: "Gun already exists for this product!", variant: "destructive" });
+      return;
+    }
+    // Serial per product
+    if (usedSerialsAdd.includes(addForm.serialNumber)) {
+      toast({ title: "Validation Error", description: "Serial number already exists for this product!", variant: "destructive" });
+      return;
+    }
+    createMutation.mutate(addForm);
+  };
+
+  const handleEditSubmit = (e: any) => {
+    e.preventDefault();
+    if (!editForm.productName || !editForm.guns || !editForm.serialNumber || editForm.currentReading === "") {
+      toast({ title: "Validation Error", description: "All fields are required!", variant: "destructive" });
+      return;
+    }
+    if (usedGunNamesEdit.includes(editForm.guns)) {
+      toast({ title: "Validation Error", description: "Gun already exists for this product!", variant: "destructive" });
+      return;
+    }
+    if (usedSerialsEdit.includes(editForm.serialNumber)) {
+      toast({ title: "Validation Error", description: "Serial number already exists for this product!", variant: "destructive" });
+      return;
+    }
+    if (editId) updateMutation.mutate({ ...editForm, id: editId });
+  };
 
   const handleAddFormChange = (e: any) => {
     const { name, value } = e.target;
     setAddForm((prev) => ({ ...prev, [name]: value }));
   };
-
   const handleEditFormChange = (e: any) => {
     const { name, value } = e.target;
     setEditForm((prev) => ({ ...prev, [name]: value }));
@@ -249,34 +276,42 @@ const GunInfo = () => {
     setEditModalOpen(false);
   };
 
-  // ADD: check duplicate serial number for a product
-  const handleAddSubmit = (e: any) => {
-    e.preventDefault();
-    if (!addForm.productName || !addForm.guns || !addForm.serialNumber || addForm.currentReading === "") {
-      toast({ title: "Validation Error", description: "All fields are required!", variant: "destructive" });
-      return;
-    }
-    if (usedSerialNumbersAdd.includes(addForm.serialNumber)) {
-      toast({ title: "Validation Error", description: "Duplicate serial number for this product!", variant: "destructive" });
-      return;
-    }
-    createMutation.mutate(addForm);
-  };
+  // FILTERING/UI logic
+  const filteredGuns = useMemo(() => {
+    if (!searchQuery.trim()) return guns;
+    const q = searchQuery.toLowerCase();
+    return guns.filter(
+      (gun: any) =>
+        gun.guns?.toLowerCase().includes(q) ||
+        gun.productName?.toLowerCase().includes(q) ||
+        gun.serialNumber?.toLowerCase().includes(q)
+    );
+  }, [guns, searchQuery]);
+  const totalPages = Math.ceil(filteredGuns.length / GUNS_PER_PAGE) || 1;
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+    if (filteredGuns.length === 0 && currentPage !== 1) setCurrentPage(1);
+  }, [filteredGuns.length, totalPages, currentPage]);
+  const pagedGuns = filteredGuns.slice(
+    (currentPage - 1) * GUNS_PER_PAGE,
+    currentPage * GUNS_PER_PAGE
+  );
 
-  // EDIT: check duplicate serial number for a product (excluding current)
-  const handleEditSubmit = (e: any) => {
-    e.preventDefault();
-    if (!editForm.productName || !editForm.guns || !editForm.serialNumber || editForm.currentReading === "") {
-      toast({ title: "Validation Error", description: "All fields are required!", variant: "destructive" });
-      return;
-    }
-    if (usedSerialNumbersEdit.includes(editForm.serialNumber)) {
-      toast({ title: "Validation Error", description: "Duplicate serial number for this product!", variant: "destructive" });
-      return;
-    }
-    if (editId) updateMutation.mutate({ ...editForm, id: editId });
-  };
+  // Stat cards (unchanged)
+  const statCards = useMemo(() => {
+    const totalProducts = products.length;
+    const totalGuns = guns.length;
+    const totalReading = guns.reduce((sum: number, g: any) => sum + (g.currentReading || 0), 0);
+    const avgReading = totalGuns ? totalReading / totalGuns : 0;
+    return [
+      { title: "Total Products", value: totalProducts, change: "Available fuel types", icon: Box, bg: "bg-primary-soft", color: "text-primary" },
+      { title: "Active Guns", value: totalGuns, change: "Registered dispensers", icon: Fuel, bg: "bg-success-soft", color: "text-success" },
+      { title: "Total Reading", value: totalReading.toLocaleString(), change: "Cumulative liters", icon: Activity, bg: "bg-accent-soft", color: "text-accent" },
+      { title: "Avg Reading", value: avgReading.toFixed(2), change: "Per gun average", icon: TrendingUp, bg: "bg-warning-soft", color: "text-warning" },
+    ];
+  }, [products, guns]);
 
+  // -- COMPONENT UI --
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -326,11 +361,11 @@ const GunInfo = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="productName" className="text-xs uppercase text-muted-foreground">
-                    Product Name *
+                    Product Name <span className="text-red-500">*</span>
                   </Label>
                   <Select
                     value={addForm.productName}
-                    onValueChange={(value) => setAddForm((prev) => ({ ...prev, productName: value }))}
+                    onValueChange={(value) => setAddForm((prev) => ({ ...prev, productName: value, guns: "", serialNumber: "" }))}
                     disabled={createMutation.isPending}
                   >
                     <SelectTrigger>
@@ -347,12 +382,12 @@ const GunInfo = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="guns" className="text-xs uppercase text-muted-foreground">
-                    Gun Name/Number *
+                    Gun Name/Number <span className="text-red-500">*</span>
                   </Label>
                   <Select
                     value={addForm.guns}
                     onValueChange={(value) => setAddForm((prev) => ({ ...prev, guns: value }))}
-                    disabled={createMutation.isPending}
+                    disabled={createMutation.isPending || !addForm.productName}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select Gun (G1-G20)" />
@@ -371,15 +406,8 @@ const GunInfo = () => {
                           variant="ghost"
                           size="sm"
                           className="w-full justify-center text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/50 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleGunDropdownExpansion();
-                          }}
+                          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleGunDropdownExpansion(); }}
                         >
                           {gunDropdownLimit === 20 ? (
                             <>
@@ -399,7 +427,7 @@ const GunInfo = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="serialNumber" className="text-xs uppercase text-muted-foreground">
-                    Serial Number *
+                    Serial Number <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="serialNumber"
@@ -408,12 +436,12 @@ const GunInfo = () => {
                     onChange={handleAddFormChange}
                     placeholder="e.g. SN123456"
                     required
-                    disabled={createMutation.isPending}
+                    disabled={createMutation.isPending || !addForm.productName}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="currentReading" className="text-xs uppercase text-muted-foreground">
-                    Current Reading (Liters) *
+                    Current Reading (Liters) <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="currentReading"
@@ -481,11 +509,11 @@ const GunInfo = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="productName" className="text-xs uppercase text-muted-foreground">
-                      Product Name *
+                      Product Name <span className="text-red-500">*</span>
                     </Label>
                     <Select
                       value={editForm.productName}
-                      onValueChange={(value) => setEditForm((prev) => ({ ...prev, productName: value }))}
+                      onValueChange={(value) => setEditForm((prev) => ({ ...prev, productName: value, guns: "", serialNumber: "" }))}
                       disabled={updateMutation.isPending}
                     >
                       <SelectTrigger>
@@ -502,12 +530,12 @@ const GunInfo = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="guns" className="text-xs uppercase text-muted-foreground">
-                      Gun Name/Number *
+                      Gun Name/Number <span className="text-red-500">*</span>
                     </Label>
                     <Select
                       value={editForm.guns}
                       onValueChange={(value) => setEditForm((prev) => ({ ...prev, guns: value }))}
-                      disabled={updateMutation.isPending}
+                      disabled={updateMutation.isPending || !editForm.productName}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select Gun (G1-G20)" />
@@ -526,15 +554,8 @@ const GunInfo = () => {
                             variant="ghost"
                             size="sm"
                             className="w-full justify-center text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/50 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                            }}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleGunDropdownExpansion();
-                            }}
+                            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleGunDropdownExpansion(); }}
                           >
                             {gunDropdownLimit === 20 ? (
                               <>
@@ -554,7 +575,7 @@ const GunInfo = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="serialNumber" className="text-xs uppercase text-muted-foreground">
-                      Serial Number *
+                      Serial Number <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="serialNumber"
@@ -563,12 +584,12 @@ const GunInfo = () => {
                       onChange={handleEditFormChange}
                       placeholder="e.g. SN123456"
                       required
-                      disabled={updateMutation.isPending}
+                      disabled={updateMutation.isPending || !editForm.productName}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="currentReading" className="text-xs uppercase text-muted-foreground">
-                      Current Reading (Liters) *
+                      Current Reading (Liters) <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="currentReading"
@@ -651,77 +672,79 @@ const GunInfo = () => {
               ) : (
                 <>
                   <div className="grid grid-cols-1 gap-4">
-                    {pagedGuns.map((gun: any) => (
-                      <div
-                        key={gun.id || gun._id}
-                        className="group p-5 rounded-xl bg-gradient-to-br from-muted/30 to-muted/10 hover:from-muted/50 hover:to-muted/30 transition-all duration-300 border border-border hover:border-primary/50 hover:shadow-lg"
-                      >
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex-1 min-w-0 space-y-4">
-                            <div className="flex items-center gap-3 flex-wrap">
-                              <div className="flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-full">
-                                <Fuel className="h-4 w-4 text-primary" />
-                                <span className="font-bold text-primary">{gun.guns}</span>
+                    {pagedGuns.map((gun: any) => {
+                      const productColor = getProductColor(gun.productName);
+                      return (
+                        <div
+                          key={gun.id || gun._id}
+                          className="group p-5 rounded-xl bg-gradient-to-br from-muted/30 to-muted/10 hover:from-muted/50 hover:to-muted/30 transition-all duration-300 border border-border hover:border-primary/50 hover:shadow-lg"
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex-1 min-w-0 space-y-4">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <Badge className={`flex items-center gap-2 px-3 py-1.5 rounded-full border-0 shadow-md ${getGunColor(gun.guns)}`}>
+                                  <Zap className="h-4 w-4" />
+                                  <span className="font-bold">{gun.guns}</span>
+                                </Badge>
+                                <Badge
+                                  className={`flex items-center gap-2 ${productColor.bg} ${productColor.text} px-3 py-1.5 rounded-full border-0 shadow-md`}
+                                >
+                                  <Fuel className="h-4 w-4" />
+                                  <span className="font-medium">{gun.productName}</span>
+                                </Badge>
+                                <span className="ml-2 text-xs px-2 py-1 bg-muted rounded">
+                                  <b>EmpID:</b> {gun.empId || "—"}
+                                </span>
                               </div>
-                              <Badge variant="outline" className="font-medium">
-                                {gun.productName}
-                              </Badge>
-                              <span className="ml-2 text-xs px-2 py-1 bg-muted rounded">
-                                <b>EmpID:</b> {gun.empId || "—"}
-                              </span>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="flex items-start gap-3">
+                                  <div className="p-2 bg-accent-soft rounded-lg">
+                                    <Barcode className="h-4 w-4 text-accent" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Serial Number</p>
+                                    <p className="font-mono font-semibold truncate text-foreground">{gun.serialNumber}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-start gap-3">
+                                  <div className="p-2 bg-success-soft rounded-lg">
+                                    <Activity className="h-4 w-4 text-success" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Current Reading</p>
+                                    <p className="font-bold text-lg text-success">
+                                      {gun.currentReading.toLocaleString()}{" "}
+                                      <span className="text-sm font-normal">L</span>
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <div className="flex items-start gap-3">
-                                <div className="p-2 bg-accent-soft rounded-lg">
-                                  <Barcode className="h-4 w-4 text-accent" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                                    Serial Number
-                                  </p>
-                                  <p className="font-mono font-semibold truncate text-foreground">{gun.serialNumber}</p>
-                                </div>
-                              </div>
-                              <div className="flex items-start gap-3">
-                                <div className="p-2 bg-success-soft rounded-lg">
-                                  <Activity className="h-4 w-4 text-success" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                                    Current Reading
-                                  </p>
-                                  <p className="font-bold text-lg text-success">
-                                    {gun.currentReading.toLocaleString()}{" "}
-                                    <span className="text-sm font-normal">L</span>
-                                  </p>
-                                </div>
-                              </div>
+                            <div className="flex flex-col gap-2 shrink-0">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEdit(gun)}
+                                className="h-9 w-9 p-0 hover:bg-primary hover:text-primary-foreground transition-colors"
+                                title="Edit Gun"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => deleteMutation.mutate(gun.id || gun._id)}
+                                className="h-9 w-9 p-0 hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                                disabled={deleteMutation.isPending}
+                                title="Delete Gun"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
-                          </div>
-                          <div className="flex flex-col gap-2 shrink-0">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEdit(gun)}
-                              className="h-9 w-9 p-0 hover:bg-primary hover:text-primary-foreground transition-colors"
-                              title="Edit Gun"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => deleteMutation.mutate(gun.id || gun._id)}
-                              className="h-9 w-9 p-0 hover:bg-destructive hover:text-destructive-foreground transition-colors"
-                              disabled={deleteMutation.isPending}
-                              title="Delete Gun"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   {filteredGuns.length > GUNS_PER_PAGE && (
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6 pt-4 border-t border-border">

@@ -11,8 +11,9 @@ import {
   Calendar, User, Building2, Clock, FileCheck, X, Loader2,
   Search, AlertCircle, File
 } from "lucide-react";
+import { API_CONFIG } from '@/lib/api-config';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 
 function safeArray(v: any) {
   return Array.isArray(v) ? v : Array.isArray(v?.content) ? v.content : [];
@@ -90,7 +91,7 @@ export default function Documents() {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/documents?page=0&size=50`);
+      const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents?page=0&size=50`);
       setDocuments(safeArray(res.data));
     } catch (err: any) {
       setError(err?.message || "Failed to load documents");
@@ -111,19 +112,85 @@ export default function Documents() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    // Validate file size (10MB limit to match backend)
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      toast({ 
+        title: "File Too Large", 
+        description: "File size exceeds 10MB limit. Please choose a smaller file.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     setUploading(true);
     try {
       const data = new FormData();
       data.append("file", file);
+      
+      console.log("📤 Uploading file:", {
+        name: file.name,
+        size: `${(file.size / 1024).toFixed(2)} KB`,
+        type: file.type,
+        orgId
+      });
+      
       const res = await axios.post(
-        `${API_BASE}/api/organizations/${orgId}/documents/upload`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/upload`,
         data,
-        { headers: { "Content-Type": "multipart/form-data" } }
+        { 
+          headers: { "Content-Type": "multipart/form-data" },
+          timeout: 60000 // 60 second timeout for large files
+        }
       );
-      setForm(f => ({ ...f, file, fileUrl: res.data }));
-      toast({ title: "Success", description: "File uploaded successfully!" });
-    } catch {
-      toast({ title: "Upload Error", description: "Failed to upload file", variant: "destructive" });
+      
+      console.log("✅ Upload successful:", res.data);
+      
+      // Backend now returns just the fileUrl as a string
+      const fileUrl = typeof res.data === 'string' ? res.data : res.data?.fileUrl || res.data;
+      
+      if (!fileUrl) {
+        throw new Error("No file URL received from server");
+      }
+      
+      setForm(f => ({ ...f, file, fileUrl }));
+      toast({ 
+        title: "Success", 
+        description: `File "${file.name}" uploaded successfully!`,
+        variant: "default" 
+      });
+    } catch (error: any) {
+      console.error("❌ Upload failed:", {
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+        data: error?.response?.data,
+        message: error?.message
+      });
+      
+      // Determine user-friendly error message
+      let errorMessage = "Failed to upload file. Please try again.";
+      
+      if (error?.response?.status === 500) {
+        errorMessage = "Server error while uploading file. Please check if Google Cloud Storage is configured correctly.";
+      } else if (error?.response?.status === 413) {
+        errorMessage = "File is too large. Maximum size is 10MB.";
+      } else if (error?.response?.status === 400) {
+        errorMessage = error?.response?.data?.message || "Invalid file format or request.";
+      } else if (error?.code === 'ECONNABORTED') {
+        errorMessage = "Upload timeout. Please try with a smaller file.";
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      toast({ 
+        title: "Upload Failed", 
+        description: errorMessage, 
+        variant: "destructive" 
+      });
+      
+      // Reset file input
+      e.target.value = '';
       setForm(f => ({ ...f, file: null, fileUrl: "" }));
     } finally {
       setUploading(false);
@@ -161,10 +228,10 @@ export default function Documents() {
         notes: form.notes,
       };
       if (editId) {
-        await axios.put(`${API_BASE}/api/organizations/${orgId}/documents/${editId}`, payload);
+        await axios.put(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/${editId}`, payload);
         toast({ title: "Success", description: "Document updated successfully!" });
       } else {
-        await axios.post(`${API_BASE}/api/organizations/${orgId}/documents`, payload);
+        await axios.post(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents`, payload);
         toast({ title: "Success", description: "Document added successfully!" });
       }
       setOpen(false);
@@ -202,7 +269,7 @@ export default function Documents() {
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await axios.delete(`${API_BASE}/api/organizations/${orgId}/documents/${deleteTarget.id}`);
+      await axios.delete(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/${deleteTarget.id}`);
       fetchDocs();
       toast({ title: "Success", description: "Document deleted successfully!" });
     } catch (err: any) {
@@ -588,3 +655,4 @@ export default function Documents() {
     </div>
   );
 }
+

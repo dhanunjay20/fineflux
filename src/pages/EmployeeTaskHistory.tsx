@@ -8,11 +8,12 @@ import {
   FileText, CheckCircle, Timer, AlertCircle, ArrowLeft, ChevronLeft, 
   ChevronRight, Clock, Calendar, Fuel, Target, Activity, Search as SearchIcon
 } from 'lucide-react';
+import { API_CONFIG } from '@/lib/api-config';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import React from "react";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
+// Removed - using API_CONFIG
 const ITEMS_PER_PAGE = 5;
 
 type DateFilterKey = 'all' | 'today' | 'week' | 'month' | 'custom';
@@ -86,10 +87,10 @@ export default function EmployeeTaskHistory() {
     if (!orgId || !empId) return;
     setLoading(true);
     Promise.all([
-      axios.get(`${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=pending`),
-      axios.get(`${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=in-progress`),
-      axios.get(`${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=completed`),
-      axios.get(`${API_BASE}/api/organizations/${orgId}/employee-duties/employee/${empId}`),
+      axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/tasks/employee/${empId}?status=pending`),
+      axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/tasks/employee/${empId}?status=in-progress`),
+      axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/tasks/employee/${empId}?status=completed`),
+      axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employee-duties/employee/${empId}`),
     ]).then(([pending, inprogress, completed, duties]) => {
       const p = Array.isArray(pending.data) ? pending.data : [];
       const ip = Array.isArray(inprogress.data) ? inprogress.data : [];
@@ -683,3 +684,4 @@ export default function EmployeeTaskHistory() {
     </div>
   );
 }
+

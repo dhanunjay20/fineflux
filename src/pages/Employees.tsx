@@ -14,10 +14,7 @@ import {
   Mail, Phone, IdCard
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
-const CLOUDINARY_UPLOAD_URL = import.meta.env.VITE_CLOUDINARY_UPLOAD_URL || 'https://api.cloudinary.com/v1_1/dosyyvmtb/auto/upload';
-const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'FineFlux';
+import { API_CONFIG } from '@/lib/api-config';
 
 const INDIAN_STATES = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand",
@@ -75,7 +72,7 @@ export default function Employees() {
   const { data: employeesRaw = [], isLoading } = useQuery({
     queryKey: ['employees', orgId],
     queryFn: async () => {
-      const res = await axios.get(`${API_BASE}/api/organizations/${orgId}/employees?page=0&size=200`);
+      const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employees?page=0&size=200`);
       if (Array.isArray(res.data)) return res.data;
       if (Array.isArray(res.data.content)) return res.data.content;
       return [];
@@ -230,9 +227,9 @@ export default function Employees() {
     try {
       const data = new FormData();
       data.append('file', file);
-      data.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      data.append('upload_preset', API_CONFIG.CLOUDINARY.PRESET);
       data.append('folder', 'Profile_Photos');
-      const res = await axios.post(CLOUDINARY_UPLOAD_URL, data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await axios.post(API_CONFIG.CLOUDINARY.UPLOAD_URL, data, { headers: { 'Content-Type': 'multipart/form-data' } });
       setForm((prev: any) => ({ ...prev, profileImageUrl: res.data.secure_url }));
       toast({ title: 'Uploaded!' });
     } catch (err: any) {
@@ -251,7 +248,7 @@ export default function Employees() {
         empId: form.empId?.trim() ? form.empId : generateEmpId(),
         organizationId: orgId
       };
-      await axios.post(`${API_BASE}/api/organizations/${orgId}/employees`, payload);
+      await axios.post(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employees`, payload);
       toast({ title: 'Employee created (ID reserved)' });
       queryClient.invalidateQueries({ queryKey: ['employees', orgId] });
       setCreateOpen(false);
@@ -272,7 +269,7 @@ export default function Employees() {
         payload.newPassword = form.password;
         delete payload.password;
       }
-      await axios.put(`${API_BASE}/api/organizations/${orgId}/employees/${currentEmp.id}`, payload);
+      await axios.put(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employees/${currentEmp.id}`, payload);
       toast({ title: 'Employee updated' });
       queryClient.invalidateQueries({ queryKey: ['employees', orgId] });
       setEditOpen(false);

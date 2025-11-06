@@ -16,6 +16,7 @@ import {
   RefreshCw,
   AlertCircle,
 } from "lucide-react";
+import { API_CONFIG } from '@/lib/api-config';
 import { format } from "date-fns";
 
 // Backend DTOs matching your Java backend
@@ -60,7 +61,7 @@ interface EmployeeAttendanceResponseDTO {
   avgHours: string;
 }
 
-const API_BASE = "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 
 export default function EmployeeAttendance() {
   const { toast } = useToast();
@@ -109,7 +110,6 @@ export default function EmployeeAttendance() {
   // Fetch today's attendance and all records - useCallback to prevent infinite loops
   const fetchAttendance = useCallback(async () => {
     if (!orgId || !empId) {
-      console.log("Missing orgId or empId");
       return;
     }
     
@@ -117,7 +117,7 @@ export default function EmployeeAttendance() {
     try {
       // GET /api/organizations/{organizationId}/attendance/employee/{empId}
       const response = await axios.get<EmployeeAttendanceResponseDTO[]>(
-        `${API_BASE}/api/organizations/${orgId}/attendance/employee/${empId}`
+        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/attendance/employee/${empId}`
       );
 
       const records = response.data || [];
@@ -201,16 +201,10 @@ export default function EmployeeAttendance() {
         checkIn: checkInTime,
       };
 
-      console.log("Check-in request (IST):", {
-        url: `${API_BASE}/api/organizations/${orgId}/attendance`,
-        payload: createDTO,
-        checkInTime,
-        localTime: now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-      });
 
       // POST to backend
       const response = await axios.post<EmployeeAttendanceResponseDTO>(
-        `${API_BASE}/api/organizations/${orgId}/attendance`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/attendance`,
         createDTO,
         {
           headers: {
@@ -219,7 +213,6 @@ export default function EmployeeAttendance() {
         }
       );
 
-      console.log("Check-in response:", response.data);
       
       setTodayAttendance(response.data);
       toast({
@@ -289,22 +282,13 @@ export default function EmployeeAttendance() {
         breakIn: breakInTime,
       };
 
-      console.log("Break-in request (IST):", {
-        url: `${API_BASE}/api/organizations/${orgId}/attendance/${todayAttendance.id}`,
-        payload: updateDTO,
-        breakInTime,
-        localTime: now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-      });
 
       // PUT to backend
       const response = await axios.put<EmployeeAttendanceResponseDTO>(
-        `${API_BASE}/api/organizations/${orgId}/attendance/${todayAttendance.id}`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/attendance/${todayAttendance.id}`,
         updateDTO
       );
 
-      console.log("Break-in response:", response.data);
-      console.log("Break-in response breakIn field:", response.data.breakIn);
-      console.log("Break-in response breakOut field:", response.data.breakOut);
       
       setTodayAttendance(response.data);
       toast({
@@ -361,20 +345,13 @@ export default function EmployeeAttendance() {
         breakOut: breakOutTime,
       };
 
-      console.log("Break-out request (IST):", {
-        url: `${API_BASE}/api/organizations/${orgId}/attendance/${todayAttendance.id}`,
-        payload: updateDTO,
-        breakOutTime,
-        localTime: now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-      });
 
       // PUT to backend
       const response = await axios.put<EmployeeAttendanceResponseDTO>(
-        `${API_BASE}/api/organizations/${orgId}/attendance/${todayAttendance.id}`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/attendance/${todayAttendance.id}`,
         updateDTO
       );
 
-      console.log("Break-out response:", response.data);
       
       setTodayAttendance(response.data);
       toast({
@@ -446,20 +423,13 @@ export default function EmployeeAttendance() {
         checkOut: checkOutTime,
       };
 
-      console.log("Check-out request (IST):", {
-        url: `${API_BASE}/api/organizations/${orgId}/attendance/${todayAttendance.id}`,
-        payload: updateDTO,
-        checkOutTime,
-        localTime: now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-      });
 
       // PUT to backend
       const response = await axios.put<EmployeeAttendanceResponseDTO>(
-        `${API_BASE}/api/organizations/${orgId}/attendance/${todayAttendance.id}`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/attendance/${todayAttendance.id}`,
         updateDTO
       );
 
-      console.log("Check-out response:", response.data);
       
       setTodayAttendance(response.data);
       toast({
@@ -545,14 +515,6 @@ export default function EmployeeAttendance() {
         : null;
 
       // Debug logging
-      console.log("Live timer calculation:", {
-        checkInTime: todayAttendance.checkIn,
-        breakInTime: todayAttendance.breakIn,
-        breakOutTime: todayAttendance.breakOut,
-        checkOutTime: todayAttendance.checkOut,
-        parsedBreakIn: breakInTime?.toLocaleString('en-IN'),
-        parsedBreakOut: breakOutTime?.toLocaleString('en-IN'),
-      });
 
       if (checkInTime) {
         // Calculate total elapsed time
@@ -569,7 +531,6 @@ export default function EmployeeAttendance() {
           
           const breakTime = calculateDuration(breakInTime, breakEnd);
           setLiveBreakTime(breakTime);
-          console.log("Break time calculated:", breakTime, "Duration ms:", breakDuration);
         } else {
           setLiveBreakTime("00:00:00");
         }
@@ -919,3 +880,4 @@ export default function EmployeeAttendance() {
     </div>
   );
 }
+

@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarDays, Fuel, Droplets, Edit2, Plus, Trash2, X, Archive, TrendingUp, TrendingDown, PackageCheck, Database } from "lucide-react";
+import { API_CONFIG } from '@/lib/api-config';
 import { useToast } from "@/components/ui/use-toast";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://finflux-64307221061.asia-south1.run.app";
+// Removed - using API_CONFIG
 
 const PRODUCT_OPTIONS = ["Petrol", "Diesel", "2T", "Premium Petrol", "CNG"];
 const ICONS = {
@@ -62,7 +63,7 @@ export default function StockRegister() {
   const { data: stocks = [], isLoading, refetch } = useQuery({
     queryKey: ["stock-register", orgId, product],
     queryFn: async () => {
-      const url = `${API_BASE}/api/organizations/${orgId}/stock-register`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/stock-register`;
       const res = await axios.get(url, { timeout: 20000 });
       return (Array.isArray(res.data) ? res.data : []).filter(
         (e) => e.productName === product
@@ -99,10 +100,10 @@ export default function StockRegister() {
         actualSalesAsPerMeter: +body.actualSalesAsPerMeter,
         organizationId: orgId,
       };
-      const url = `${API_BASE}/api/organizations/${orgId}/stock-register`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/stock-register`;
       return (await axios.post(url, req)).data;
     },
-    onSuccess: () => { refetch(); handleCloseModal(); toast({ title: "Entry added!", variant: "success" }); },
+    onSuccess: () => { refetch(); handleCloseModal(); toast({ title: "Entry added!", variant: "default" }); },
     onError: () => { toast({ title: "Failed to add entry", variant: "destructive" }); },
   });
 
@@ -120,19 +121,19 @@ export default function StockRegister() {
         actualSalesAsPerMeter: +body.actualSalesAsPerMeter,
         organizationId: orgId,
       };
-      const url = `${API_BASE}/api/organizations/${orgId}/stock-register/${body.id}`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/stock-register/${body.id}`;
       return (await axios.put(url, req)).data;
     },
-    onSuccess: () => { refetch(); handleCloseModal(); toast({ title: "Entry updated!", variant: "success" }); },
+    onSuccess: () => { refetch(); handleCloseModal(); toast({ title: "Entry updated!", variant: "default" }); },
     onError: () => { toast({ title: "Failed to update entry", variant: "destructive" }); },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
-      const url = `${API_BASE}/api/organizations/${orgId}/stock-register/${id}`;
+      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/stock-register/${id}`;
       return (await axios.delete(url)).data;
     },
-    onSuccess: () => { refetch(); setDeleteTarget(null); setConfirmOpen(false); toast({ title: "Entry deleted!", variant: "success" }); },
+    onSuccess: () => { refetch(); setDeleteTarget(null); setConfirmOpen(false); toast({ title: "Entry deleted!", variant: "default" }); },
     onError: () => { toast({ title: "Failed to delete entry", variant: "destructive" }); },
   });
 
@@ -410,3 +411,4 @@ export default function StockRegister() {
     </div>
   );
 }
+

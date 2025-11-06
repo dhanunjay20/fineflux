@@ -7,8 +7,9 @@ import {
   Timer, CheckCircle, AlertCircle, FileText, ChevronLeft, ChevronRight, 
   History, Clock, Calendar, Activity, Play, Fuel, Target
 } from 'lucide-react';
+import { API_CONFIG } from '@/lib/api-config';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://finflux-64307221061.asia-south1.run.app';
+// Removed - using API_CONFIG
 const ITEMS_PER_PAGE = 5;
 
 export default function EmployeeDutyInfo() {
@@ -69,10 +70,10 @@ export default function EmployeeDutyInfo() {
     const fetchData = async () => {
       try {
         const [tasksRes, dutiesRes, productsRes, gunsRes] = await Promise.all([
-          axios.get(`${API_BASE}/api/organizations/${orgId}/tasks/employee/${empId}?status=`),
-          axios.get(`${API_BASE}/api/organizations/${orgId}/employee-duties/employee/${empId}`),
-          axios.get(`${API_BASE}/api/organizations/${orgId}/products`),
-          axios.get(`${API_BASE}/api/organizations/${orgId}/guninfo`)
+          axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/tasks/employee/${empId}?status=`),
+          axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employee-duties/employee/${empId}`),
+          axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/products`),
+          axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/guninfo`)
         ]);
         
         setDuties(Array.isArray(tasksRes.data) ? tasksRes.data : []);
@@ -131,7 +132,7 @@ export default function EmployeeDutyInfo() {
   // Actions
   const handleTaskAction = async (taskId: string, newStatus: string) => {
     await axios.put(
-      `${API_BASE}/api/organizations/${orgId}/tasks/${taskId}/status?status=${encodeURIComponent(newStatus)}`
+      `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/tasks/${taskId}/status?status=${encodeURIComponent(newStatus)}`
     );
     setDuties(ds => ds.map(d => (d.id === taskId ? { ...d, status: newStatus } : d)));
   };
@@ -147,7 +148,7 @@ export default function EmployeeDutyInfo() {
         }
       }
       await axios.put(
-        `${API_BASE}/api/organizations/${orgId}/employee-duties/${dutyId}`,
+        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employee-duties/${dutyId}`,
         { status: newStatus }
       );
       setDailyDuties(ds => ds.map(d => (d.id === dutyId ? { ...d, status: newStatus } : d)));
@@ -686,3 +687,4 @@ export default function EmployeeDutyInfo() {
     </div>
   );
 }
+
