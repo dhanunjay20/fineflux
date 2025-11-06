@@ -140,32 +140,31 @@ export default function Profile() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      toast({ title: 'Invalid file type', variant: 'destructive' });
+      toast({ title: 'Invalid File', description: 'Select an image file.', variant: 'destructive' });
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast({ title: 'File too large (max 5MB)', variant: 'destructive' });
+      toast({ title: 'Too large', description: 'Must be less than 5MB.', variant: 'destructive' });
       return;
     }
     setUploadingImage(true);
     try {
-      // Upload to Cloudinary
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-      formData.append('folder', 'Profile_Photos');
-      const cloudRes = await axios.post(CLOUDINARY_UPLOAD_URL, formData);
-      const imageUrl = cloudRes.data?.secure_url;
+      const data = new FormData();
+      data.append('file', file);
+      data.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      data.append('folder', 'Profile_Photos');
+      const res = await axios.post(CLOUDINARY_UPLOAD_URL, data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const imageUrl = res.data?.secure_url;
       if (!imageUrl) throw new Error('No image URL returned from Cloudinary');
 
       // Save image URL to DB via backend
       await saveProfileImage(imageUrl);
 
-      // Update avatar immediately
+      // Update avatar only after upload success
       setForm(prev => ({ ...prev, profileImageUrl: imageUrl }));
       setEmployee(prev => prev ? { ...prev, profileImageUrl: imageUrl } : prev);
 
-      toast({ title: 'Profile photo updated successfully', variant: 'default' });
+      toast({ title: 'Uploaded!' });
 
       if (imageUrl && imageUrl.trim()) {
         localStorage.setItem(PROFILE_URL_KEY, imageUrl);
@@ -173,8 +172,7 @@ export default function Profile() {
         localStorage.removeItem(PROFILE_URL_KEY);
       }
     } catch (err) {
-      console.error('Image upload error:', err);
-      toast({ title: 'Upload failed', description: (err as Error)?.message || '', variant: 'destructive' });
+      toast({ title: 'Upload failed', description: err?.response?.data?.error?.message || String(err), variant: 'destructive' });
     } finally {
       setUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = '';

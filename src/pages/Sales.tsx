@@ -233,36 +233,43 @@ export default function Sales() {
   }, [isEmployee, productsActive, productGunPairs]);
 
   // Filter guns based on selected product and employee's active duties
-  const availableGunsForEmployee = useMemo(() => {
-    if (!isEmployee) return guns;
-    
-    // If no product selected, return empty
-    if (!form.fuel) return [];
-    
-    // Find the selected product
-    const selectedProduct = products.find((p: any) => p.productName === form.fuel);
-    if (!selectedProduct) {
-      return [];
-    }
-    
-    // Get gun IDs/names that are paired with this product in duties
-    const gunIdsForProduct = productGunPairs
-      .filter(pair => 
-        pair.productId === form.fuel || 
-        pair.productId === selectedProduct.id || 
-        pair.productId === selectedProduct.productName
-      )
-      .map(pair => pair.gunId);
-    
-    // Filter guns - only match by gun name (since backend stores gun names in gunIds)
-    const filtered = guns.filter((g: any) => gunIdsForProduct.includes(g.guns));
-    
-    // Deduplicate by gun name to avoid showing same gun twice
-    const uniqueGuns = Array.from(
-      new Map(filtered.map((g: any) => [g.guns, g])).values()
+  // Helper to find guns for a given product identifier (name or id) with permissive matching
+  const findGunsForProduct = (productValue?: string) => {
+    if (!productValue) return [];
+    const pv = String(productValue).trim().toLowerCase();
+
+    // Try to resolve selected product from products list
+    const selectedProduct = products.find((p: any) => {
+      const pid = String(p.id || "").trim().toLowerCase();
+      const pname = String(p.productName || "").trim().toLowerCase();
+      return pid === pv || pname === pv;
+    });
+
+    return Array.from(
+      new Map(
+        guns.filter((g: any) => {
+          const gProductName = String(g.productName || "").trim().toLowerCase();
+          const gProductId = String(g.productId || "").trim().toLowerCase();
+          // Match by gun.productName or gun.productId or resolved selectedProduct id/name
+          if (gProductName === pv) return true;
+          if (gProductId === pv) return true;
+          if (selectedProduct) {
+            const selId = String(selectedProduct.id || "").trim().toLowerCase();
+            const selName = String(selectedProduct.productName || "").trim().toLowerCase();
+            if (gProductName === selName) return true;
+            if (gProductId === selId) return true;
+          }
+          return false;
+        }).map((g: any) => [g.guns, g])
+      ).values()
     );
-    
-    return uniqueGuns;
+  };
+
+  const availableGunsForEmployee = useMemo(() => {
+    // Keep behavior consistent: show guns for selected product for employees
+    if (!isEmployee) return guns;
+    if (!form.fuel) return [];
+    return findGunsForProduct(form.fuel);
   }, [isEmployee, guns, form.fuel, products, productGunPairs]);
 
   const { data: sales = [], isLoading } = useQuery({
@@ -287,6 +294,21 @@ export default function Sales() {
     staleTime: 0,
   });
 
+  // Helper to read camelCase or PascalCase properties from API responses
+  const getProp = (obj: any, key: string) => {
+    if (!obj) return undefined;
+    // Prefer PascalCase (backend) first, then camelCase
+    const pascal = key.charAt(0).toUpperCase() + key.slice(1);
+    if (obj[pascal] !== undefined) return obj[pascal];
+    if (obj[key] !== undefined) return obj[key];
+    return undefined;
+  };
+
+  const getAnyId = (obj: any) => {
+    if (!obj) return undefined;
+    return obj.SaleId ?? obj.SaleID ?? obj.saleId ?? obj.saleID ?? obj.Id ?? obj.id ?? obj._id ?? getProp(obj, 'id') ?? getProp(obj, 'saleId');
+  };
+
   const filteredGuns = useMemo(
     () => {
       if (!form.fuel) return [];
@@ -295,16 +317,23 @@ export default function Sales() {
         // For employees, use the already filtered and deduplicated guns
         return availableGunsForEmployee;
       } else {
-        // For non-employees, filter guns by product name and deduplicate
-        const gunsArray = guns.filter((g: any) => g.productName === form.fuel);
-        const uniqueGuns = Array.from(
-          new Map(gunsArray.map((g: any) => [g.guns, g])).values()
-        );
-        return uniqueGuns;
+        // For non-employees, use the permissive finder as well
+        return findGunsForProduct(form.fuel);
       }
     },
     [form.fuel, isEmployee, availableGunsForEmployee, guns]
   );
+
+    // Debugging: log values that affect gun visibility for troubleshooting
+    useEffect(() => {
+      try {
+        console.debug("Sales Debug - productGunPairs:", productGunPairs);
+        console.debug("Sales Debug - availableGunsForEmployee:", availableGunsForEmployee);
+        console.debug("Sales Debug - filteredGuns:", filteredGuns);
+      } catch (e) {
+        // swallow logging errors in environments without console
+      }
+    }, [productGunPairs, availableGunsForEmployee, filteredGuns]);
 
   // Auto-fill opening stock and price
   useEffect(() => {
@@ -334,7 +363,8 @@ export default function Sales() {
       creditCard: "",
       shortCollections: "",
       testingTotal: "",
-      gun: filteredGuns.some((g: any) => g.guns === prev.gun) ? prev.gun : "",
+      // Do not clear previously selected gun — keep user's selection to avoid blocking
+      gun: prev.gun,
     }));
   }, [form.gun, form.fuel, products, filteredGuns]);
 
@@ -652,38 +682,13 @@ export default function Sales() {
       return;
     }
 
-    // Create unique key for this product-gun combination
-    const saleKey = `${form.fuel}-${form.gun}`;
-    
-    // Check if this product+gun combination already exists in today's sales OR was just submitted
-    // NOTE: Backend returns productName and guns fields, not productId/gunId
-    const isDuplicateInTodaySales = todaySalesRaw.some((sale: any) => {
-      return sale.guns === form.gun && sale.productName === form.fuel;
-    });
-    
-    const isDuplicateJustSubmitted = submittedSalesRef.current.has(saleKey);
-    
-    if (isDuplicateInTodaySales || isDuplicateJustSubmitted) {
-      toast({ 
-        title: "Duplicate Sale Blocked", 
-        description: `A sale record already exists for Product "${form.fuel}" with Gun "${form.gun}" today.`, 
-        variant: "destructive" 
-      });
-      return;
-    }
-
     submittingRef.current = true;
     isBatchRef.current = false;
-
-    // Add to submitted sales tracking BEFORE the mutation (synchronous with ref)
-    submittedSalesRef.current.add(saleKey);
 
     try {
       await saleCollectionMutation.mutateAsync(form);
     } catch (error) {
       console.error("Submit error:", error);
-      // Remove from submitted sales if error occurred
-      submittedSalesRef.current.delete(saleKey);
     } finally {
       submittingRef.current = false;
     }
@@ -691,40 +696,18 @@ export default function Sales() {
 
   const handleAddAnotherSale = () => {
     if (!isFormValid(form, true)) return;
-    const key = entryKey(form);
-    const existingKeys = new Set(saleEntries.map(entryKey));
-    
-    // Check if this product+gun combination already exists in today's sales
-    // NOTE: Backend returns productName and guns fields
-    const isDuplicateInTodaySales = todaySalesRaw.some((sale: any) => 
-      sale.guns === form.gun && sale.productName === form.fuel
-    );
-    
-    if (isDuplicateInTodaySales) {
-      toast({ 
-        title: "Duplicate Sale Blocked", 
-        description: `A sale record already exists for Product "${form.fuel}" with Gun "${form.gun}" today.`, 
-        variant: "destructive" 
+
+    // Prevent duplicate product+gun entries in the same batch
+    const duplicate = saleEntries.some((entry) => entry.fuel === form.fuel && entry.gun === form.gun);
+    if (duplicate) {
+      toast({
+        title: "Duplicate Entry Blocked",
+        description: `Product \"${form.fuel}\" with Gun \"${form.gun}\" is already added to this batch.`,
+        variant: "destructive",
       });
       return;
     }
-    
-    // Point 7: Check for duplicate product+gun combination (same gun can have different products)
-    const isDuplicateProductGun = saleEntries.some((entry) => entry.gun === form.gun && entry.fuel === form.fuel);
-    
-    if (isDuplicateProductGun) {
-      toast({ 
-        title: "Duplicate Entry Blocked", 
-        description: `Product "${form.fuel}" with Gun "${form.gun}" has already been added to this batch.`, 
-        variant: "destructive" 
-      });
-      return;
-    }
-    
-    if (existingKeys.has(key)) {
-      toast({ title: "Duplicate sale blocked", description: "This entry already exists in the batch.", variant: "destructive" });
-      return;
-    }
+
     setSaleEntries((prev) => [...prev, { ...form, cashReceived: "", phonePay: "", creditCard: "", shortCollections: "" }]);
     toast({ 
       title: "✓ Added to Batch", 
@@ -736,46 +719,24 @@ export default function Sales() {
 
   const handleShowBatchSummary = () => {
     if (form.fuel && isFormValid(form, true)) {
-      const key = entryKey(form);
-      const existingKeys = new Set(saleEntries.map(entryKey));
-      
-      // Check if this product+gun combination already exists in today's sales
-      // NOTE: Backend returns productName and guns fields
-      const isDuplicateInTodaySales = todaySalesRaw.some((sale: any) => 
-        sale.guns === form.gun && sale.productName === form.fuel
-      );
-      
-      if (isDuplicateInTodaySales) {
-        toast({ 
-          title: "Duplicate Sale Blocked", 
-          description: `A sale record already exists for Product "${form.fuel}" with Gun "${form.gun}" today.`, 
-          variant: "destructive" 
+      // Prevent duplicate product+gun entries in the same batch
+      const duplicate = saleEntries.some((entry) => entry.fuel === form.fuel && entry.gun === form.gun);
+      if (duplicate) {
+        toast({
+          title: "Duplicate Entry Blocked",
+          description: `Product \"${form.fuel}\" with Gun \"${form.gun}\" is already added to this batch.`,
+          variant: "destructive",
         });
         setShowSummaryPopup(true);
         return;
       }
-      
-      // Point 7: Check for duplicate product+gun combination (same gun can have different products)
-      const isDuplicateProductGun = saleEntries.some((entry) => entry.gun === form.gun && entry.fuel === form.fuel);
-      
-      if (isDuplicateProductGun) {
-        toast({ 
-          title: "Duplicate Entry Blocked", 
-          description: `Product "${form.fuel}" with Gun "${form.gun}" has already been added to this batch.`, 
-          variant: "destructive" 
-        });
-        setShowSummaryPopup(true);
-        return;
-      }
-      
-      if (!existingKeys.has(key)) {
-        setSaleEntries((prev) => [...prev, { ...form, cashReceived: "", phonePay: "", creditCard: "", shortCollections: "" }]);
-        toast({ 
-          title: "✓ Added to Batch", 
-          description: `${form.fuel} - Gun ${form.gun} added successfully`, 
-          duration: 2000 
-        });
-      }
+
+      setSaleEntries((prev) => [...prev, { ...form, cashReceived: "", phonePay: "", creditCard: "", shortCollections: "" }]);
+      toast({ 
+        title: "✓ Added to Batch", 
+        description: `${form.fuel} - Gun ${form.gun} added successfully`, 
+        duration: 2000 
+      });
       setForm(initialFormState);
       setTimeout(() => setShowSummaryPopup(true), 50);
     } else {
@@ -928,10 +889,39 @@ export default function Sales() {
   };
 
   const todaySalesRaw = useMemo(() => {
-    const filtered = sales.filter((s: any) => isWithin(s.dateTime)).slice().reverse();
+    // Convert sale fields to PascalCase for frontend rendering
+    function toPascalCaseObj(obj: any) {
+      if (!obj || typeof obj !== 'object') return obj;
+      const out: any = {};
+      for (const key in obj) {
+        if (!obj.hasOwnProperty(key)) continue;
+        const pascal = key.charAt(0).toUpperCase() + key.slice(1);
+        out[pascal] = obj[key];
+      }
+      return out;
+    }
+    const filtered = sales.filter((s: any) => isWithin(s.dateTime)).map(toPascalCaseObj).slice().reverse();
     return filtered;
   }, [sales, userRole, orgId, empId]);
   const todaysCollections = useMemo(() => collections.filter((c: any) => isWithin(c.dateTime)), [collections]);
+
+  // Collections that match the selected sale (used in sale details popup)
+  const matchingCollectionsForSelectedSale = useMemo(() => {
+    if (!selectedSale) return [];
+    try {
+      const saleId = getAnyId(selectedSale);
+      if (saleId) {
+        return collections.filter((c: any) => {
+          const colSaleId = getAnyId(c);
+          return colSaleId && String(colSaleId) === String(saleId);
+        });
+      }
+      // If sale id not present, return empty (we only match by sale id as requested)
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }, [selectedSale, collections]);
 
   const collectionSummary = useMemo(() => {
     let cash = 0, upi = 0, card = 0, short = 0;
@@ -1152,54 +1142,77 @@ export default function Sales() {
       {/* DSR Dialog */}
       <Dialog open={dsrOpen} onOpenChange={(open) => { if (!open) closeDsrDialog(); }}>
         <DialogContent className="sm:max-w-lg p-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b">
-            <DialogTitle className="flex items-center gap-2 text-xl">
-              <FileText className="h-5 w-5 text-primary" />
-              Download DSR Report
-            </DialogTitle>
-            <DialogDescription className="mt-1.5">
-              Select a date range to download Daily Sales Register report
-            </DialogDescription>
-          </DialogHeader>
-          <div className="px-6 py-4 space-y-4">
-            <div className="flex gap-2">
-              {["today", "week", "month"].map((p) => (
-                <Button key={p} variant={dsrPreset === p ? "default" : "outline"} onClick={() => setDsrPreset(p as any)} className="capitalize flex-1">{p}</Button>
-              ))}
-              <Button variant={dsrPreset === "custom" ? "default" : "outline"} onClick={() => setDsrPreset("custom")} className="flex-1">Custom</Button>
-            </div>
-            {dsrPreset === "custom" && (
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Label>From</Label>
-                  <Input type="date" value={from.format("YYYY-MM-DD")} onChange={(e) => setDateRange(([_, oldTo]) => [dayjs(e.target.value), oldTo])} />
+            <DialogHeader className="px-6 pt-6 pb-4 border-b">
+              <DialogTitle className="flex items-center gap-2 text-xl">
+                <FileText className="h-5 w-5 text-primary" />
+                Download DSR Report
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto space-y-6 px-6 py-4">
+              {/* DSR controls: preset, custom date range, load and export buttons */}
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <Select value={dsrPreset} onValueChange={(val) => { setDsrPreset(val as any); setDateRange(rangeForPreset(val as any)); }}>
+                  <SelectTrigger className="w-44">
+                    <SelectValue placeholder="Select Range" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[10000]">
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="week">This Week</SelectItem>
+                    <SelectItem value="month">This Month</SelectItem>
+                    <SelectItem value="custom">Custom Range</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {dsrPreset === "custom" && (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="date"
+                      value={from.format("YYYY-MM-DD")}
+                      onChange={(e) => setDateRange([dayjs(e.target.value), to])}
+                    />
+                    <Input
+                      type="date"
+                      value={to.format("YYYY-MM-DD")}
+                      onChange={(e) => setDateRange([from, dayjs(e.target.value)])}
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 ml-auto">
+                  <Button onClick={fetchDSRRecords} disabled={dsrLoading} className="flex items-center gap-2">
+                    {dsrLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Load Records
+                  </Button>
+                  <Button variant="outline" onClick={downloadDSRcsv} disabled={!dsrRecords.length} className="flex items-center gap-2">
+                    <Download className="h-4 w-4" /> CSV
+                  </Button>
                 </div>
-                <div className="flex-1">
-                  <Label>To</Label>
-                  <Input type="date" value={to.format("YYYY-MM-DD")} onChange={(e) => setDateRange(([oldFrom, _]) => [oldFrom, dayjs(e.target.value)])} />
-                </div>
-                <Button onClick={fetchDSRRecords} disabled={dsrLoading} className="self-end">Apply</Button>
               </div>
-            )}
-            <div className="flex flex-col items-center gap-3">
-              <Button onClick={fetchDSRRecords} disabled={dsrLoading} className="w-full">
-                {dsrLoading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading...</>) : "Load Records"}
-              </Button>
-              {dsrRecords.length > 0 && (
-                <div className="flex w-full gap-2">
-                  <Button className="flex-1" onClick={downloadDSRcsv}><Download className="mr-2 h-4 w-4" />CSV</Button>
-                  <Button className="flex-1" onClick={downloadDSRpdf}><Download className="mr-2 h-4 w-4" />PDF</Button>
+
+              <div className="mt-2">
+                <div className="text-sm text-muted-foreground">
+                  {dsrRecords.length > 0 ? `${dsrRecords.length} records loaded for ${from.format("DD-MM-YYYY")} → ${to.format("DD-MM-YYYY")}` : "No records loaded"}
                 </div>
-              )}
+              </div>
+
+              <DialogFooter className="px-6 py-4 border-t bg-muted/30">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:ml-auto">
+                  <Button variant="outline" onClick={() => { setDsrRecords([]); setDsrLoading(false); }}>
+                    Clear
+                  </Button>
+                  <Button onClick={downloadDSRcsv} disabled={!dsrRecords.length} className="hidden sm:inline-flex">
+                    <Download className="mr-2 h-4 w-4" />CSV
+                  </Button>
+                </div>
+                <Button className="flex-1 sm:flex-auto" onClick={downloadDSRpdf} disabled={!dsrRecords.length}><Download className="mr-2 h-4 w-4" />PDF</Button>
+              </DialogFooter>
               {dsrRecords.length === 0 && !dsrLoading && (
                 <span className="text-xs text-muted-foreground italic text-center">No records loaded. Set range and click "Load Records" first.</span>
               )}
             </div>
-          </div>
-          <DialogFooter className="px-6 py-4 border-t bg-muted/30">
-            <Button variant="outline" onClick={closeDsrDialog} className="w-full sm:w-auto sm:ml-auto">Close</Button>
-          </DialogFooter>
-        </DialogContent>
+            <DialogFooter className="px-6 py-4 border-t bg-muted/30">
+              <Button variant="outline" onClick={closeDsrDialog} className="w-full sm:w-auto sm:ml-auto">Close</Button>
+            </DialogFooter>
+          </DialogContent>
       </Dialog>
 
       {/* Page Header */}
@@ -1426,9 +1439,9 @@ export default function Sales() {
                     <Fuel className="h-4 w-4 text-orange-600" />
                     Gun *
                   </Label>
-                  <Select value={form.gun} onValueChange={(val) => setForm((f) => ({ ...f, gun: val }))} disabled={!form.fuel || (isEmployee && availableGunsForEmployee.length === 0)}>
+                  <Select value={form.gun} onValueChange={(val) => setForm((f) => ({ ...f, gun: val }))} disabled={!form.fuel}>
                     <SelectTrigger id="gun" className="w-full shadow-sm">
-                      <SelectValue placeholder={isEmployee && availableGunsForEmployee.length === 0 ? "No assigned guns" : "Select Gun"} />
+                      <SelectValue placeholder={!form.fuel ? "Select Fuel First" : "Select Gun"} />
                     </SelectTrigger>
                     <SelectContent className='z-[10000]'>
                       {filteredGuns.map((g: any) => (
@@ -1723,7 +1736,7 @@ export default function Sales() {
               ) : (
                 todaySales.map((sale: any, index: number) => (
                   <div 
-                    key={sale._id || sale.id || `${sale.productName}-${sale.guns}-${index}`} 
+                    key={getAnyId(sale) || `${String(getProp(sale,'productName')||getProp(sale,'ProductName')||'').replace(/\s+/g,'_')}-${String(getProp(sale,'guns')||getProp(sale,'Guns')||'').replace(/\s+/g,'_')}-${index}`}
                     className="group relative overflow-hidden rounded-xl border border-border/50 bg-gradient-to-br from-background to-muted/20 p-4 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-primary/50 cursor-pointer hover:scale-[1.01]"
                     onClick={() => setSelectedSale(sale)}
                     title="Click to view full sale details"
@@ -1745,31 +1758,31 @@ export default function Sales() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-bold text-lg text-foreground truncate">{sale.productName}</h4>
-                            <Badge variant="outline" className="shrink-0">{sale.guns}</Badge>
+                            <h4 className="font-bold text-lg text-foreground truncate">{getProp(sale,'productName') || getProp(sale,'ProductName') || ''}</h4>
+                            <Badge variant="outline" className="shrink-0">{getProp(sale,'guns') || getProp(sale,'Guns') || ''}</Badge>
                           </div>
                           <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                             <div className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
-                              <span>{sale.dateTime ? dayjs(sale.dateTime).tz("Asia/Kolkata").format("hh:mm A") : "--"}</span>
+                              <span>{(getProp(sale,'dateTime') || getProp(sale,'DateTime')) ? dayjs(getProp(sale,'dateTime') || getProp(sale,'DateTime')).tz("Asia/Kolkata").format("hh:mm A") : "--"}</span>
                             </div>
                             <div className="h-3 w-px bg-border" />
                             <div className="flex items-center gap-1">
                               <Droplet className="h-3 w-3" />
-                              <span className="font-semibold text-foreground">{sale.salesInLiters}L</span>
-                              <span>× ₹{sale.price}</span>
+                              <span className="font-semibold text-foreground">{(Number(getProp(sale,'salesInLiters') ?? getProp(sale,'SalesInLiters') ?? sale.salesInLiters) || 0).toFixed(3)}L</span>
+                              <span>× ₹{(Number(getProp(sale,'price') ?? getProp(sale,'Price') ?? sale.price) || 0).toFixed(2)}</span>
                             </div>
                             <div className="h-3 w-px bg-border" />
                             <div className="flex items-center gap-1">
                               <User className="h-3 w-3" />
-                              <span>{sale.empId}</span>
+                              <span>{getProp(sale,'empId') || getProp(sale,'EmpId') || ''}</span>
                             </div>
-                            {sale.testingTotal > 0 && (
+                            {((Number(getProp(sale,'testingTotal') ?? getProp(sale,'TestingTotal') ?? sale.testingTotal) || 0) > 0) && (
                               <>
                                 <div className="h-3 w-px bg-border" />
                                 <div className="flex items-center gap-1">
                                   <AlertCircle className="h-3 w-3 text-amber-600" />
-                                  <span>Testing: {sale.testingTotal}L</span>
+                                  <span>Testing: {(Number(getProp(sale,'testingTotal') ?? getProp(sale,'TestingTotal') ?? sale.testingTotal) || 0).toFixed(3)}L</span>
                                 </div>
                               </>
                             )}
@@ -1779,7 +1792,7 @@ export default function Sales() {
                       <div className="shrink-0 text-right">
                         <p className="text-xs text-muted-foreground mb-1">Total Sale</p>
                         <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                          ₹{(sale.salesInRupees || 0).toLocaleString()}
+                          ₹{((Number(getProp(sale,'salesInRupees') ?? getProp(sale,'SalesInRupees') ?? sale.salesInRupees) || 0)).toLocaleString()}
                         </p>
                         <div className="flex gap-1 mt-1 justify-end">
                           {/* Eye icon to view details */}
@@ -1804,7 +1817,7 @@ export default function Sales() {
                               onClick={(e) => {
                                 e.stopPropagation(); // Prevent opening details dialog
                                 // MongoDB uses _id as primary key
-                                const saleId = sale._id || sale.id;
+                                const saleId = getAnyId(sale);
                                 if (saleId) {
                                   setDeleteSaleId(saleId);
                                 } else {
@@ -2092,25 +2105,25 @@ export default function Sales() {
                   <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800">
                     <p className="text-xs text-muted-foreground mb-1">Opening Stock</p>
                     <p className="text-lg font-bold text-green-700 dark:text-green-400">
-                      {selectedSale.openingStock?.toFixed(3)} L
+                      {(Number(getProp(selectedSale, 'openingStock') ?? getProp(selectedSale, 'OpeningStock') ?? selectedSale.openingStock) || 0).toFixed(3)} L
                     </p>
                   </div>
                   <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
                     <p className="text-xs text-muted-foreground mb-1">Closing Stock</p>
                     <p className="text-lg font-bold text-blue-700 dark:text-blue-400">
-                      {selectedSale.closingStock?.toFixed(3)} L
+                      {(Number(getProp(selectedSale, 'closingStock') ?? getProp(selectedSale, 'ClosingStock') ?? selectedSale.closingStock) || 0).toFixed(3)} L
                     </p>
                   </div>
                   <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
                     <p className="text-xs text-muted-foreground mb-1">Testing</p>
                     <p className="text-lg font-bold text-amber-700 dark:text-amber-400">
-                      {(selectedSale.testingTotal || 0).toFixed(3)} L
+                      {(Number(getProp(selectedSale, 'testingTotal') ?? getProp(selectedSale, 'TestingTotal') ?? selectedSale.testingTotal) || 0).toFixed(3)} L
                     </p>
                   </div>
                   <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800">
                     <p className="text-xs text-muted-foreground mb-1">Net Sale</p>
                     <p className="text-lg font-bold text-purple-700 dark:text-purple-400">
-                      {selectedSale.salesInLiters?.toFixed(3)} L
+                      {(Number(getProp(selectedSale, 'salesInLiters') ?? getProp(selectedSale, 'SalesInLiters') ?? selectedSale.salesInLiters) || 0).toFixed(3)} L
                     </p>
                   </div>
                 </div>
@@ -2126,13 +2139,13 @@ export default function Sales() {
                   <div className="p-4 rounded-lg bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border border-green-200 dark:border-green-800">
                     <p className="text-sm text-muted-foreground mb-1">Price per Liter</p>
                     <p className="text-2xl font-bold text-green-700 dark:text-green-400">
-                      ₹{selectedSale.price?.toFixed(2)}
+                      ₹{(Number(getProp(selectedSale, 'price') ?? getProp(selectedSale, 'Price') ?? selectedSale.price) || 0).toFixed(2)}
                     </p>
                   </div>
                   <div className="p-4 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border border-blue-200 dark:border-blue-800">
                     <p className="text-sm text-muted-foreground mb-1">Total Sale Amount</p>
                     <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">
-                      ₹{selectedSale.salesInRupees?.toLocaleString()}
+                      ₹{(Number(getProp(selectedSale, 'salesInRupees') ?? getProp(selectedSale, 'SalesInRupees') ?? selectedSale.salesInRupees) || 0).toLocaleString()}
                     </p>
                   </div>
                 </div>
@@ -2145,45 +2158,85 @@ export default function Sales() {
                   Collection Details
                 </h3>
                 <div className="rounded-lg bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/20 dark:to-green-950/20 p-4 border border-emerald-200 dark:border-emerald-800">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Banknote className="h-3 w-3" />
-                        <span>Cash Received</span>
+                  {matchingCollectionsForSelectedSale.length > 0 ? (
+                    <>
+                      <div className="space-y-3">
+                        {matchingCollectionsForSelectedSale.map((col: any, idx: number) => (
+                          <div key={getAnyId(col) || col._id || col.id || idx} className="p-3 rounded-lg bg-white/60 dark:bg-slate-900/40 border">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-sm text-muted-foreground">Collection at {dayjs(getProp(col, 'dateTime') || col.dateTime).tz("Asia/Kolkata").format("hh:mm A")}</div>
+                              <div className="text-xs text-muted-foreground">ID: {getAnyId(col) || '—'}</div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <div className="text-xs text-muted-foreground flex items-center gap-2"><Banknote className="h-3 w-3" />Cash</div>
+                                <div className="font-semibold">₹{(Number(getProp(col, 'cashReceived')) || 0).toLocaleString()}</div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-muted-foreground flex items-center gap-2"><Smartphone className="h-3 w-3" />UPI</div>
+                                <div className="font-semibold">₹{(Number(getProp(col, 'phonePay')) || 0).toLocaleString()}</div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-muted-foreground flex items-center gap-2"><CreditCard className="h-3 w-3" />Card</div>
+                                <div className="font-semibold">₹{(Number(getProp(col, 'creditCard')) || 0).toLocaleString()}</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
-                        ₹{(selectedSale.cashReceived || 0).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Smartphone className="h-3 w-3" />
-                        <span>UPI/PhonePe</span>
+                      <Separator className="my-3" />
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-semibold text-muted-foreground">Total Collected:</span>
+                        <span className="text-xl font-bold text-emerald-700 dark:text-emerald-400">
+                          ₹{matchingCollectionsForSelectedSale.reduce((s: number, c: any) => s + (Number(c.cashReceived) || 0) + (Number(c.phonePay) || 0) + (Number(c.creditCard) || 0), 0).toLocaleString()}
+                        </span>
                       </div>
-                      <p className="text-lg font-bold text-blue-700 dark:text-blue-400">
-                        ₹{(selectedSale.phonePay || 0).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <CreditCard className="h-3 w-3" />
-                        <span>Credit Card</span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Banknote className="h-3 w-3" />
+                            <span>Cash Received</span>
+                          </div>
+                          <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
+                            ₹{(selectedSale.cashReceived || 0).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Smartphone className="h-3 w-3" />
+                            <span>UPI/PhonePe</span>
+                          </div>
+                          <p className="text-lg font-bold text-blue-700 dark:text-blue-400">
+                            ₹{(selectedSale.phonePay || 0).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <CreditCard className="h-3 w-3" />
+                            <span>Credit Card</span>
+                          </div>
+                          <p className="text-lg font-bold text-purple-700 dark:text-purple-400">
+                            ₹{(selectedSale.creditCard || 0).toLocaleString()}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-lg font-bold text-purple-700 dark:text-purple-400">
-                        ₹{(selectedSale.creditCard || 0).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                  <Separator className="my-3" />
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-semibold text-muted-foreground">Total Collected:</span>
-                    <span className="text-xl font-bold text-emerald-700 dark:text-emerald-400">
-                      ₹{((selectedSale.cashReceived || 0) + (selectedSale.phonePay || 0) + (selectedSale.creditCard || 0)).toLocaleString()}
-                    </span>
-                  </div>
+                      <Separator className="my-3" />
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-semibold text-muted-foreground">Total Collected:</span>
+                        <span className="text-xl font-bold text-emerald-700 dark:text-emerald-400">
+                          ₹{((selectedSale.cashReceived || 0) + (selectedSale.phonePay || 0) + (selectedSale.creditCard || 0)).toLocaleString()}
+                        </span>
+                      </div>
+                    </>
+                  )}
                   {/* Short Collection Warning */}
                   {(() => {
-                    const totalCollected = (selectedSale.cashReceived || 0) + (selectedSale.phonePay || 0) + (selectedSale.creditCard || 0);
+                    const totalCollected = matchingCollectionsForSelectedSale.length > 0
+                      ? matchingCollectionsForSelectedSale.reduce((s: number, c: any) => s + (Number(c.cashReceived) || 0) + (Number(c.phonePay) || 0) + (Number(c.creditCard) || 0), 0)
+                      : (selectedSale.cashReceived || 0) + (selectedSale.phonePay || 0) + (selectedSale.creditCard || 0);
                     const shortAmount = (selectedSale.salesInRupees || 0) - totalCollected;
                     if (shortAmount > 0) {
                       return (

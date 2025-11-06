@@ -153,7 +153,6 @@ export default function Inventory() {
         currentLevel: Number(amount),
         totalCapacity: tank.totalCapacity,
         stockValue: tank.stockValue,
-        empId: tank.empId,
         metric: tank.metric,
         status: tank.status ?? true,
         tankCapacity: tank.tankCapacity,
