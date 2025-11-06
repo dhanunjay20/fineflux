@@ -149,6 +149,37 @@ export default function Sales() {
 
   // State for sale details popup
   const [selectedSale, setSelectedSale] = useState<any>(null);
+  const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
+  
+  // Fetch individual sale data by MongoDB ID
+  const { data: saleDetails, isLoading: saleDetailsLoading } = useQuery({
+    queryKey: ["sale-details", orgId, selectedSaleId],
+    queryFn: async () => {
+      if (!selectedSaleId) return null;
+      const response = await axios.get(
+        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sales/${selectedSaleId}`,
+        { timeout: API_CONFIG.TIMEOUT }
+      );
+      return response.data;
+    },
+    enabled: !!selectedSaleId && !!orgId,
+    staleTime: 0,
+  });
+  
+  // Fetch collection data for the selected sale using saleId
+  const { data: saleCollections = [], isLoading: collectionsLoading } = useQuery({
+    queryKey: ["sale-collections", orgId, selectedSaleId],
+    queryFn: async () => {
+      if (!selectedSaleId) return [];
+      const response = await axios.get(
+        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/collections/sale/${selectedSaleId}`,
+        { timeout: API_CONFIG.TIMEOUT }
+      );
+      return response.data || [];
+    },
+    enabled: !!selectedSaleId && !!orgId,
+    staleTime: 0,
+  });
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", orgId],
@@ -287,7 +318,18 @@ export default function Sales() {
     queryKey: ["collections", orgId],
     queryFn: async () => {
       const response = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/collections`);
-      return response.data || [];
+      const data = response.data || [];
+      // Convert all response data to PascalCase
+      return data.map((item: any) => {
+        const pascalObj: any = {};
+        for (const key in item) {
+          if (item.hasOwnProperty(key)) {
+            const pascalKey = key.charAt(0).toUpperCase() + key.slice(1);
+            pascalObj[pascalKey] = item[key];
+          }
+        }
+        return pascalObj;
+      });
     },
     refetchOnMount: true,
     refetchOnWindowFocus: true,
@@ -878,14 +920,12 @@ export default function Sales() {
     setDsrLoading(false);
   };
 
-  const tz = "Asia/Kolkata";
-  const start = dayjs().tz(tz).startOf("day");
-  const end = dayjs().tz(tz).endOf("day");
-
-  const isWithin = (iso?: string) => {
-    if (!iso) return false;
-    const d = dayjs(iso).tz(tz);
-    return d.isSameOrAfter(start) && d.isSameOrBefore(end);
+  // Helper function to check if a date is today (backend handles timezone)
+  const isToday = (dateString?: string) => {
+    if (!dateString) return false;
+    const date = dayjs(dateString);
+    const today = dayjs();
+    return date.isSame(today, 'day');
   };
 
   const todaySalesRaw = useMemo(() => {
@@ -900,10 +940,15 @@ export default function Sales() {
       }
       return out;
     }
-    const filtered = sales.filter((s: any) => isWithin(s.dateTime)).map(toPascalCaseObj).slice().reverse();
+    const filtered = sales.filter((s: any) => isToday(s.dateTime || s.DateTime)).map(toPascalCaseObj).slice().reverse();
     return filtered;
   }, [sales, userRole, orgId, empId]);
-  const todaysCollections = useMemo(() => collections.filter((c: any) => isWithin(c.dateTime)), [collections]);
+  
+  // Filter today's collections (already in PascalCase from query)
+  const todaysCollections = useMemo(() => 
+    collections.filter((c: any) => isToday(c.DateTime || c.dateTime)), 
+    [collections]
+  );
 
   // Collections that match the selected sale (used in sale details popup)
   const matchingCollectionsForSelectedSale = useMemo(() => {
@@ -923,18 +968,26 @@ export default function Sales() {
     }
   }, [selectedSale, collections]);
 
+  // Update: Use effect to sync selectedSale with saleDetails from API
+  useEffect(() => {
+    if (saleDetails) {
+      setSelectedSale(saleDetails);
+    }
+  }, [saleDetails]);
+
   const collectionSummary = useMemo(() => {
     let cash = 0, upi = 0, card = 0, short = 0;
+    // Use PascalCase properties from collections API response
     todaysCollections.forEach((col: any) => {
-      cash += Number(col.cashReceived) || 0;
-      upi += Number(col.phonePay) || 0;
-      card += Number(col.creditCard) || 0;
-      short += Number(col.shortCollections) || 0;
+      cash += Number(col.CashReceived || col.cashReceived) || 0;
+      upi += Number(col.PhonePay || col.phonePay) || 0;
+      card += Number(col.CreditCard || col.creditCard) || 0;
+      short += Number(col.ShortCollections || col.shortCollections) || 0;
     });
     const received = cash + upi + card;
     let expected = 0;
     todaySalesRaw.forEach((sale: any) => {
-      expected += Number(sale.salesInRupees) || 0;
+      expected += Number(sale.SalesInRupees || sale.salesInRupees) || 0;
     });
     
     // Point 6: Calculate excess collections (only for owner)
@@ -946,8 +999,8 @@ export default function Sales() {
   const summary = useMemo(() => {
     const productMap: Record<string, number> = {};
     todaySalesRaw.forEach((sale: any) => {
-      const prod = sale.productName || "Other";
-      productMap[prod] = (productMap[prod] || 0) + (sale.salesInRupees || 0);
+      const prod = sale.ProductName || sale.productName || "Other";
+      productMap[prod] = (productMap[prod] || 0) + (Number(sale.SalesInRupees || sale.salesInRupees) || 0);
     });
     const outProducts = Object.entries(productMap).map(([k, v]) => ({ name: k, value: v }));
     return { products: outProducts };
@@ -1738,7 +1791,12 @@ export default function Sales() {
                   <div 
                     key={getAnyId(sale) || `${String(getProp(sale,'productName')||getProp(sale,'ProductName')||'').replace(/\s+/g,'_')}-${String(getProp(sale,'guns')||getProp(sale,'Guns')||'').replace(/\s+/g,'_')}-${index}`}
                     className="group relative overflow-hidden rounded-xl border border-border/50 bg-gradient-to-br from-background to-muted/20 p-4 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-primary/50 cursor-pointer hover:scale-[1.01]"
-                    onClick={() => setSelectedSale(sale)}
+                    onClick={() => {
+                      const mongoId = getAnyId(sale);
+                      if (mongoId) {
+                        setSelectedSaleId(mongoId);
+                      }
+                    }}
                     title="Click to view full sale details"
                   >
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-600" />
@@ -1764,7 +1822,7 @@ export default function Sales() {
                           <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                             <div className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
-                              <span>{(getProp(sale,'dateTime') || getProp(sale,'DateTime')) ? dayjs(getProp(sale,'dateTime') || getProp(sale,'DateTime')).tz("Asia/Kolkata").format("hh:mm A") : "--"}</span>
+                              <span>{(getProp(sale,'dateTime') || getProp(sale,'DateTime')) ? dayjs(getProp(sale,'dateTime') || getProp(sale,'DateTime')).format("hh:mm A") : "--"}</span>
                             </div>
                             <div className="h-3 w-px bg-border" />
                             <div className="flex items-center gap-1">
@@ -1802,7 +1860,10 @@ export default function Sales() {
                             title="View Details"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedSale(sale);
+                              const mongoId = getAnyId(sale);
+                              if (mongoId) {
+                                setSelectedSaleId(mongoId);
+                              }
                             }}
                             className="h-8 w-8 bg-blue-100 text-blue-600 hover:bg-blue-200"
                           >
@@ -2039,7 +2100,12 @@ export default function Sales() {
       )}
 
       {/* Sale Details Dialog */}
-      <Dialog open={!!selectedSale} onOpenChange={(open) => !open && setSelectedSale(null)}>
+      <Dialog open={!!selectedSaleId} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedSaleId(null);
+          setSelectedSale(null);
+        }
+      }}>
         <DialogContent className="max-w-3xl max-h-[95vh] overflow-hidden flex flex-col p-0">
           <DialogHeader className="px-6 py-4 border-b shrink-0">
             <DialogTitle className="flex items-center gap-3">
@@ -2053,7 +2119,12 @@ export default function Sales() {
             </DialogDescription>
           </DialogHeader>
 
-          {selectedSale && (
+          {(saleDetailsLoading || collectionsLoading) ? (
+            <div className="flex flex-col items-center justify-center py-16 px-6">
+              <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+              <p className="text-muted-foreground">Loading sale details...</p>
+            </div>
+          ) : selectedSale ? (
             <>
               <div className="space-y-6 px-6 py-4 overflow-y-auto flex-1">
               {/* Header Info */}
@@ -2063,7 +2134,7 @@ export default function Sales() {
                     <p className="text-sm text-muted-foreground">Date & Time</p>
                     <p className="text-lg font-semibold">
                       {selectedSale.dateTime 
-                        ? dayjs(selectedSale.dateTime).tz("Asia/Kolkata").format("DD MMM YYYY, hh:mm A")
+                        ? dayjs(selectedSale.dateTime).format("DD MMM YYYY, hh:mm A")
                         : "N/A"}
                     </p>
                   </div>
@@ -2158,13 +2229,13 @@ export default function Sales() {
                   Collection Details
                 </h3>
                 <div className="rounded-lg bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/20 dark:to-green-950/20 p-4 border border-emerald-200 dark:border-emerald-800">
-                  {matchingCollectionsForSelectedSale.length > 0 ? (
+                  {saleCollections.length > 0 ? (
                     <>
                       <div className="space-y-3">
-                        {matchingCollectionsForSelectedSale.map((col: any, idx: number) => (
+                        {saleCollections.map((col: any, idx: number) => (
                           <div key={getAnyId(col) || col._id || col.id || idx} className="p-3 rounded-lg bg-white/60 dark:bg-slate-900/40 border">
                             <div className="flex items-center justify-between mb-2">
-                              <div className="text-sm text-muted-foreground">Collection at {dayjs(getProp(col, 'dateTime') || col.dateTime).tz("Asia/Kolkata").format("hh:mm A")}</div>
+                              <div className="text-sm text-muted-foreground">Collection at {dayjs(getProp(col, 'dateTime') || col.dateTime).format("hh:mm A")}</div>
                               <div className="text-xs text-muted-foreground">ID: {getAnyId(col) || '—'}</div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2188,55 +2259,20 @@ export default function Sales() {
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-semibold text-muted-foreground">Total Collected:</span>
                         <span className="text-xl font-bold text-emerald-700 dark:text-emerald-400">
-                          ₹{matchingCollectionsForSelectedSale.reduce((s: number, c: any) => s + (Number(c.cashReceived) || 0) + (Number(c.phonePay) || 0) + (Number(c.creditCard) || 0), 0).toLocaleString()}
+                          ₹{saleCollections.reduce((s: number, c: any) => s + (Number(c.cashReceived) || 0) + (Number(c.phonePay) || 0) + (Number(c.creditCard) || 0), 0).toLocaleString()}
                         </span>
                       </div>
                     </>
                   ) : (
-                    <>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Banknote className="h-3 w-3" />
-                            <span>Cash Received</span>
-                          </div>
-                          <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
-                            ₹{(selectedSale.cashReceived || 0).toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Smartphone className="h-3 w-3" />
-                            <span>UPI/PhonePe</span>
-                          </div>
-                          <p className="text-lg font-bold text-blue-700 dark:text-blue-400">
-                            ₹{(selectedSale.phonePay || 0).toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <CreditCard className="h-3 w-3" />
-                            <span>Credit Card</span>
-                          </div>
-                          <p className="text-lg font-bold text-purple-700 dark:text-purple-400">
-                            ₹{(selectedSale.creditCard || 0).toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                      <Separator className="my-3" />
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-semibold text-muted-foreground">Total Collected:</span>
-                        <span className="text-xl font-bold text-emerald-700 dark:text-emerald-400">
-                          ₹{((selectedSale.cashReceived || 0) + (selectedSale.phonePay || 0) + (selectedSale.creditCard || 0)).toLocaleString()}
-                        </span>
-                      </div>
-                    </>
+                    <div className="text-center py-4 text-muted-foreground">
+                      <p className="text-sm">No collection records found for this sale</p>
+                    </div>
                   )}
                   {/* Short Collection Warning */}
                   {(() => {
-                    const totalCollected = matchingCollectionsForSelectedSale.length > 0
-                      ? matchingCollectionsForSelectedSale.reduce((s: number, c: any) => s + (Number(c.cashReceived) || 0) + (Number(c.phonePay) || 0) + (Number(c.creditCard) || 0), 0)
-                      : (selectedSale.cashReceived || 0) + (selectedSale.phonePay || 0) + (selectedSale.creditCard || 0);
+                    const totalCollected = saleCollections.length > 0
+                      ? saleCollections.reduce((s: number, c: any) => s + (Number(c.cashReceived) || 0) + (Number(c.phonePay) || 0) + (Number(c.creditCard) || 0), 0)
+                      : 0;
                     const shortAmount = (selectedSale.salesInRupees || 0) - totalCollected;
                     if (shortAmount > 0) {
                       return (
@@ -2298,11 +2334,19 @@ export default function Sales() {
               </div>
 
               <DialogFooter className="border-t px-6 py-4 shrink-0 bg-background">
-                <Button variant="outline" onClick={() => setSelectedSale(null)} className="w-full sm:w-auto">
+                <Button variant="outline" onClick={() => {
+                  setSelectedSaleId(null);
+                  setSelectedSale(null);
+                }} className="w-full sm:w-auto">
                   Close
                 </Button>
               </DialogFooter>
             </>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 px-6">
+              <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">No sale data available</p>
+            </div>
           )}
         </DialogContent>
       </Dialog>
