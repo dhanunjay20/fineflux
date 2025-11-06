@@ -3,9 +3,8 @@ import axios from 'axios';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
-  ChevronLeft, ChevronRight, ArrowLeft, Droplet,
-  Loader2, TrendingUp, TrendingDown, PackageCheck, 
-  BarChart3, Activity, Package
+  ChevronLeft, ChevronRight, ArrowLeft, Droplet, Loader2, TrendingUp, TrendingDown,
+  PackageCheck, Activity, Package
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,14 +13,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { API_CONFIG } from '@/lib/api-config';
 
-// Removed - using API_CONFIG
-
-function getTodayRange() {
-  const now = new Date();
-  const start = new Date(now); start.setHours(0, 0, 0, 0);
-  const end = new Date(now); end.setHours(23, 59, 59, 999);
-  return { fromDate: start.toISOString().slice(0, 10), toDate: end.toISOString().slice(0, 10) };
+// Date/time format: 6/11/2025 06:45 pm (from UTC ISO string)
+function formatDateTimeSimple(s?: string) {
+  if (!s) return '—';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return String(s);
+  const day = d.getUTCDate();
+  const month = d.getUTCMonth() + 1;
+  const year = d.getUTCFullYear();
+  let hour = d.getUTCHours();
+  const min = d.getUTCMinutes();
+  const ampm = hour >= 12 ? 'pm' : 'am';
+  hour = hour % 12;
+  if (hour === 0) hour = 12;
+  const minPad = min.toString().padStart(2, '0');
+  const hourPad = hour.toString().padStart(2, '0');
+  return `${day}/${month}/${year} ${hourPad}:${minPad} ${ampm}`;
 }
+
 function getWeekRange() {
   const now = new Date();
   const start = new Date(now); start.setDate(now.getDate() - 6); start.setHours(0, 0, 0, 0);
@@ -35,19 +44,18 @@ function getMonthRange() {
   return { fromDate: start.toISOString().slice(0, 10), toDate: end.toISOString().slice(0, 10) };
 }
 
+const nf = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
+
 export default function InventoryHistory() {
   const navigate = useNavigate();
   const orgId = localStorage.getItem('organizationId') || 'ORG-DEV-001';
-
   const [productName, setProductName] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [chosenPeriod, setChosenPeriod] = useState<'all' | 'latest10' | 'week' | 'month' | 'custom'>('latest10');
-
   const [currentPage, setCurrentPage] = useState(1);
-  const [recordsPerPage, setRecordsPerPage] = useState(10);
+  const recordsPerPage = 10;
 
-  // Fetch all products and all logs ONCE (no server-side filtering)
   const { data: products = [] } = useQuery({
     queryKey: ['products', orgId],
     queryFn: async () => {
@@ -55,7 +63,6 @@ export default function InventoryHistory() {
       return Array.isArray(res.data) ? res.data : [];
     }
   });
-
   const { data: allLogs = [], isLoading } = useQuery({
     queryKey: ['inventoryLogs', orgId],
     queryFn: async () => {
@@ -65,54 +72,44 @@ export default function InventoryHistory() {
     }
   });
 
-  // FILTERING IS 100% FRONTEND: FAST + ACCURATE
   const filteredLogs = useMemo(() => {
     let logs = [...allLogs];
-    
-    // Sort by lastUpdated (newest first)
-    logs.sort((a, b) => {
-      const dateA = new Date(a.lastUpdated || 0).getTime();
-      const dateB = new Date(b.lastUpdated || 0).getTime();
-      return dateB - dateA;
-    });
-
-    // Add previous level tracking for detecting decreases and first-time entries
+    logs.sort((a, b) => new Date(b.lastUpdated || 0).getTime() - new Date(a.lastUpdated || 0).getTime());
     logs = logs.map((log, index, arr) => {
-      // Find previous log for the same product
       const prevLog = arr.slice(index + 1).find(l => l.productName === log.productName);
-      const isFirstEntry = !prevLog; // No previous log means it's the first entry
-      
+      const isFirstEntry = !prevLog;
+      let mutationby = log.mutationby || log.empId || log.updatedBy || log.createdBy || log.user;
+      if (!mutationby || typeof mutationby !== 'string' || mutationby.trim() === '') mutationby = '—';
       return {
         ...log,
         previousLevel: prevLog?.currentLevel,
-        hasLevelDecrease: prevLog ? (log.currentLevel < prevLog.currentLevel) : false,
-        isFirstEntry: isFirstEntry
+        hasLevelDecrease: prevLog ? log.currentLevel < prevLog.currentLevel : false,
+        isFirstEntry,
+        mutationby
       };
     });
-
-    // If latest10 is selected, return only the first 10 records
-    if (chosenPeriod === 'latest10' && !productName && !fromDate && !toDate) {
-      return logs.slice(0, 10);
-    }
-
+    if (chosenPeriod === 'latest10' && !productName && !fromDate && !toDate) return logs.slice(0, 10);
     if (productName) logs = logs.filter(l => (l.productName || '').trim() === productName);
-    if (fromDate)
-      logs = logs.filter(l => l.lastUpdated &&
-        new Date(l.lastUpdated).toISOString().slice(0,10) >= fromDate);
-    if (toDate)
-      logs = logs.filter(l => l.lastUpdated &&
-        new Date(l.lastUpdated).toISOString().slice(0,10) <= toDate);
+    if (fromDate) logs = logs.filter(l => l.lastUpdated && new Date(l.lastUpdated).toISOString().slice(0,10) >= fromDate);
+    if (toDate) logs = logs.filter(l => l.lastUpdated && new Date(l.lastUpdated).toISOString().slice(0,10) <= toDate);
     return logs;
   }, [allLogs, productName, fromDate, toDate, chosenPeriod]);
 
-  // Pagination
+  // SALE DELETED count logic
+  const deletedCount = useMemo(() =>
+    filteredLogs.filter(
+      (log) => typeof log.mutationby === 'string' &&
+              log.mutationby.toLowerCase().includes('deleted')
+    ).length,
+    [filteredLogs]
+  );
+
   const totalRecords = filteredLogs.length;
   const totalPages = Math.ceil(totalRecords / recordsPerPage);
   const startIndex = (currentPage - 1) * recordsPerPage;
   const endIndex = startIndex + recordsPerPage;
   const currentLogs = filteredLogs.slice(startIndex, endIndex);
 
-  // Filter button and select event handlers
   function handleQuickFilter(period: typeof chosenPeriod) {
     setChosenPeriod(period);
     setCurrentPage(1);
@@ -125,24 +122,6 @@ export default function InventoryHistory() {
   function handleFromDateChange(e: any) { setFromDate(e.target.value); setChosenPeriod('custom'); setCurrentPage(1); }
   function handleToDateChange(e: any)   { setToDate(e.target.value); setChosenPeriod('custom'); setCurrentPage(1); }
   const goToPage = (p: number) => { if (p >= 1 && p <= totalPages) setCurrentPage(p); };
-  const formatDateTime = (s?: string) => !s ? '' : (new Date(s)).toLocaleDateString('en-IN') + ' ' + (new Date(s)).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-  const nf = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
-
-  // Calculate summary statistics
-  const summaryStats = useMemo(() => {
-    const stats = {
-      totalEntries: filteredLogs.length,
-      firstEntries: filteredLogs.filter(log => log.isFirstEntry).length,
-      receipts: filteredLogs.filter(log => log.receiptQuantityInLitres > 0 && !log.isFirstEntry).length,
-      decreases: filteredLogs.filter(log => log.hasLevelDecrease && !log.isFirstEntry).length,
-      totalReceiptQty: filteredLogs.reduce((sum, log) => sum + (log.receiptQuantityInLitres || 0), 0),
-      totalStockValue: filteredLogs.reduce((sum, log) => sum + (log.stockValue || 0), 0),
-      uniqueProducts: new Set(filteredLogs.map(log => log.productName)).size
-    };
-    return stats;
-  }, [filteredLogs]);
-
-  // List pagination page numbers
   const getPageNumbers = () => {
     const pages: (number | string)[] = [], maxVisible = 5;
     if (totalPages <= maxVisible) for (let i = 1; i <= totalPages; i++) pages.push(i);
@@ -154,22 +133,34 @@ export default function InventoryHistory() {
     return pages;
   };
 
-  // Modern Log Row UI with color coding
-  function LogRow({log}: {log:any}) {
+  const summaryStats = useMemo(() => {
+    return {
+      totalEntries: filteredLogs.length,
+      receipts: filteredLogs.filter(log => log.receiptQuantityInLitres > 0 && !log.isFirstEntry).length,
+      decreases: filteredLogs.filter(log => log.hasLevelDecrease && !log.isFirstEntry).length,
+      totalReceiptQty: filteredLogs.reduce((sum, log) => sum + (log.receiptQuantityInLitres || 0), 0),
+      totalStockValue: filteredLogs.reduce((sum, log) => sum + (log.stockValue || 0), 0),
+      uniqueProducts: new Set(filteredLogs.map(log => log.productName)).size
+    };
+  }, [filteredLogs]);
+
+  function LogRow({ log }: { log: any }) {
     const hasReceipt = log.receiptQuantityInLitres > 0;
     const hasDecrease = log.hasLevelDecrease;
     const isFirstEntry = log.isFirstEntry;
-    
-    // Calculate fill percentage for visual indicator
+    const isDeleted = typeof log?.mutationby === 'string' && log.mutationby.toLowerCase().includes('deleted');
     const fillPercentage = log.tankCapacity > 0 ? (log.currentLevel / log.tankCapacity) * 100 : 0;
-    
-    // Determine card styling based on log type (priority: first entry > receipt > decrease > normal)
     let cardBgClass = "bg-white dark:bg-slate-900";
     let iconBgClass = "bg-blue-50 dark:bg-blue-950/50";
     let iconClass = "text-blue-600 dark:text-blue-400";
     let badgeClass = "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
-    
-    if (isFirstEntry) {
+    if (isDeleted) {
+      cardBgClass = "bg-red-50/70 dark:bg-red-950/30 border-red-200 dark:border-red-800";
+      iconBgClass = "bg-red-100 dark:bg-red-900/50";
+      iconClass = "text-red-600 dark:text-red-400";
+      badgeClass = "bg-red-500 text-white";
+    }
+    else if (isFirstEntry) {
       cardBgClass = "bg-purple-50/50 dark:bg-purple-950/20";
       iconBgClass = "bg-purple-100 dark:bg-purple-900/50";
       iconClass = "text-purple-600 dark:text-purple-400";
@@ -185,13 +176,13 @@ export default function InventoryHistory() {
       iconClass = "text-orange-600 dark:text-orange-400";
       badgeClass = "bg-orange-500 text-white";
     }
-
     return (
       <li className={`group ${cardBgClass} rounded-lg shadow-sm hover:shadow-md transition-all duration-200 mb-3 overflow-hidden border border-border`}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4">
-          {/* Product Icon */}
           <div className={`flex items-center justify-center rounded-xl ${iconBgClass} h-14 w-14 shrink-0 shadow-sm`}>
-            {isFirstEntry ? (
+            {isDeleted ? (
+              <TrendingDown className={`h-7 w-7 ${iconClass}`} />
+            ) : isFirstEntry ? (
               <Package className={`h-7 w-7 ${iconClass}`} />
             ) : hasReceipt ? (
               <PackageCheck className={`h-7 w-7 ${iconClass}`} />
@@ -201,33 +192,32 @@ export default function InventoryHistory() {
               <Droplet className={`h-7 w-7 ${iconClass}`} />
             )}
           </div>
-          
           <div className="flex-1 min-w-0 w-full space-y-3">
-            {/* Header Row */}
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-bold text-lg text-foreground">{log.productName}</h3>
-              
-              {isFirstEntry && (
+              {isDeleted && (
+                <Badge className={`${badgeClass} font-semibold px-2.5 py-0.5`}>
+                  Sale Deleted
+                </Badge>
+              )}
+              {!isDeleted && isFirstEntry && (
                 <Badge className={`${badgeClass} font-semibold px-2.5 py-0.5`}>
                   <Package className="h-3 w-3 mr-1" />
                   First Entry
                 </Badge>
               )}
-              
-              {!isFirstEntry && hasReceipt && (
+              {!isDeleted && !isFirstEntry && hasReceipt && (
                 <Badge className={`${badgeClass} font-semibold px-2.5 py-0.5`}>
                   <TrendingUp className="h-3 w-3 mr-1" />
                   Receipt
                 </Badge>
               )}
-              
-              {!isFirstEntry && hasDecrease && (
+              {!isDeleted && !isFirstEntry && hasDecrease && (
                 <Badge className={`${badgeClass} font-semibold px-2.5 py-0.5`}>
                   <TrendingDown className="h-3 w-3 mr-1" />
                   Sale
                 </Badge>
               )}
-              
               <Badge 
                 variant="outline" 
                 className={log.status === false 
@@ -237,13 +227,10 @@ export default function InventoryHistory() {
               >
                 {log.status === false ? "Inactive" : "Active"}
               </Badge>
-              
               <Badge className="ml-auto bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 font-mono text-xs px-3 py-1 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
-                {formatDateTime(log.lastUpdated)}
+                {formatDateTimeSimple(log.lastUpdated)}
               </Badge>
             </div>
-
-            {/* Tank Level Progress Bar */}
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>Tank Level</span>
@@ -260,53 +247,35 @@ export default function InventoryHistory() {
                 />
               </div>
             </div>
-            
-            {/* Info Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               <div className="space-y-0.5">
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Droplet className="h-3 w-3" /> Current Level
-                </p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1"><Droplet className="h-3 w-3" /> Current Level</p>
                 <p className="font-bold text-sm text-foreground">
                   {nf.format(log.currentLevel ?? 0)} {log.metric || 'L'}
                   {hasDecrease && log.previousLevel && (
                     <span className="text-orange-600 dark:text-orange-400 text-xs font-semibold ml-1">
-                      (↓ {nf.format(log.previousLevel - log.currentLevel)})
+                      (↓ {nf.format((log.previousLevel ?? 0) - (log.currentLevel ?? 0))})
                     </span>
                   )}
                 </p>
               </div>
-              
               <div className="space-y-0.5">
                 <p className="text-xs text-muted-foreground">Capacity</p>
-                <p className="font-bold text-sm text-foreground">
-                  {nf.format(log.tankCapacity ?? 0)} {log.metric || 'L'}
-                </p>
+                <p className="font-bold text-sm text-foreground">{nf.format(log.tankCapacity ?? 0)} {log.metric || 'L'}</p>
               </div>
-              
               <div className="space-y-0.5">
                 <p className="text-xs text-muted-foreground">Stock Value</p>
-                <p className="font-bold text-sm text-foreground">
-                  ₹{nf.format(log.stockValue ?? 0)}
-                </p>
+                <p className="font-bold text-sm text-foreground">₹{nf.format(log.stockValue ?? 0)}</p>
               </div>
-              
               {hasReceipt && (
                 <div className="space-y-0.5">
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                    <PackageCheck className="h-3 w-3" /> Receipt Qty
-                  </p>
-                  <p className="font-bold text-sm text-emerald-700 dark:text-emerald-400">
-                    {nf.format(log.receiptQuantityInLitres)} L
-                  </p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><PackageCheck className="h-3 w-3" /> Receipt Qty</p>
+                  <p className="font-bold text-sm text-emerald-700 dark:text-emerald-400">{nf.format(log.receiptQuantityInLitres)} L</p>
                 </div>
               )}
-              
               <div className="space-y-0.5">
                 <p className="text-xs text-muted-foreground">Updated By</p>
-                <p className="font-semibold text-sm text-foreground">
-                  {log.mutationby || log.empId || '—'}
-                </p>
+                <p className="font-semibold text-sm text-foreground">{log.mutationby}</p>
               </div>
             </div>
           </div>
@@ -317,7 +286,7 @@ export default function InventoryHistory() {
 
   return (
     <div className="space-y-6 animate-fade-in px-2 md:px-0">
-      {/* Header */}
+      {/* Header Row */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Inventory History Logs</h1>
@@ -327,8 +296,7 @@ export default function InventoryHistory() {
           <ArrowLeft className="h-4 w-4" /> Back to Inventory
         </Button>
       </div>
-
-      {/* Quick Filters */}
+      {/* Quick Filters Row */}
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant={chosenPeriod === 'latest10' ? "default" : "outline"} onClick={() => handleQuickFilter('latest10')}>Latest 10</Button>
         <Button size="sm" variant={chosenPeriod === 'all' ? "default" : "outline"} onClick={() => handleQuickFilter('all')}>All</Button>
@@ -336,8 +304,7 @@ export default function InventoryHistory() {
         <Button size="sm" variant={chosenPeriod === 'month' ? "default" : "outline"} onClick={() => handleQuickFilter('month')}>This Month</Button>
         <Button size="sm" variant={chosenPeriod === 'custom' ? "default" : "outline"} onClick={() => setChosenPeriod('custom')}>Custom</Button>
       </div>
-
-      {/* Summary Statistics Cards */}
+      {/* Summary Stat Cards */}
       {filteredLogs.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
@@ -354,22 +321,21 @@ export default function InventoryHistory() {
               </div>
             </CardContent>
           </Card>
-
-          <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20 border-purple-200 dark:border-purple-800">
+          {/* Sale Deleted Stat Card */}
+          <Card className="bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20 border-red-200 dark:border-red-800">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-purple-600 dark:text-purple-400">First Entries</p>
-                  <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">{summaryStats.firstEntries}</p>
-                  <p className="text-xs text-muted-foreground mt-1">New Products</p>
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400">Sale Deleted</p>
+                  <p className="text-2xl font-bold text-red-900 dark:text-red-100">{deletedCount}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Deletion Events</p>
                 </div>
-                <div className="p-3 bg-purple-500/10 rounded-full">
-                  <Package className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                <div className="p-3 bg-red-500/10 rounded-full">
+                  <TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
-
           <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20 border-emerald-200 dark:border-emerald-800">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -384,14 +350,13 @@ export default function InventoryHistory() {
               </div>
             </CardContent>
           </Card>
-
           <Card className="bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20 border-orange-200 dark:border-orange-800">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-orange-600 dark:text-orange-400">Decreases</p>
+                  <p className="text-xs font-medium text-orange-600 dark:text-orange-400">Sale Entries</p>
                   <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">{summaryStats.decreases}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Stock Reductions</p>
+                  <p className="text-xs text-muted-foreground mt-1">Net Sale Stock Reductions</p>
                 </div>
                 <div className="p-3 bg-orange-500/10 rounded-full">
                   <TrendingDown className="h-6 w-6 text-orange-600 dark:text-orange-400" />
@@ -401,8 +366,7 @@ export default function InventoryHistory() {
           </Card>
         </div>
       )}
-
-      {/* Search Form */}
+      {/* Filters Block */}
       <Card className="card-gradient border-0">
         <CardHeader>
           <CardTitle className="text-lg sm:text-xl">Filters</CardTitle>
@@ -430,23 +394,14 @@ export default function InventoryHistory() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Log List Modern */}
+      {/* Log List & Pagination */}
       <Card className="card-gradient">
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <CardTitle className="text-lg sm:text-xl">Log Entries</CardTitle>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
               <span className="text-xs sm:text-sm text-muted-foreground">Show</span>
-              <Select value={String(recordsPerPage)} onValueChange={(v)=>{setRecordsPerPage(Number(v)); setCurrentPage(1);}}>
-                <SelectTrigger className="w-[80px] sm:w-[100px] h-9"><SelectValue /></SelectTrigger>
-                <SelectContent className='z-[10000]'>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
+              <span className="font-medium">10</span>
               <span className="text-xs sm:text-sm text-muted-foreground">per page</span>
             </div>
           </div>
@@ -470,8 +425,7 @@ export default function InventoryHistory() {
               ))}
             </ul>
           )}
-
-          {/* Pagination Controls */}
+          {/* Pagination controls */}
           {(totalPages > 1 && filteredLogs.length > 0) && (
             <div className="flex flex-col sm:flex-row items-center justify-between mt-6 sm:mt-8 gap-4">
               <div className="text-xs sm:text-sm text-muted-foreground order-2 sm:order-1">
@@ -486,7 +440,7 @@ export default function InventoryHistory() {
                     page === '...' ? (
                       <span key={`ellipsis-${idx}`} className="flex items-center px-2 text-muted-foreground">...</span>
                     ) : (
-                      <Button key={page} variant={currentPage === page ? "default" : "outline"} size="sm" onClick={() => goToPage(Number(page))} className="h-9 min-w-[36px]">
+                      <Button key={String(page)} variant={currentPage === page ? "default" : "outline"} size="sm" onClick={() => goToPage(Number(page))} className="h-9 min-w-[36px]">
                         {page}
                       </Button>
                     ))}
@@ -502,4 +456,3 @@ export default function InventoryHistory() {
     </div>
   );
 }
-
