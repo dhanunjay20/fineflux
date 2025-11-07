@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, ArrowLeft, Droplet, Loader2, TrendingUp, TrendingDown,
-  PackageCheck, Activity, Package
+  PackageCheck, Activity, Package, Trash2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -100,6 +100,7 @@ export default function InventoryHistory() {
           || (prevLevel !== null && (Number(log.currentLevel) < prevLevel))
         );
         const isSaleDeleted = (mutation === 'sale_delete' || mutation.includes('sale_delete'));
+        const isInventoryDeleted = (mutation.includes('inventory deleted by'));
 
         let restoredLitres = 0;
         if (isSaleDeleted && prevLevel !== null) {
@@ -114,6 +115,7 @@ export default function InventoryHistory() {
           isSale,
           isFirstEntry: prevLevel === null,
           isSaleDeleted,
+          isInventoryDeleted,
           restoredLitres,
           mutationby: log.mutationby || log.empId || '—'
         });
@@ -133,6 +135,9 @@ export default function InventoryHistory() {
 
   const deletedCount = useMemo(() =>
     filteredLogs.filter(log => log.isSaleDeleted).length, [filteredLogs]);
+
+  const inventoryDeletedCount = useMemo(() =>
+    filteredLogs.filter(log => log.isInventoryDeleted).length, [filteredLogs]);
 
   const totalRecords = filteredLogs.length;
   const totalPages = Math.ceil(totalRecords / recordsPerPage);
@@ -164,17 +169,19 @@ export default function InventoryHistory() {
 
   const summaryStats = useMemo(() => ({
     totalEntries: filteredLogs.length,
-    receipts: filteredLogs.filter(log => log.isReceipt && !log.isFirstEntry).length,
-    decreases: filteredLogs.filter(log => log.isSale && !log.isFirstEntry).length,
+    receipts: filteredLogs.filter(log => log.isReceipt && !log.isFirstEntry && !log.isInventoryDeleted).length,
+    decreases: filteredLogs.filter(log => log.isSale && !log.isFirstEntry && !log.isInventoryDeleted && !log.isSaleDeleted).length,
     totalReceiptQty: filteredLogs.reduce((sum, log) => sum + Number(log.receiptQuantityInLitres || 0), 0),
     totalStockValue: filteredLogs.reduce((sum, log) => sum + Number(log.stockValue || 0), 0),
     uniqueProducts: new Set(filteredLogs.map(log => log.productName)).size,
-    saleDeletedTotalLtrs
-  }), [filteredLogs, saleDeletedTotalLtrs]);
+    saleDeletedTotalLtrs,
+    inventoryDeletedCount
+  }), [filteredLogs, saleDeletedTotalLtrs, inventoryDeletedCount]);
 
   function LogRow({ log }: { log: any }) {
     const hasReceipt = log.isReceipt;
     const isSaleDeleted = log.isSaleDeleted;
+    const isInventoryDeleted = log.isInventoryDeleted;
     const hasDecrease = log.isSale && !isSaleDeleted;
     const isFirstEntry = log.isFirstEntry;
     const fillPercentage = Number(log.tankCapacity) > 0 ? (Number(log.currentLevel) / Number(log.tankCapacity)) * 100 : 0;
@@ -182,7 +189,13 @@ export default function InventoryHistory() {
     let iconBgClass = "bg-blue-50 dark:bg-blue-950/50";
     let iconClass = "text-blue-600 dark:text-blue-400";
     let badgeClass = "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
-    if (isSaleDeleted) {
+    if (isInventoryDeleted) {
+      cardBgClass = "bg-gray-50/70 dark:bg-gray-950/30 border-gray-300 dark:border-gray-700";
+      iconBgClass = "bg-gray-100 dark:bg-gray-900/50";
+      iconClass = "text-gray-600 dark:text-gray-400";
+      badgeClass = "bg-gray-500 text-white";
+    }
+    else if (isSaleDeleted) {
       cardBgClass = "bg-red-50/70 dark:bg-red-950/30 border-red-200 dark:border-red-800";
       iconBgClass = "bg-red-100 dark:bg-red-900/50";
       iconClass = "text-red-600 dark:text-red-400";
@@ -208,7 +221,9 @@ export default function InventoryHistory() {
       <li className={`group ${cardBgClass} rounded-lg shadow-sm hover:shadow-md transition-all duration-200 mb-3 overflow-hidden border border-border`}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4">
           <div className={`flex items-center justify-center rounded-xl ${iconBgClass} h-14 w-14 shrink-0 shadow-sm`}>
-            {isSaleDeleted ? (
+            {isInventoryDeleted ? (
+              <Trash2 className={`h-7 w-7 ${iconClass}`} />
+            ) : isSaleDeleted ? (
               <TrendingDown className={`h-7 w-7 ${iconClass}`} />
             ) : isFirstEntry ? (
               <Package className={`h-7 w-7 ${iconClass}`} />
@@ -223,38 +238,34 @@ export default function InventoryHistory() {
           <div className="flex-1 min-w-0 w-full space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-bold text-lg text-foreground">{log.productName}</h3>
-              {isSaleDeleted && (
+              {isInventoryDeleted && (
+                <Badge className={`${badgeClass} font-semibold px-2.5 py-0.5`}>
+                  Inventory Deleted
+                </Badge>
+              )}
+              {!isInventoryDeleted && isSaleDeleted && (
                 <Badge className={`${badgeClass} font-semibold px-2.5 py-0.5`}>
                   Sale Deleted
                 </Badge>
               )}
-              {!isSaleDeleted && isFirstEntry && (
+              {!isInventoryDeleted && !isSaleDeleted && isFirstEntry && (
                 <Badge className={`${badgeClass} font-semibold px-2.5 py-0.5`}>
                   <Package className="h-3 w-3 mr-1" />
                   First Entry
                 </Badge>
               )}
-              {!isSaleDeleted && !isFirstEntry && hasReceipt && (
+              {!isInventoryDeleted && !isSaleDeleted && !isFirstEntry && hasReceipt && (
                 <Badge className={`${badgeClass} font-semibold px-2.5 py-0.5`}>
                   <TrendingUp className="h-3 w-3 mr-1" />
                   Receipt
                 </Badge>
               )}
-              {!isSaleDeleted && !isFirstEntry && hasDecrease && (
+              {!isInventoryDeleted && !isSaleDeleted && !isFirstEntry && hasDecrease && (
                 <Badge className={`${badgeClass} font-semibold px-2.5 py-0.5`}>
                   <TrendingDown className="h-3 w-3 mr-1" />
                   Sale
                 </Badge>
               )}
-              <Badge
-                variant="outline"
-                className={log.status === false
-                  ? "border-red-300 bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400"
-                  : "border-green-300 bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400"
-                }
-              >
-                {log.status === false ? "Inactive" : "Active"}
-              </Badge>
               <Badge className="ml-auto bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 font-mono text-xs px-3 py-1 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
                 {log.isReceipt
                   ? (log.lastUpdated ?? '—')
@@ -342,77 +353,98 @@ export default function InventoryHistory() {
         <Button size="sm" variant={chosenPeriod === 'custom' ? "default" : "outline"} onClick={() => setChosenPeriod('custom')}>Custom</Button>
       </div>
       {filteredLogs.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Total Entries</p>
-                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{summaryStats.totalEntries}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{summaryStats.uniqueProducts} Products</p>
+        <div className="space-y-4">
+          {/* First Row - 3 Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Total Entries</p>
+                    <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{summaryStats.totalEntries}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{summaryStats.uniqueProducts} Products</p>
+                  </div>
+                  <div className="p-3 bg-blue-500/10 rounded-full">
+                    <Activity className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                  </div>
                 </div>
-                <div className="p-3 bg-blue-500/10 rounded-full">
-                  <Activity className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20 border-emerald-200 dark:border-emerald-800">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Receipts</p>
+                    <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">{summaryStats.receipts}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{nf.format(summaryStats.totalReceiptQty)} L Added</p>
+                  </div>
+                  <div className="p-3 bg-emerald-500/10 rounded-full">
+                    <TrendingUp className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20 border-red-200 dark:border-red-800">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-red-600 dark:text-red-400">Sale Deleted</p>
-                  <p className="text-2xl font-bold text-red-900 dark:text-red-100">{deletedCount}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Deletion Events</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20 border-orange-200 dark:border-orange-800">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-orange-600 dark:text-orange-400">Sale Entries</p>
+                    <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">{summaryStats.decreases}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Net Sale Stock Reductions</p>
+                  </div>
+                  <div className="p-3 bg-orange-500/10 rounded-full">
+                    <TrendingDown className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                  </div>
                 </div>
-                <div className="p-3 bg-red-500/10 rounded-full">
-                  <TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400" />
+              </CardContent>
+            </Card>
+          </div>
+          
+          {/* Second Row - 3 Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Card className="bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20 border-red-200 dark:border-red-800">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-red-600 dark:text-red-400">Sale Deleted</p>
+                    <p className="text-2xl font-bold text-red-900 dark:text-red-100">{deletedCount}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Deletion Events</p>
+                  </div>
+                  <div className="p-3 bg-red-500/10 rounded-full">
+                    <TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400" />
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20 border-emerald-200 dark:border-emerald-800">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Receipts</p>
-                  <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">{summaryStats.receipts}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{nf.format(summaryStats.totalReceiptQty)} L Added</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/30 dark:to-rose-900/20 border-rose-200 dark:border-rose-800">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-rose-700 dark:text-rose-300">Sale Deleted Ltrs</p>
+                    <p className="text-2xl font-bold text-rose-900 dark:text-rose-100">{nf.format(summaryStats.saleDeletedTotalLtrs)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Ltrs restored to inventory</p>
+                  </div>
+                  <div className="p-3 bg-rose-600/10 rounded-full">
+                    <TrendingUp className="h-6 w-6 text-rose-600 dark:text-rose-200" />
+                  </div>
                 </div>
-                <div className="p-3 bg-emerald-500/10 rounded-full">
-                  <TrendingUp className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-950/30 dark:to-gray-900/20 border-gray-300 dark:border-gray-700">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Inventory Deleted</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{summaryStats.inventoryDeletedCount}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Inventory removal events</p>
+                  </div>
+                  <div className="p-3 bg-gray-500/10 rounded-full">
+                    <Trash2 className="h-6 w-6 text-gray-600 dark:text-gray-400" />
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20 border-orange-200 dark:border-orange-800">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-orange-600 dark:text-orange-400">Sale Entries</p>
-                  <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">{summaryStats.decreases}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Net Sale Stock Reductions</p>
-                </div>
-                <div className="p-3 bg-orange-500/10 rounded-full">
-                  <TrendingDown className="h-6 w-6 text-orange-600 dark:text-orange-400" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/30 dark:to-rose-900/20 border-rose-200 dark:border-rose-800">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-rose-700 dark:text-rose-300">Sale Deleted Ltrs Restored</p>
-                  <p className="text-2xl font-bold text-rose-900 dark:text-rose-100">{nf.format(summaryStats.saleDeletedTotalLtrs)}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Ltrs moved back to inventory</p>
-                </div>
-                <div className="p-3 bg-rose-600/10 rounded-full">
-                  <TrendingUp className="h-6 w-6 text-rose-600 dark:text-rose-200" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
       <Card className="card-gradient border-0">
