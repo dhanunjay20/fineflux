@@ -196,6 +196,7 @@ export default function Sales() {
         const res = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/employee-duties/employee/${empId}`, { timeout: API_CONFIG.TIMEOUT });
         return res.data || [];
       } catch (error: any) {
+        console.error("Failed to fetch employee duties:", error);
         // Return empty array instead of throwing error
         return [];
       }
@@ -310,7 +311,9 @@ export default function Sales() {
         .map(pair => String(pair.gunId || "").trim().toLowerCase())
     );
     
-
+    console.log("Available guns for employee - Product:", form.fuel);
+    console.log("Assigned gun IDs:", Array.from(assignedGunIds));
+    console.log("All guns for product:", allGunsForProduct);
     
     // Filter guns to only show assigned ones
     const filtered = allGunsForProduct.filter((g: any) => {
@@ -319,9 +322,11 @@ export default function Sales() {
       
       // Check if this gun is in the assigned list (by ID or name)
       const matches = assignedGunIds.has(gunId) || assignedGunIds.has(gunName);
+      console.log(`Gun: ${g.guns} (ID: ${gunId}, Name: ${gunName}) - Matches: ${matches}`);
       return matches;
     });
     
+    console.log("Filtered guns:", filtered);
     return filtered;
   }, [isEmployee, guns, form.fuel, products, productGunPairs]);
 
@@ -329,6 +334,7 @@ export default function Sales() {
     queryKey: ["sales", orgId],
     queryFn: async () => {
       const response = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sales`);
+      console.log("Fetched Sales Data:", response.data);
       return response.data || [];
     },
     refetchOnMount: true,
@@ -378,40 +384,41 @@ export default function Sales() {
     [form.fuel, isEmployee, availableGunsForEmployee, guns]
   );
 
-  // Auto-fill opening stock and price
+  // Auto-fill opening stock and price only when gun or fuel selection changes
+  const prevGunRef = useRef(form.gun);
+  const prevFuelRef = useRef(form.fuel);
+  
   useEffect(() => {
-    let openingStock = "";
-    let price = "";
+    const gunChanged = prevGunRef.current !== form.gun;
+    const fuelChanged = prevFuelRef.current !== form.fuel;
+    
+    if (!gunChanged && !fuelChanged) return;
+    
+    prevGunRef.current = form.gun;
+    prevFuelRef.current = form.fuel;
 
-    if (form.gun) {
-      const gunObj = filteredGuns.find(
-        (g: any) => g.guns === form.gun
-      );
-      if (gunObj && typeof (gunObj as any).currentReading !== "undefined")
-        openingStock = (gunObj as any).currentReading;
+    const updates: Partial<FormState> = {};
+
+    if (gunChanged && form.gun) {
+      const gunObj = filteredGuns.find((g: any) => g.guns === form.gun);
+      if (gunObj && typeof (gunObj as any).currentReading !== "undefined") {
+        updates.openingStock = (gunObj as any).currentReading;
+      }
     }
-    if (form.fuel) {
+    
+    if (fuelChanged && form.fuel) {
       const prod = products.find((p: any) => p.productName === form.fuel);
-      if (prod && typeof prod.price !== "undefined") price = prod.price;
+      if (prod && typeof prod.price !== "undefined") {
+        updates.price = prod.price;
+      }
     }
-    setForm((prev) => ({
-      ...prev,
-      openingStock,
-      price,
-      closingStock: "",
-      saleLiters: "",
-      salesInRupees: "",
-      cashReceived: "",
-      phonePay: "",
-      creditCard: "",
-      shortCollections: "",
-      testingTotal: "",
-      // Do not clear previously selected gun — keep user's selection to avoid blocking
-      gun: prev.gun,
-    }));
+
+    if (Object.keys(updates).length > 0) {
+      setForm((prev) => ({ ...prev, ...updates }));
+    }
   }, [form.gun, form.fuel, products, filteredGuns]);
 
-  // Calculate sale liters and amount
+  // Calculate sale liters, amount, and short collections (combined to prevent race conditions)
   useEffect(() => {
     const open = Number(form.openingStock) || 0;
     const close = Number(form.closingStock) || 0;
@@ -424,7 +431,6 @@ export default function Sales() {
 
     // Validate net sale doesn't exceed current stock value from inventory
     if (netSale > 0 && form.fuel) {
-      // Get current stock from products API based on selected fuel
       const selectedProduct = products.find((p: any) => p.productName === form.fuel);
       const currentStockLevel = Number(selectedProduct?.currentLevel || 0);
 
@@ -434,20 +440,42 @@ export default function Sales() {
           message: `Net sale (${netSale.toLocaleString()}L) cannot exceed the current stock level of ${currentStockLevel.toLocaleString()}L for ${form.fuel}. Please verify your closing stock reading.`
         });
       } else {
-        // Clear validation error if net sale is valid
         setValidationError(null);
       }
     } else {
-      // Clear validation error if fields are empty
       setValidationError(null);
     }
 
+    // Calculate short collections
+    let shortCollections = "";
+    if (saleMode !== "batch" && salesAmount > 0) {
+      const cash = Number(form.cashReceived) || 0;
+      const upi = Number(form.phonePay) || 0;
+      const card = Number(form.creditCard) || 0;
+      const totalReceived = cash + upi + card;
+      const short = Math.max(0, Math.round((salesAmount - totalReceived) * 100) / 100);
+      shortCollections = short.toFixed(2);
+    }
+
+    // Single state update with all calculated fields
     setForm((f) => ({
       ...f,
       saleLiters: netSale > 0 ? netSale.toFixed(3) : "",
       salesInRupees: salesAmount > 0 ? salesAmount.toFixed(2) : "",
+      shortCollections: shortCollections,
     }));
-  }, [form.closingStock, form.openingStock, form.price, form.testingTotal, form.fuel, products]);
+  }, [
+    form.closingStock,
+    form.openingStock,
+    form.price,
+    form.testingTotal,
+    form.fuel,
+    form.cashReceived,
+    form.phonePay,
+    form.creditCard,
+    products,
+    saleMode
+  ]);
 
 
   const [deleteSaleId, setDeleteSaleId] = useState<string | null>(null);
@@ -459,11 +487,11 @@ export default function Sales() {
 
       const response = await axios.delete(url, {
         headers: {
-          "X-Employee-Id": empId || "SYSTEM",
+          "X-Employee-Id": empId,
         },
         timeout: API_CONFIG.TIMEOUT,
       });
-
+      console.log("Deleted Sale Response:", response.data);
       return response.data;
     },
     onSuccess: () => {
@@ -480,7 +508,7 @@ export default function Sales() {
         variant: "default"
       });
     },
-    onError: (error: any) => {      
+    onError: (error: any) => {
       const errorMessage = error?.response?.data?.message || error?.message || "Failed to delete sale entry.";
       toast({
         title: "❌ Delete Failed",
@@ -489,25 +517,6 @@ export default function Sales() {
       });
     },
   });
-
-
-  // Calculate short collections
-  useEffect(() => {
-    if (saleMode === "batch") {
-      setForm((f) => ({ ...f, shortCollections: "" }));
-      return;
-    }
-    const salesAmount = Number(form.salesInRupees) || 0;
-    const cash = Number(form.cashReceived) || 0;
-    const upi = Number(form.phonePay) || 0;
-    const card = Number(form.creditCard) || 0;
-    const totalReceived = cash + upi + card;
-    const short = Math.max(0, Math.round((salesAmount - totalReceived) * 100) / 100);
-    setForm((f) => ({
-      ...f,
-      shortCollections: salesAmount > 0 ? short.toFixed(2) : "",
-    }));
-  }, [form.cashReceived, form.phonePay, form.creditCard, form.salesInRupees, saleMode]);
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -559,6 +568,7 @@ export default function Sales() {
 
         return { success: true };
       } catch (error: any) {
+        console.error("❌ Sale/Collection Error:", error);
 
         let errorMessage = "Unable to process your sale request. Please check all fields and try again.";
         let errorTitle = "Sale Recording Failed";
@@ -605,6 +615,7 @@ export default function Sales() {
       }
     },
     onError: (error: any) => {
+      console.error("❌ Mutation Error:", error);
 
       // Parse enhanced error message
       let title = "Failed to Record Sale";
@@ -729,6 +740,7 @@ export default function Sales() {
     try {
       await saleCollectionMutation.mutateAsync(form);
     } catch (error) {
+      console.error("Submit error:", error);
     } finally {
       submittingRef.current = false;
     }

@@ -67,14 +67,6 @@ interface SalesSummary {
   received: number;
 }
 
-interface InventoryItem {
-  productId: string;
-  productName: string;
-  currentLevel: number;
-  capacity: number;
-  status: string;
-}
-
 type DatePreset = "latest" | "today" | "week" | "month" | "all" | "custom";
 
 // ============ Constants ============
@@ -296,7 +288,7 @@ const exportToPDF = (
 };
 
 // ============ Compact Mobile-First Sale Record Card ============
-const SaleRecordCard = ({ record, index, inventory }: { record: SaleRecord; index: number; inventory: InventoryItem[] }) => {
+const SaleRecordCard = ({ record, index }: { record: SaleRecord; index: number }) => {
   const [expanded, setExpanded] = useState(false);
 
   // Check if all payment methods are zero
@@ -723,17 +715,6 @@ export default function SalesHistory() {
     refetchOnWindowFocus: false,
   });
 
-  // Fetch inventory/tank levels
-  const { data: inventory = [] } = useQuery({
-    queryKey: ["inventory", orgId],
-    queryFn: async () => {
-      const url = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/inventory`;
-      const res = await axios.get<InventoryItem[]>(url);
-      return Array.isArray(res.data) ? res.data : [];
-    },
-    refetchOnWindowFocus: false,
-  });
-
   const summary: SalesSummary = useMemo(() => {
     return records.reduce(
       (acc, record) => ({
@@ -822,63 +803,6 @@ export default function SalesHistory() {
           onCustomChange={handleCustomChange}
           onApply={() => refetch()}
         />
-
-        {/* Tank Levels */}
-        {inventory.length > 0 && (
-          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800/50">
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-blue-600 text-white">
-                  <Fuel className="h-5 w-5" />
-                </div>
-                <CardTitle className="text-lg font-bold">Current Tank Levels</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {inventory.map((item) => {
-                  const percentage = item.capacity > 0 ? (item.currentLevel / item.capacity) * 100 : 0;
-                  const isLow = percentage < 20;
-                  const isMedium = percentage >= 20 && percentage < 50;
-                  
-                  return (
-                    <div
-                      key={item.productId}
-                      className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800/50"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-semibold text-sm">{item.productName}</span>
-                        <Badge
-                          variant={isLow ? "destructive" : isMedium ? "outline" : "default"}
-                          className="text-xs"
-                        >
-                          {percentage.toFixed(1)}%
-                        </Badge>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full transition-all ${
-                              isLow
-                                ? "bg-red-500"
-                                : isMedium
-                                ? "bg-yellow-500"
-                                : "bg-green-500"
-                            }`}
-                            style={{ width: `${Math.min(percentage, 100)}%` }}
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {item.currentLevel.toLocaleString()}L / {item.capacity.toLocaleString()}L
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Summary Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
@@ -1045,7 +969,7 @@ export default function SalesHistory() {
             {/* Records */}
             <div className="space-y-2">
               {paginatedRecords.map((record, index) => (
-                <SaleRecordCard key={record.id} record={record} index={index} inventory={inventory} />
+                <SaleRecordCard key={record.id} record={record} index={index} />
               ))}
             </div>
 

@@ -103,7 +103,7 @@ export function OwnerDashboard() {
       axios.get(`${API_BASE}/api/organizations/${orgId}/customers`),
       axios.get(`${API_BASE}/api/organizations/${orgId}/sales`).catch(() => ({ data: [] })),
       axios.get(`${API_BASE}/api/organizations/${orgId}/expenses`).catch(() => ({ data: [] })),
-      axios.get(`${API_BASE}/api/organizations/${orgId}/inventory`).catch(() => ({ data: [] })),
+      axios.get(`${API_BASE}/api/organizations/${orgId}/inventories`).catch(() => ({ data: [] })),
     ])
       .then(([empRes, tankRes, borrowRes, salesRes, expensesRes, inventoryRes]) => {
         setEmployees(safeArray(empRes.data));
