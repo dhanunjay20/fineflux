@@ -487,11 +487,11 @@ export default function Sales() {
 
       const response = await axios.delete(url, {
         headers: {
-          "X-Employee-Id": empId || "SYSTEM",
+          "X-Employee-Id": empId,
         },
         timeout: API_CONFIG.TIMEOUT,
       });
-
+      console.log("Deleted Sale Response:", response.data);
       return response.data;
     },
     onSuccess: () => {
