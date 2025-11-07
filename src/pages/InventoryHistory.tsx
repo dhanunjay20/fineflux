@@ -13,7 +13,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { API_CONFIG } from '@/lib/api-config';
 
-// Helper: Format LocalDateTime IST as "6/11/2025 06:45 pm"
 function formatISTDateTimeSimple(s?: string) {
   if (!s) return '—';
   const d = new Date(s.replace(' ', 'T'));
@@ -30,7 +29,6 @@ function formatISTDateTimeSimple(s?: string) {
   const hourPad = hour.toString().padStart(2, '0');
   return `${day}/${month}/${year} ${hourPad}:${minPad} ${ampm}`;
 }
-
 function getWeekRange() {
   const now = new Date();
   const start = new Date(now); start.setDate(now.getDate() - 6); start.setHours(0, 0, 0, 0);
@@ -43,7 +41,6 @@ function getMonthRange() {
   const end = new Date(now); end.setHours(23, 59, 59, 999);
   return { fromDate: start.toISOString().slice(0, 10), toDate: end.toISOString().slice(0, 10) };
 }
-
 const nf = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
 
 export default function InventoryHistory() {
@@ -56,7 +53,6 @@ export default function InventoryHistory() {
   const [currentPage, setCurrentPage] = useState(1);
   const recordsPerPage = 10;
 
-  // Products
   const { data: products = [] } = useQuery({
     queryKey: ['products', orgId],
     queryFn: async () => {
@@ -65,7 +61,6 @@ export default function InventoryHistory() {
     }
   });
 
-  // Main logs
   const { data: allLogs = [], isLoading } = useQuery({
     queryKey: ['inventoryLogs', orgId],
     queryFn: async () => {
@@ -75,9 +70,6 @@ export default function InventoryHistory() {
     }
   });
 
-  // ============ LOG PROCESSING ============
-
-  // Group logs by product, sorted descending, for robust previous-level logic
   const logsGrouped = useMemo(() => {
     const logsByProduct: { [key: string]: any[] } = {};
     allLogs.forEach(l => {
@@ -85,49 +77,62 @@ export default function InventoryHistory() {
       if (!logsByProduct[pname]) logsByProduct[pname] = [];
       logsByProduct[pname].push(l);
     });
-    // sort latest first per product
     Object.keys(logsByProduct).forEach(p =>
       logsByProduct[p].sort((a, b) => new Date(b.lastUpdated || 0).getTime() - new Date(a.lastUpdated || 0).getTime())
     );
     return logsByProduct;
   }, [allLogs]);
 
-  // Final processed logs, optionally filtered
   const filteredLogs = useMemo(() => {
     let logs: any[] = [];
     Object.keys(logsGrouped).forEach(prod => {
       const prodLogs = logsGrouped[prod];
-      prodLogs.forEach((log, idx) => {
+      for (let idx = 0; idx < prodLogs.length; idx++) {
+        const log = prodLogs[idx];
         const prev = prodLogs[idx + 1];
-        const prevLevel = prev?.currentLevel ?? null;
-        // Sale detection: currentLevel < prevLevel
-        const isSale = prevLevel !== null && Number(log.currentLevel) < Number(prevLevel);
-        // Receipt: receiptQuantityInLitres > 0 AND currentLevel > prevLevel (or first record)
+        const prevLevel = prev?.currentLevel ? Number(prev.currentLevel) : null;
+
+        const mutation = log.mutationby?.toLowerCase() || '';
+
         const isReceipt = Number(log.receiptQuantityInLitres) > 0;
+        const isSale = (
+          mutation.includes('inventory sale entry created by')
+          || (prevLevel !== null && (Number(log.currentLevel) < prevLevel))
+        );
+        const isSaleDeleted = (mutation === 'sale_delete' || mutation.includes('sale_delete'));
+
+        let restoredLitres = 0;
+        if (isSaleDeleted && prevLevel !== null) {
+          restoredLitres = Number(log.currentLevel) - prevLevel;
+          if (restoredLitres < 0) restoredLitres = 0;
+        }
+
         logs.push({
           ...log,
           previousLevel: prevLevel,
           isReceipt,
           isSale,
           isFirstEntry: prevLevel === null,
+          isSaleDeleted,
+          restoredLitres,
           mutationby: log.mutationby || log.empId || '—'
         });
-      });
+      }
     });
     logs.sort((a, b) => new Date(b.lastUpdated || 0).getTime() - new Date(a.lastUpdated || 0).getTime());
-
     if (chosenPeriod === 'latest10' && !productName && !fromDate && !toDate) logs = logs.slice(0, 10);
     if (productName) logs = logs.filter(l => (l.productName || '').trim() === productName);
-    if (fromDate) logs = logs.filter(l => l.lastUpdated && l.lastUpdated.slice(0,10) >= fromDate);
-    if (toDate) logs = logs.filter(l => l.lastUpdated && l.lastUpdated.slice(0,10) <= toDate);
+    if (fromDate) logs = logs.filter(l => l.lastUpdated && l.lastUpdated.slice(0, 10) >= fromDate);
+    if (toDate) logs = logs.filter(l => l.lastUpdated && l.lastUpdated.slice(0, 10) <= toDate);
     return logs;
   }, [logsGrouped, productName, fromDate, toDate, chosenPeriod]);
 
+  const saleDeletedTotalLtrs = useMemo(() =>
+    filteredLogs.reduce((sum, log) => sum + (log.restoredLitres || 0), 0), [filteredLogs]
+  );
+
   const deletedCount = useMemo(() =>
-    filteredLogs.filter(
-      log => typeof log.mutationby === 'string' &&
-        log.mutationby.toLowerCase().includes('deleted')
-    ).length, [filteredLogs]);
+    filteredLogs.filter(log => log.isSaleDeleted).length, [filteredLogs]);
 
   const totalRecords = filteredLogs.length;
   const totalPages = Math.ceil(totalRecords / recordsPerPage);
@@ -136,8 +141,7 @@ export default function InventoryHistory() {
   const currentLogs = filteredLogs.slice(startIndex, endIndex);
 
   function handleQuickFilter(period: typeof chosenPeriod) {
-    setChosenPeriod(period);
-    setCurrentPage(1);
+    setChosenPeriod(period); setCurrentPage(1);
     if (period === 'latest10')   { setFromDate(''); setToDate(''); }
     else if (period === 'week')  { const { fromDate, toDate } = getWeekRange(); setFromDate(fromDate); setToDate(toDate); }
     else if (period === 'month') { const { fromDate, toDate } = getMonthRange(); setFromDate(fromDate); setToDate(toDate); }
@@ -164,20 +168,21 @@ export default function InventoryHistory() {
     decreases: filteredLogs.filter(log => log.isSale && !log.isFirstEntry).length,
     totalReceiptQty: filteredLogs.reduce((sum, log) => sum + Number(log.receiptQuantityInLitres || 0), 0),
     totalStockValue: filteredLogs.reduce((sum, log) => sum + Number(log.stockValue || 0), 0),
-    uniqueProducts: new Set(filteredLogs.map(log => log.productName)).size
-  }), [filteredLogs]);
+    uniqueProducts: new Set(filteredLogs.map(log => log.productName)).size,
+    saleDeletedTotalLtrs
+  }), [filteredLogs, saleDeletedTotalLtrs]);
 
   function LogRow({ log }: { log: any }) {
     const hasReceipt = log.isReceipt;
-    const hasDecrease = log.isSale;
+    const isSaleDeleted = log.isSaleDeleted;
+    const hasDecrease = log.isSale && !isSaleDeleted;
     const isFirstEntry = log.isFirstEntry;
-    const isDeleted = typeof log?.mutationby === 'string' && log.mutationby.toLowerCase().includes('deleted');
     const fillPercentage = Number(log.tankCapacity) > 0 ? (Number(log.currentLevel) / Number(log.tankCapacity)) * 100 : 0;
     let cardBgClass = "bg-white dark:bg-slate-900";
     let iconBgClass = "bg-blue-50 dark:bg-blue-950/50";
     let iconClass = "text-blue-600 dark:text-blue-400";
     let badgeClass = "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
-    if (isDeleted) {
+    if (isSaleDeleted) {
       cardBgClass = "bg-red-50/70 dark:bg-red-950/30 border-red-200 dark:border-red-800";
       iconBgClass = "bg-red-100 dark:bg-red-900/50";
       iconClass = "text-red-600 dark:text-red-400";
@@ -203,7 +208,7 @@ export default function InventoryHistory() {
       <li className={`group ${cardBgClass} rounded-lg shadow-sm hover:shadow-md transition-all duration-200 mb-3 overflow-hidden border border-border`}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4">
           <div className={`flex items-center justify-center rounded-xl ${iconBgClass} h-14 w-14 shrink-0 shadow-sm`}>
-            {isDeleted ? (
+            {isSaleDeleted ? (
               <TrendingDown className={`h-7 w-7 ${iconClass}`} />
             ) : isFirstEntry ? (
               <Package className={`h-7 w-7 ${iconClass}`} />
@@ -218,33 +223,33 @@ export default function InventoryHistory() {
           <div className="flex-1 min-w-0 w-full space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-bold text-lg text-foreground">{log.productName}</h3>
-              {isDeleted && (
+              {isSaleDeleted && (
                 <Badge className={`${badgeClass} font-semibold px-2.5 py-0.5`}>
                   Sale Deleted
                 </Badge>
               )}
-              {!isDeleted && isFirstEntry && (
+              {!isSaleDeleted && isFirstEntry && (
                 <Badge className={`${badgeClass} font-semibold px-2.5 py-0.5`}>
                   <Package className="h-3 w-3 mr-1" />
                   First Entry
                 </Badge>
               )}
-              {!isDeleted && !isFirstEntry && hasReceipt && (
+              {!isSaleDeleted && !isFirstEntry && hasReceipt && (
                 <Badge className={`${badgeClass} font-semibold px-2.5 py-0.5`}>
                   <TrendingUp className="h-3 w-3 mr-1" />
                   Receipt
                 </Badge>
               )}
-              {!isDeleted && !isFirstEntry && hasDecrease && (
+              {!isSaleDeleted && !isFirstEntry && hasDecrease && (
                 <Badge className={`${badgeClass} font-semibold px-2.5 py-0.5`}>
                   <TrendingDown className="h-3 w-3 mr-1" />
                   Sale
                 </Badge>
               )}
-              <Badge 
-                variant="outline" 
-                className={log.status === false 
-                  ? "border-red-300 bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400" 
+              <Badge
+                variant="outline"
+                className={log.status === false
+                  ? "border-red-300 bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400"
                   : "border-green-300 bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400"
                 }
               >
@@ -263,7 +268,7 @@ export default function InventoryHistory() {
                 <span className="font-medium">{fillPercentage.toFixed(1)}% Full</span>
               </div>
               <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
-                <div 
+                <div
                   className={`h-full rounded-full transition-all duration-500 ${
                     fillPercentage > 75 ? 'bg-green-500' :
                     fillPercentage > 50 ? 'bg-blue-500' :
@@ -278,9 +283,9 @@ export default function InventoryHistory() {
                 <p className="text-xs text-muted-foreground flex items-center gap-1"><Droplet className="h-3 w-3" /> Current Level</p>
                 <p className="font-bold text-sm text-foreground">
                   {nf.format(Number(log.currentLevel ?? 0))} {log.metric || 'L'}
-                  {hasDecrease && log.previousLevel && (
+                  {hasDecrease && log.previousLevel != null && (
                     <span className="text-orange-600 dark:text-orange-400 text-xs font-semibold ml-1">
-                      (↓ {nf.format(Number((log.previousLevel ?? 0) - (log.currentLevel ?? 0)))})
+                      (↓ {nf.format(Number(log.previousLevel - log.currentLevel))})
                     </span>
                   )}
                 </p>
@@ -299,6 +304,14 @@ export default function InventoryHistory() {
                   <p className="font-bold text-sm text-emerald-700 dark:text-emerald-400">{nf.format(Number(log.receiptQuantityInLitres))} L</p>
                 </div>
               )}
+              {isSaleDeleted && log.restoredLitres > 0 && (
+                <div className="space-y-0.5">
+                  <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+                    <TrendingUp className="h-3 w-3" /> Ltrs Restored
+                  </p>
+                  <p className="font-bold text-sm text-red-700 dark:text-red-400">{nf.format(Number(log.restoredLitres))} L</p>
+                </div>
+              )}
               <div className="space-y-0.5">
                 <p className="text-xs text-muted-foreground">Updated By</p>
                 <p className="font-semibold text-sm text-foreground">{log.mutationby}</p>
@@ -310,8 +323,6 @@ export default function InventoryHistory() {
     );
   }
 
-
-  // === RENDER ===
   return (
     <div className="space-y-6 animate-fade-in px-2 md:px-0">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -323,7 +334,6 @@ export default function InventoryHistory() {
           <ArrowLeft className="h-4 w-4" /> Back to Inventory
         </Button>
       </div>
-
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant={chosenPeriod === 'latest10' ? "default" : "outline"} onClick={() => handleQuickFilter('latest10')}>Latest 10</Button>
         <Button size="sm" variant={chosenPeriod === 'all' ? "default" : "outline"} onClick={() => handleQuickFilter('all')}>All</Button>
@@ -331,9 +341,8 @@ export default function InventoryHistory() {
         <Button size="sm" variant={chosenPeriod === 'month' ? "default" : "outline"} onClick={() => handleQuickFilter('month')}>This Month</Button>
         <Button size="sm" variant={chosenPeriod === 'custom' ? "default" : "outline"} onClick={() => setChosenPeriod('custom')}>Custom</Button>
       </div>
-
       {filteredLogs.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -390,9 +399,22 @@ export default function InventoryHistory() {
               </div>
             </CardContent>
           </Card>
+          <Card className="bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/30 dark:to-rose-900/20 border-rose-200 dark:border-rose-800">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-rose-700 dark:text-rose-300">Sale Deleted Ltrs Restored</p>
+                  <p className="text-2xl font-bold text-rose-900 dark:text-rose-100">{nf.format(summaryStats.saleDeletedTotalLtrs)}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Ltrs moved back to inventory</p>
+                </div>
+                <div className="p-3 bg-rose-600/10 rounded-full">
+                  <TrendingUp className="h-6 w-6 text-rose-600 dark:text-rose-200" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
-
       <Card className="card-gradient border-0">
         <CardHeader>
           <CardTitle className="text-lg sm:text-xl">Filters</CardTitle>
@@ -420,7 +442,6 @@ export default function InventoryHistory() {
           </div>
         </CardContent>
       </Card>
-
       <Card className="card-gradient">
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -447,7 +468,7 @@ export default function InventoryHistory() {
           ) : (
             <ul>
               {currentLogs.map((log: any, i: number) => (
-                <LogRow key={log.id || `${log.inventoryId}-${i}`} log={log} />
+                <LogRow key={log._id || `${log.inventoryId}-${i}`} log={log} />
               ))}
             </ul>
           )}
