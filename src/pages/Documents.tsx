@@ -20,7 +20,7 @@ function safeArray(v: any) {
 }
 
 export default function Documents() {
-  const orgId = typeof window !== "undefined" ? localStorage.getItem("organizationId") || "" : "";
+  const orgId = typeof window !== "undefined" ? (localStorage.getItem("organizationId") || "") : "";
   const { toast } = useToast();
 
   const [documents, setDocuments] = useState([]);
@@ -40,6 +40,8 @@ export default function Documents() {
     file: null as File | null,
     fileUrl: ""
   });
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -53,6 +55,20 @@ export default function Documents() {
     }
     return () => { document.body.style.overflow = ''; };
   }, [open, deleteDialogOpen]);
+
+  // Revoke any created object URL when modal closes or component unmounts
+  useEffect(() => {
+    if (!open && localPreviewUrl) {
+      try { URL.revokeObjectURL(localPreviewUrl); } catch (e) { /* ignore */ }
+      setLocalPreviewUrl(null);
+      setForm(f => ({ ...f, file: null }));
+    }
+    return () => {
+      if (localPreviewUrl) {
+        try { URL.revokeObjectURL(localPreviewUrl); } catch (e) { /* ignore */ }
+      }
+    };
+  }, [open, localPreviewUrl]);
 
   const stats = useMemo(() => {
     const total = documents.length;
@@ -87,7 +103,11 @@ export default function Documents() {
   }, [documents, searchQuery]);
 
   const fetchDocs = async () => {
-    if (!orgId) return;
+    if (!orgId) {
+      setLoading(false);
+      setError("No organization selected. Please select an organization to load documents.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -109,91 +129,23 @@ export default function Documents() {
     return isNaN(days) ? "" : days.toString();
   }, [form.issuedDate, form.expiryDate]);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
-    // Validate file size (10MB limit to match backend)
+
     const MAX_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
-      toast({ 
-        title: "File Too Large", 
-        description: "File size exceeds 10MB limit. Please choose a smaller file.", 
-        variant: "destructive" 
-      });
+      toast({ title: 'File Too Large', description: 'File size exceeds 10MB limit. Please choose a smaller file.', variant: 'destructive' });
       return;
     }
 
-    setUploading(true);
+    // Do NOT upload now. Store file locally and create a blob URL for preview.
+    setForm(f => ({ ...f, file }));
     try {
-      const data = new FormData();
-      data.append("file", file);
-      
-      console.log("📤 Uploading file:", {
-        name: file.name,
-        size: `${(file.size / 1024).toFixed(2)} KB`,
-        type: file.type,
-        orgId
-      });
-      
-      const res = await axios.post(
-        `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/upload`,
-        data,
-        { 
-          headers: { "Content-Type": "multipart/form-data" },
-          timeout: 60000 // 60 second timeout for large files
-        }
-      );
-      
-      console.log("✅ Upload successful:", res.data);
-      
-      // Backend now returns just the fileUrl as a string
-      const fileUrl = typeof res.data === 'string' ? res.data : res.data?.fileUrl || res.data;
-      
-      if (!fileUrl) {
-        throw new Error("No file URL received from server");
-      }
-      
-      setForm(f => ({ ...f, file, fileUrl }));
-      toast({ 
-        title: "Success", 
-        description: `File "${file.name}" uploaded successfully!`,
-        variant: "default" 
-      });
-    } catch (error: any) {
-      console.error("❌ Upload failed:", {
-        status: error?.response?.status,
-        statusText: error?.response?.statusText,
-        data: error?.response?.data,
-        message: error?.message
-      });
-      
-      // Determine user-friendly error message
-      let errorMessage = "Failed to upload file. Please try again.";
-      
-      if (error?.response?.status === 500) {
-        errorMessage = "Server error while uploading file. Please check if Google Cloud Storage is configured correctly.";
-      } else if (error?.response?.status === 413) {
-        errorMessage = "File is too large. Maximum size is 10MB.";
-      } else if (error?.response?.status === 400) {
-        errorMessage = error?.response?.data?.message || "Invalid file format or request.";
-      } else if (error?.code === 'ECONNABORTED') {
-        errorMessage = "Upload timeout. Please try with a smaller file.";
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
-      
-      toast({ 
-        title: "Upload Failed", 
-        description: errorMessage, 
-        variant: "destructive" 
-      });
-      
-      // Reset file input
-      e.target.value = '';
-      setForm(f => ({ ...f, file: null, fileUrl: "" }));
-    } finally {
-      setUploading(false);
+      const blob = URL.createObjectURL(file);
+      setLocalPreviewUrl(blob);
+    } catch (err) {
+      setLocalPreviewUrl(null);
     }
   };
 
@@ -210,12 +162,35 @@ export default function Documents() {
       toast({ title: "Validation", description: "Expiry date cannot be before issued date.", variant: "destructive" });
       return;
     }
-    if (!form.fileUrl) {
-      toast({ title: "Validation", description: "Please upload the file first.", variant: "destructive" });
+    if (!form.file && !form.fileUrl) {
+      toast({ title: 'Validation', description: 'Please choose a file to upload before submitting.', variant: 'destructive' });
+      return;
+    }
+    if (!orgId) {
+      toast({ title: 'No Organization', description: 'Please select an organization before uploading documents.', variant: 'destructive' });
       return;
     }
     try {
       setSubmitting(true);
+
+      // If user selected a new file, upload it now and get the remote fileUrl
+      let finalFileUrl = form.fileUrl;
+      if (form.file) {
+        setUploading(true);
+        try {
+          const data = new FormData();
+          data.append('file', form.file);
+          const r = await axios.post(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/upload`, data, { timeout: 60000, withCredentials: true });
+          finalFileUrl = typeof r.data === 'string' ? r.data : r.data?.fileUrl || r.data;
+          // if backend returned signed preview, keep it
+          const maybeSigned = r.data?.signedUrl || null;
+          if (maybeSigned) setPreviewUrl(maybeSigned);
+          setForm(f => ({ ...f, fileUrl: finalFileUrl }));
+        } finally {
+          setUploading(false);
+        }
+      }
+
       const payload = {
         documentType: form.documentType,
         organizationId: orgId,
@@ -224,23 +199,22 @@ export default function Documents() {
         expiryDate: form.expiryDate,
         renewalPeriodDays: Number(calculatedRenewalDays),
         responsibleParty: form.responsibleParty,
-        fileUrl: form.fileUrl,
+        fileUrl: finalFileUrl,
         notes: form.notes,
       };
+
       if (editId) {
-        await axios.put(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/${editId}`, payload);
-        toast({ title: "Success", description: "Document updated successfully!" });
+        await axios.put(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/${editId}`, payload, { withCredentials: true });
+        toast({ title: 'Success', description: 'Document updated successfully!' });
       } else {
-        await axios.post(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents`, payload);
-        toast({ title: "Success", description: "Document added successfully!" });
+        await axios.post(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents`, payload, { withCredentials: true });
+        toast({ title: 'Success', description: 'Document added successfully!' });
       }
       setOpen(false);
       setEditId(null);
-      setForm({
-        documentType: "", issuingAuthority: "", issuedDate: "", expiryDate: "",
-        renewalPeriodDays: "", responsibleParty: "", notes: "",
-        file: null, fileUrl: ""
-      });
+      setForm({ documentType: '', issuingAuthority: '', issuedDate: '', expiryDate: '', renewalPeriodDays: '', responsibleParty: '', notes: '', file: null, fileUrl: '' });
+      setPreviewUrl(null);
+      if (localPreviewUrl) { URL.revokeObjectURL(localPreviewUrl); setLocalPreviewUrl(null); }
       fetchDocs();
     } catch (err: any) {
       toast({ title: "Error", description: err?.response?.data?.message || "Failed to save document", variant: "destructive" });
@@ -262,6 +236,8 @@ export default function Documents() {
       file: null,
       fileUrl: doc.fileUrl || ""
     });
+    setPreviewUrl(null);
+    setLocalPreviewUrl(null);
     setOpen(true);
   };
 
@@ -269,7 +245,7 @@ export default function Documents() {
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await axios.delete(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/${deleteTarget.id}`);
+      await axios.delete(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/${deleteTarget.id}`, { withCredentials: true });
       fetchDocs();
       toast({ title: "Success", description: "Document deleted successfully!" });
     } catch (err: any) {
@@ -279,21 +255,118 @@ export default function Documents() {
     }
   };
 
-  const handleDownload = async (fileUrl: string, documentType: string) => {
+  // Request a signed download URL from the backend (recommended for GCS-hosted files),
+  // fall back to the stored `fileUrl` if the server doesn't provide one.
+  const handleDownload = async (doc: any) => {
+    // Simplified download flow:
+    // 1) Request signed URL from backend (if available).
+    // 2) If signed URL exists, navigate current tab to it (no new tab/popup).
+    // 3) Otherwise fetch the blob in-page and trigger an anchor download.
+    let targetUrl = doc.fileUrl;
     try {
-      const response = await fetch(fileUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${documentType.replace(/\s+/g, '_')}_${Date.now()}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      toast({ title: "Success", description: "Document downloaded successfully!" });
-    } catch {
-      toast({ title: "Error", description: "Failed to download document", variant: "destructive" });
+      if (doc?.id && orgId) {
+        try {
+          const resp = await axios.get(
+            `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/${doc.id}/download-url`,
+            { params: { durationSeconds: 60 }, timeout: 10000, withCredentials: true }
+          );
+          const maybeUrl = typeof resp.data === 'string' ? resp.data : resp.data?.url || resp.data;
+          if (maybeUrl) targetUrl = maybeUrl;
+        } catch (innerErr) {
+          console.warn('Signed URL request failed, falling back to fileUrl', innerErr?.message || innerErr);
+        }
+      }
+
+      if (!targetUrl) throw new Error('No download URL available');
+
+      // Navigate current tab to the signed URL so browser handles Content-Disposition
+      window.location.href = targetUrl;
+      toast({ title: 'Download started', description: 'Opening the document...' });
+      return;
+    } catch (err: any) {
+      console.error('Download failed, falling back to blob fetch', err);
+
+      // Fallback: fetch the resource and trigger download via blob in-page
+      try {
+        const fallbackUrl = targetUrl || doc.fileUrl;
+        if (!fallbackUrl) throw new Error('No URL available to fetch for fallback');
+        const response = await fetch(fallbackUrl);
+        if (!response.ok) throw new Error('Network response was not ok');
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${(doc?.documentType || 'document').replace(/\s+/g, '_')}_${Date.now()}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        // revoke immediately for the in-page download link
+        window.URL.revokeObjectURL(url);
+
+        toast({ title: 'Success', description: 'Document downloaded successfully!' });
+      } catch (finalErr: any) {
+        console.error('Final download attempt failed', finalErr);
+        toast({ title: 'Error', description: finalErr?.message || 'Failed to download document', variant: 'destructive' });
+      }
+    }
+  };
+
+  // Open the document for viewing (don't force download).
+  // Simplified flow:
+  // 1) If user selected a local file, open blob preview.
+  // 2) If the backend provides a same-origin stream endpoint, open it in a popup.
+  // 3) Otherwise request a signed URL and open it in a new tab.
+  // This avoids aggressive fallbacks and removes unreliable viewer heuristics.
+  const handleView = async (docOrParams: any) => {
+    const id = docOrParams?.id;
+    const rawUrl = docOrParams?.fileUrl ?? null;
+
+    try {
+      // 1) local preview (selected file)
+      if (localPreviewUrl) {
+        window.open(localPreviewUrl, '_blank');
+        return;
+      }
+
+      // 2) Try server-side stream proxy first (same-origin). Backend must implement this.
+      if (id && orgId) {
+        const proxyUrl = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/${id}/stream`;
+        const popup = (() => { try { return window.open('', '_blank'); } catch (e) { return null; } })();
+        if (popup) {
+          try {
+            popup.location.href = proxyUrl;
+            try { popup.focus(); } catch (e) { /* ignore */ }
+            return;
+          } catch (e) {
+            try { popup.close(); } catch (ignore) { }
+          }
+        }
+      }
+
+      // 3) Fall back to signed/raw URL open
+      const targetCandidate = rawUrl || null;
+      let targetUrl = targetCandidate;
+      if (id && orgId && !targetUrl) {
+        try {
+          const resp = await axios.get(
+            `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/${id}/download-url`,
+            { params: { durationSeconds: 60 }, timeout: 10000, withCredentials: true }
+          );
+          targetUrl = typeof resp.data === 'string' ? resp.data : resp.data?.url || resp.data;
+        } catch (err) {
+          console.warn('Failed to fetch signed URL for view', err?.message || err);
+        }
+      }
+
+      if (!targetUrl) {
+        throw new Error('No preview available. Please contact the administrator.');
+      }
+
+      window.open(targetUrl, '_blank');
+    } catch (err: any) {
+      console.error('View failed', err);
+      toast({ title: 'Preview Failed', description: err?.message || 'Unable to open document preview', variant: 'destructive' });
     }
   };
 
@@ -315,7 +388,7 @@ export default function Documents() {
           <h1 className="text-3xl font-bold text-foreground">Document Management</h1>
           <p className="text-muted-foreground">Manage organization documents and compliance</p>
         </div>
-        <Button className="btn-gradient-primary" onClick={() => { setOpen(true); setEditId(null); }}>
+        <Button className="btn-gradient-primary" onClick={() => { setOpen(true); setEditId(null); }} disabled={!orgId}>
           <UploadCloud className="mr-2 h-4 w-4" />
           Upload Document
         </Button>
@@ -446,7 +519,7 @@ export default function Documents() {
                       size="sm"
                       variant="outline"
                       className="flex-1 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-600"
-                      onClick={() => window.open(doc.fileUrl, '_blank')}
+                      onClick={() => handleView(doc)}
                     >
                       <Eye className="h-4 w-4 mr-2" />
                       View
@@ -455,7 +528,7 @@ export default function Documents() {
                       size="sm"
                       variant="outline"
                       className="flex-1 hover:bg-green-50 hover:text-green-600 hover:border-green-600"
-                      onClick={() => handleDownload(doc.fileUrl, doc.documentType)}
+                      onClick={() => handleDownload(doc)}
                     >
                       <Download className="h-4 w-4 mr-2" />
                       Download
@@ -566,11 +639,31 @@ export default function Documents() {
                     <div className="space-y-2 md:col-span-2">
                       <Label className="text-xs uppercase text-muted-foreground">Upload File (PDF/Image/Any) *</Label>
                       <Input type="file" accept=".pdf,image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt" onChange={handleFileChange} required={!editId} />
-                      {form.fileUrl && (
-                        <a href={form.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline flex items-center gap-1">
+                      {(localPreviewUrl || form.fileUrl) && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            // If user selected a new local file, open the blob URL for quick preview
+                            if (localPreviewUrl) {
+                              try { window.open(localPreviewUrl, '_blank'); return; } catch (e) { /* fallback */ }
+                            }
+
+                            // Prefer signed preview from upload response if available
+                            if (previewUrl) {
+                              try { window.open(previewUrl, '_blank'); return; } catch (e) { /* fallback */ }
+                            }
+
+                            // If we have an editId (editing existing doc) or a fileUrl, reuse handleView logic
+                            if (editId) { await handleView({ id: editId, fileUrl: form.fileUrl }); return; }
+                            if (form.fileUrl) { await handleView({ fileUrl: form.fileUrl }); return; }
+
+                            toast({ title: 'No file', description: 'No uploaded file available to preview', variant: 'destructive' });
+                          }}
+                          className="text-xs text-primary underline flex items-center gap-1"
+                        >
                           <Eye className="h-3 w-3" />
-                          Preview uploaded file
-                        </a>
+                          Preview file
+                        </button>
                       )}
                       {uploading && (
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
