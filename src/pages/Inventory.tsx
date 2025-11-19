@@ -700,7 +700,7 @@ export default function Inventory() {
               <div className="space-y-3">
                 <Label className="text-sm font-bold text-foreground flex items-center gap-2">
                   <Fuel className="h-4 w-4 text-blue-600" />
-                  Select Tank
+                  Select Tank <span className="text-red-600">*</span>
                 </Label>
                 <Select value={addProductId} onValueChange={setAddProductId}>
                   <SelectTrigger className="w-full h-12 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border-2 border-blue-200/50 dark:border-blue-800/50 hover:border-blue-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all rounded-xl shadow-sm">
@@ -724,7 +724,7 @@ export default function Inventory() {
               <div className="space-y-3">
                 <Label className="text-sm font-bold text-foreground flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-green-600" />
-                  Amount to Add (Liters)
+                  Amount to Add (Liters) <span className="text-red-600">*</span>
                 </Label>
                 <div className="relative">
                   <Input
@@ -809,7 +809,7 @@ export default function Inventory() {
               <div className="space-y-3">
                 <Label className="text-sm font-bold text-foreground flex items-center gap-2">
                   <Plus className="h-4 w-4 text-green-600" />
-                  Amount to Add (Liters)
+                  Amount to Add (Liters) <span className="text-red-600">*</span>
                 </Label>
                 <Input
                   type="number"
@@ -879,7 +879,7 @@ export default function Inventory() {
               <div className="space-y-3">
                 <Label className="text-sm font-bold text-foreground flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-orange-600" />
-                  Select Refill Date
+                  Select Refill Date <span className="text-red-600">*</span>
                 </Label>
                 <Input
                   type="date"

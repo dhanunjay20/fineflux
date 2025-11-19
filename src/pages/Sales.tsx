@@ -311,9 +311,7 @@ export default function Sales() {
         .map(pair => String(pair.gunId || "").trim().toLowerCase())
     );
     
-    console.log("Available guns for employee - Product:", form.fuel);
-    console.log("Assigned gun IDs:", Array.from(assignedGunIds));
-    console.log("All guns for product:", allGunsForProduct);
+    
     
     // Filter guns to only show assigned ones
     const filtered = allGunsForProduct.filter((g: any) => {
@@ -322,11 +320,9 @@ export default function Sales() {
       
       // Check if this gun is in the assigned list (by ID or name)
       const matches = assignedGunIds.has(gunId) || assignedGunIds.has(gunName);
-      console.log(`Gun: ${g.guns} (ID: ${gunId}, Name: ${gunName}) - Matches: ${matches}`);
       return matches;
     });
     
-    console.log("Filtered guns:", filtered);
     return filtered;
   }, [isEmployee, guns, form.fuel, products, productGunPairs]);
 
@@ -334,7 +330,6 @@ export default function Sales() {
     queryKey: ["sales", orgId],
     queryFn: async () => {
       const response = await axios.get(`${API_CONFIG.BASE_URL}/api/organizations/${orgId}/sales`);
-      console.log("Fetched Sales Data:", response.data);
       return response.data || [];
     },
     refetchOnMount: true,
@@ -479,6 +474,7 @@ export default function Sales() {
 
 
   const [deleteSaleId, setDeleteSaleId] = useState<string | null>(null);
+  const [deleteSaleTarget, setDeleteSaleTarget] = useState<any>(null);
   const [validationError, setValidationError] = useState<{ title: string; message: string } | null>(null);
   const deleteSaleMutation = useMutation({
     mutationFn: async (mongoId: string) => {
@@ -491,7 +487,6 @@ export default function Sales() {
         },
         timeout: API_CONFIG.TIMEOUT,
       });
-      console.log("Deleted Sale Response:", response.data);
       return response.data;
     },
     onSuccess: () => {
@@ -500,7 +495,57 @@ export default function Sales() {
       // Invalidate and refetch all related queries
       queryClient.invalidateQueries({ queryKey: ["sales", orgId] });
       queryClient.invalidateQueries({ queryKey: ["collections", orgId] });
+      // Also refresh sale-history so SalesHistory page reflects deletes
+      queryClient.invalidateQueries({ queryKey: ["sale-history", orgId] });
+      queryClient.refetchQueries({ queryKey: ["sale-history", orgId] });
       queryClient.refetchQueries({ queryKey: ["sales", orgId] });
+
+      // If backend didn't write a sale-history entry, inject a conservative synthetic delete record
+      try {
+        if (deleteSaleTarget) {
+          const nowIso = dayjs().format("YYYY-MM-DDTHH:mm:ss");
+          const synthetic = {
+            id: `local-delete-${Date.now()}`,
+            saleId: getAnyId(deleteSaleTarget) || undefined,
+            dateTime: nowIso,
+            productName: getProp(deleteSaleTarget, 'productName') || getProp(deleteSaleTarget, 'fuel') || undefined,
+            guns: getProp(deleteSaleTarget, 'guns') || undefined,
+            salesInLiters: Number(getProp(deleteSaleTarget, 'salesInLiters')) || 0,
+            testingTotal: Number(getProp(deleteSaleTarget, 'testingTotal')) || 0,
+            empId: getProp(deleteSaleTarget, 'empId') || empId,
+            salesInRupees: Number(getProp(deleteSaleTarget, 'salesInRupees')) || 0,
+            cashReceived: Number(getProp(deleteSaleTarget, 'cashReceived')) || 0,
+            phonePay: Number(getProp(deleteSaleTarget, 'phonePay')) || 0,
+            creditCard: Number(getProp(deleteSaleTarget, 'creditCard')) || 0,
+            shortCollections: Number(getProp(deleteSaleTarget, 'shortCollections')) || 0,
+            receivedTotal: Number(getProp(deleteSaleTarget, 'receivedTotal')) || 0,
+            mutationby: 'sale_delete',
+            _local: true,
+          };
+
+          // Find any cached sale-history queries and prepend the synthetic record
+          const queries = queryClient.getQueriesData({});
+          for (const [key, data] of queries) {
+            try {
+              if (Array.isArray(key) && key[0] === 'sale-history' && key[1] === orgId) {
+                queryClient.setQueryData(key as any, (old: any) => {
+                  if (!Array.isArray(old)) return [synthetic];
+                  // Avoid duplicating if backend already returned a matching delete entry
+                  const exists = old.some((r: any) => r.mutationby === 'sale_delete' && (r.saleId && synthetic.saleId ? r.saleId === synthetic.saleId : false));
+                  if (exists) return old;
+                  return [synthetic, ...old];
+                });
+              }
+            } catch (e) {
+              // ignore per-query errors
+            }
+          }
+        }
+      } catch (e) {
+      
+      } finally {
+        setDeleteSaleTarget(null);
+      }
 
       toast({
         title: "✅ Deleted Successfully",
@@ -524,7 +569,10 @@ export default function Sales() {
   };
   const saleCollectionMutation = useMutation({
     mutationFn: async (input: FormState) => {
-      const now = new Date();
+      // Use local timestamp without timezone offset so displayed time matches created time
+      const nowLocal = dayjs();
+
+      const localDateTime = nowLocal.format("YYYY-MM-DDTHH:mm:ss");
 
       const saleDTO = {
         organizationId: orgId,
@@ -537,7 +585,7 @@ export default function Sales() {
         price: Number(input.price),
         salesInLiters: Number(input.saleLiters) || 0,
         salesInRupees: Number(input.salesInRupees) || 0,
-        dateTime: now.toISOString(),
+        dateTime: localDateTime,
       };
 
       const collectionDTO = {
@@ -546,7 +594,7 @@ export default function Sales() {
         productName: input.fuel,
         guns: input.gun,
         price: Number(input.price),
-        dateTime: now.toISOString(),
+        dateTime: localDateTime,
         cashReceived: Number(input.cashReceived) || 0,
         phonePay: Number(input.phonePay) || 0,
         creditCard: Number(input.creditCard) || 0,
@@ -1351,7 +1399,7 @@ export default function Sales() {
               </div>
 
               {/* Point 6: Excess Collections Card - Visible to Owner and Manager */}
-              {(isOwner || isManager) && (
+              {(isOwner || isManager) && Number(getProp(collectionSummary, 'excess') || collectionSummary?.excess || 0) > 0 && (
                 <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 p-6 text-white shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16" />
                   <div className="relative z-10">
@@ -1802,8 +1850,8 @@ export default function Sales() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <h4 className="font-bold text-lg text-foreground truncate">{getProp(sale, 'productName')}</h4>
-                              <Badge variant="outline" className="shrink-0">{getProp(sale, 'guns')}</Badge>
+                              <h4 className="font-bold text-lg text-foreground truncate">{String(getProp(sale, 'productName') || '').toUpperCase()}</h4>
+                              <Badge variant="outline" className="shrink-0">{String(getProp(sale, 'guns') || '').toUpperCase()}</Badge>
                             </div>
                             <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                               <div className="flex items-center gap-1">
@@ -1853,7 +1901,7 @@ export default function Sales() {
                               <Eye className="h-4 w-4" />
                             </Button>
                             {/* Point 3: Delete button only for latest sale and hidden for employees */}
-                            {index === 0 && !isEmployee && (
+                              {index === 0 && !isEmployee && (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -1864,6 +1912,7 @@ export default function Sales() {
                                   const mongoId = getProp(sale, 'id');
                                   if (mongoId) {
                                     setDeleteSaleId(mongoId);
+                                    setDeleteSaleTarget(sale);
                                   } else {
                                     toast({
                                       title: "Error",
@@ -2065,7 +2114,7 @@ export default function Sales() {
                           <div className={`p-3 rounded-xl ${color.icon} bg-white/20`}><Droplet className="h-6 w-6" /></div>
                           <div>
                             <p className="text-sm opacity-90 mb-1">Product</p>
-                            <p className="text-2xl font-bold">{prod.name}</p>
+                            <p className="text-2xl font-bold">{String(prod.name || '').toUpperCase()}</p>
                           </div>
                         </div>
                         <div className="text-right">
@@ -2123,7 +2172,7 @@ export default function Sales() {
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <Badge variant="secondary" className="text-base px-4 py-1.5 font-semibold">
-                        {getProp(selectedSale, 'productName')}
+                        {String(getProp(selectedSale, 'productName') || '').toUpperCase()}
                       </Badge>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <User className="h-4 w-4" />
@@ -2142,7 +2191,7 @@ export default function Sales() {
                       </div>
                       <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Product</span>
                     </div>
-                    <p className="text-2xl font-bold text-foreground">{getProp(selectedSale, 'productName')}</p>
+                    <p className="text-2xl font-bold text-foreground">{String(getProp(selectedSale, 'productName') || '').toUpperCase()}</p>
                   </div>
 
                   <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30 p-5 border border-orange-200/60 dark:border-orange-800/60 transition-all hover:shadow-md">

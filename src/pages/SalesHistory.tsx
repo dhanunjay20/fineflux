@@ -44,6 +44,7 @@ import autoTable from "jspdf-autotable";
 // ============ Types ============
 interface SaleRecord {
   id: string;
+  saleId?: string;
   dateTime: string;
   productName: string;
   guns: string;
@@ -56,6 +57,7 @@ interface SaleRecord {
   creditCard: number;
   shortCollections: number;
   receivedTotal: number;
+  mutationby?: string; // Track if sale was deleted
 }
 
 interface SalesSummary {
@@ -65,6 +67,8 @@ interface SalesSummary {
   card: number;
   short: number;
   received: number;
+  deletedSalesCount: number;
+  deletedSalesAmount: number;
 }
 
 type DatePreset = "latest" | "today" | "week" | "month" | "all" | "custom";
@@ -99,6 +103,140 @@ const formatCurrency = (value: number): string => {
   return `${RUPEE}${value.toLocaleString("en-IN")}`;
 };
 
+// Parse various date formats that may come from the API (ISO string, number, or mongo-like $date object)
+const parseTime = (v: any): number => {
+  if (!v) return 0;
+  // If it's an object like { $date: { $numberLong: "..." } }
+  try {
+    if (typeof v === 'object') {
+      if (v.$date) {
+        const d = v.$date;
+        if (typeof d === 'object' && d.$numberLong) return Number(d.$numberLong);
+        if (typeof d === 'number') return d;
+        if (typeof d === 'string') return Date.parse(d) || 0;
+      }
+      // If it's a plain number stored as object
+      if (v.$numberLong) return Number(v.$numberLong);
+      // If it has iso string directly
+      if (v.iso) return Date.parse(v.iso) || 0;
+      return 0;
+    }
+
+    if (typeof v === 'number') return v;
+    if (typeof v === 'string') {
+      const n = Number(v);
+      if (!Number.isNaN(n)) return n;
+      const parsed = Date.parse(v);
+      return Number.isNaN(parsed) ? 0 : parsed;
+    }
+  } catch (e) {
+    return 0;
+  }
+
+  return 0;
+};
+
+// Parse numeric values robustly (handles strings with commas/currency)
+const parseNumber = (v: any): number => {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === 'number') return v;
+  try {
+    const s = String(v).replace(/[^0-9.-]+/g, '');
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+};
+
+// Return latest record per saleId (or id when saleId missing). Use lastUpdated when available, fallback to dateTime.
+const getLatestRecords = (records: SaleRecord[]) => {
+  // First pass: group records that already have a stable `saleId`.
+  const latestByKey = new Map<string, SaleRecord>();
+
+  const recordsWithSaleId = records.filter((r) => (r as any).saleId);
+  for (const r of recordsWithSaleId) {
+    const key = (r as any).saleId as string;
+    const existing = latestByKey.get(key);
+    const rTime = parseTime((r as any).lastUpdated) || parseTime(r.dateTime);
+    if (!existing) {
+      latestByKey.set(key, r);
+      continue;
+    }
+    const existingTime = parseTime((existing as any).lastUpdated) || parseTime(existing.dateTime);
+    if (rTime >= existingTime) latestByKey.set(key, r);
+  }
+
+  // Conservative heuristic for records that don't have `saleId`:
+  // - Try to match them to an existing sale (same productName, empId, liters, total) within a time window.
+  // - If no match found, group by a composite key (product|emp|liters|total) with a small time-bucket to avoid accidental collisions.
+  const WINDOW_MINUTES = 10;
+  const windowMs = WINDOW_MINUTES * 60 * 1000;
+
+  const recordsWithoutSaleId = records.filter((r) => !(r as any).saleId);
+  for (const r of recordsWithoutSaleId) {
+    const rTime = parseTime((r as any).lastUpdated) || parseTime(r.dateTime);
+    // Create a composite key used for conservative matching
+    const comp = `${r.productName || ""}|${r.empId || ""}|${r.salesInLiters || 0}|${r.salesInRupees || 0}`;
+
+    // Try to find a matching existing sale key.
+    // Special-case deletion records: match more loosely (ignore amounts) so a delete without saleId
+    // can override a nearby create record and remove it from totals.
+    let matchedKey: string | null = null;
+    if ((r as any).mutationby === 'sale_delete') {
+      for (const [k, existing] of latestByKey.entries()) {
+        const existingTime = parseTime((existing as any).lastUpdated) || parseTime(existing.dateTime);
+        const timeDiff = Math.abs(rTime - existingTime);
+        // Loose match: same product + empId + guns and within window
+        if (
+          String(existing.productName || '').trim().toLowerCase() === String(r.productName || '').trim().toLowerCase() &&
+          String(existing.empId || '').trim() === String(r.empId || '').trim() &&
+          String(existing.guns || '').trim().toLowerCase() === String(r.guns || '').trim().toLowerCase() &&
+          timeDiff <= windowMs
+        ) {
+          matchedKey = k;
+          break;
+        }
+      }
+    } else {
+      for (const [k, existing] of latestByKey.entries()) {
+        const existingComp = `${existing.productName || ""}|${existing.empId || ""}|${existing.salesInLiters || 0}|${existing.salesInRupees || 0}`;
+        const existingTime = parseTime((existing as any).lastUpdated) || parseTime(existing.dateTime);
+        if (comp === existingComp && Math.abs(rTime - existingTime) <= windowMs) {
+          matchedKey = k;
+          break;
+        }
+      }
+    }
+
+    if (matchedKey) {
+      // merge into matched key
+      const existing = latestByKey.get(matchedKey)!;
+      const existingTime = parseTime((existing as any).lastUpdated) || parseTime(existing.dateTime);
+      // For deletes prefer the delete even if timestamp is equal or slightly earlier
+      if ((r as any).mutationby === 'sale_delete') {
+        latestByKey.set(matchedKey, r);
+      } else if (rTime >= existingTime) {
+        latestByKey.set(matchedKey, r);
+      }
+      continue;
+    }
+
+    // No match to an existing saleId: create/merge into a composite time-bucket key
+    const timeBucket = Math.floor(rTime / windowMs);
+    const fallbackKey = `__cmp:${comp}:${timeBucket}`;
+    const existing = latestByKey.get(fallbackKey);
+    if (!existing) {
+      latestByKey.set(fallbackKey, r);
+      continue;
+    }
+    const existingTime = parseTime((existing as any).lastUpdated) || parseTime(existing.dateTime);
+    if (rTime >= existingTime) latestByKey.set(fallbackKey, r);
+  }
+
+  return Array.from(latestByKey.values());
+};
+
 // ============ Export Functions ============
 const exportToCSV = (records: SaleRecord[], from: Dayjs, to: Dayjs) => {
   const headers = [
@@ -116,7 +254,10 @@ const exportToCSV = (records: SaleRecord[], from: Dayjs, to: Dayjs) => {
     "Received Total",
   ];
 
-  const rows = records.map((record) => [
+  // Export active (latest) records only for accurate export
+  const latest = getLatestRecords(records).filter(r => r.mutationby !== 'sale_delete');
+
+  const rows = latest.map((record) => [
     dayjs(record.dateTime).format("DD-MM-YYYY HH:mm"),
     record.productName,
     record.guns,
@@ -180,11 +321,11 @@ const exportToPDF = (
     align: "center",
   });
 
-  // Summary
+  // Summary (excluding deleted sales)
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
-  doc.text("Summary", 14, 50);
+  doc.text("Summary (Active Sales Only)", 14, 50);
 
   const summaryData = [
     ["Total Sales", formatCurrency(summary.totalSales)],
@@ -215,13 +356,14 @@ const exportToPDF = (
     },
   });
 
-  // Records
+  // Records (excluding deleted sales for clarity)
+  const activeSalesRecords = getLatestRecords(records).filter(r => r.mutationby !== 'sale_delete');
   const finalY = (doc as any).lastAutoTable?.finalY || 55;
   doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
-  doc.text("Detailed Records", 14, finalY + 12);
+  doc.text("Detailed Records (Active Sales)", 14, finalY + 12);
 
-  const tableData = records.map((record) => [
+  const tableData = activeSalesRecords.map((record) => [
     dayjs(record.dateTime).format("DD-MM HH:mm"),
     record.productName,
     record.guns,
@@ -291,6 +433,8 @@ const exportToPDF = (
 const SaleRecordCard = ({ record, index }: { record: SaleRecord; index: number }) => {
   const [expanded, setExpanded] = useState(false);
 
+  // Check if sale was deleted
+  const isSaleDeleted = record.mutationby === 'sale_delete';
   // Check if all payment methods are zero
   const hasNoPayments = record.cashReceived === 0 && record.phonePay === 0 && record.creditCard === 0;
 
@@ -301,7 +445,7 @@ const SaleRecordCard = ({ record, index }: { record: SaleRecord; index: number }
       transition={{ delay: Math.min(index * 0.03, 0.3) }}
     >
       <Card className={`overflow-hidden border shadow-sm ${
-        hasNoPayments 
+        isSaleDeleted || hasNoPayments
           ? 'border-orange-400 dark:border-orange-600 bg-orange-50/50 dark:bg-orange-950/20' 
           : 'border-border/60'
       }`}>
@@ -333,7 +477,7 @@ const SaleRecordCard = ({ record, index }: { record: SaleRecord; index: number }
                   <User className="h-3 w-3" />
                   {record.empId}
                 </Badge>
-                {hasNoPayments && (
+                {isSaleDeleted && (
                   <Badge
                     variant="destructive"
                     className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] sm:text-xs bg-orange-500 hover:bg-orange-600"
@@ -664,6 +808,8 @@ export default function SalesHistory() {
   const [recordsPerPage, setRecordsPerPage] = useState(10);
   const navigate = useNavigate();
 
+  // sample debug UI removed
+
   const [from, to] = dateRange;
 
   useEffect(() => {
@@ -716,18 +862,46 @@ export default function SalesHistory() {
   });
 
   const summary: SalesSummary = useMemo(() => {
-    return records.reduce(
+    const latestRecords = getLatestRecords(records);
+    const activeLatest = latestRecords.filter((rec) => rec.mutationby !== "sale_delete");
+    const deletedLatest = latestRecords.filter((rec) => rec.mutationby === "sale_delete");
+
+    const activeSummary = activeLatest.reduce(
       (acc, record) => ({
-        totalSales: acc.totalSales + (record.salesInRupees || 0),
-        cash: acc.cash + (record.cashReceived || 0),
-        upi: acc.upi + (record.phonePay || 0),
-        card: acc.card + (record.creditCard || 0),
-        short: acc.short + (record.shortCollections || 0),
-        received: acc.received + (record.receivedTotal || 0),
+        totalSales: acc.totalSales + parseNumber(record.salesInRupees || record.receivedTotal || 0),
+        cash: acc.cash + parseNumber(record.cashReceived || 0),
+        upi: acc.upi + parseNumber(record.phonePay || 0),
+        card: acc.card + parseNumber(record.creditCard || 0),
+        short: acc.short + parseNumber(record.shortCollections || 0),
+        received: acc.received + parseNumber(record.receivedTotal || (record.cashReceived || 0) + (record.phonePay || 0) + (record.creditCard || 0)),
       }),
       { totalSales: 0, cash: 0, upi: 0, card: 0, received: 0, short: 0 }
     );
+
+    const deletedAmount = deletedLatest.reduce(
+      (sum, record) => sum + parseNumber(record.salesInRupees || 0),
+      0
+    );
+
+    // Round totals to 2 decimals
+    const rounded = {
+      totalSales: Math.round(activeSummary.totalSales * 100) / 100,
+      cash: Math.round(activeSummary.cash * 100) / 100,
+      upi: Math.round(activeSummary.upi * 100) / 100,
+      card: Math.round(activeSummary.card * 100) / 100,
+      short: Math.round(activeSummary.short * 100) / 100,
+      received: Math.round(activeSummary.received * 100) / 100,
+    };
+
+    return {
+      ...rounded,
+      deletedSalesCount: deletedLatest.length,
+      deletedSalesAmount: Math.round(deletedAmount * 100) / 100,
+    };
   }, [records]);
+
+  // --- Temporary debug info: helps verify where stat cards get their data ---
+  // debug instrumentation removed
 
   // Pagination logic
   const totalPages = Math.ceil(records.length / recordsPerPage) || 1;
@@ -804,26 +978,10 @@ export default function SalesHistory() {
           onApply={() => refetch()}
         />
 
+        {/* debug UI removed */}
+
         {/* Summary Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          <Card className="overflow-hidden border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">
-                    Total Sales
-                  </p>
-                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-                    {formatCurrency(summary.totalSales)}
-                  </h3>
-                </div>
-                <div className="p-3 rounded-lg bg-blue-500">
-                  <Wallet className="h-5 w-5 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
           <Card className="overflow-hidden border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
             <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between">

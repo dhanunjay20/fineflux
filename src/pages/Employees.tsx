@@ -511,27 +511,27 @@ export default function Employees() {
                   <div className="grid grid-cols-2 gap-4">
                     {/* Emp ID (icon) */}
                     <div className="space-y-2">
-                      <Label>Employee ID</Label>
+                      <Label>Employee ID <span className="text-red-600">*</span></Label>
                       <div className="relative">
                         <IdCard className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input value={form.empId} readOnly disabled className="pl-9 bg-muted/50" />
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Username</Label>
+                      <Label>Username <span className="text-red-600">*</span></Label>
                       <Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
                     </div>
                     <div className="space-y-2">
-                      <Label>First Name</Label>
+                      <Label>First Name <span className="text-red-600">*</span></Label>
                       <Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Last Name</Label>
+                      <Label>Last Name <span className="text-red-600">*</span></Label>
                       <Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
                     </div>
                     {/* Email (icon) */}
                     <div className="space-y-2">
-                      <Label>Email</Label>
+                      <Label>Email <span className="text-red-600">*</span></Label>
                       <div className="relative">
                         <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input type="email" value={form.emailId} onChange={(e) => setForm({ ...form, emailId: e.target.value })} className="pl-9" />
@@ -539,14 +539,14 @@ export default function Employees() {
                     </div>
                     {/* Phone (icon) */}
                     <div className="space-y-2">
-                      <Label>Phone</Label>
+                      <Label>Phone <span className="text-red-600">*</span></Label>
                       <div className="relative">
                         <Phone className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} className="pl-9" />
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Password</Label>
+                      <Label>Password <span className="text-red-600">*</span></Label>
                       <div className="relative">
                         <Input
                           type={showPassword ? 'text' : 'password'}
@@ -584,7 +584,7 @@ export default function Employees() {
                   <h3 className="text-lg font-semibold mb-4">Employment Details</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Role</Label>
+                      <Label>Role <span className="text-red-600">*</span></Label>
                       <Select value={form.role} onValueChange={(value) => setForm({ ...form, role: value })}>
                         <SelectTrigger>
                           <SelectValue />
@@ -595,7 +595,7 @@ export default function Employees() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Department</Label>
+                      <Label>Department <span className="text-red-600">*</span></Label>
                       <Select value={form.department} onValueChange={(value) => setForm({ ...form, department: value })}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select Department" />
@@ -606,7 +606,7 @@ export default function Employees() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Status</Label>
+                      <Label>Status <span className="text-red-600">*</span></Label>
                       <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value })}>
                         <SelectTrigger>
                           <SelectValue />
@@ -893,7 +893,7 @@ export default function Employees() {
                   <h3 className="text-lg font-semibold mb-4">Employment Details</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Role</Label>
+                      <Label>Role <span className="text-red-600">*</span></Label>
                       <Select value={form.role} onValueChange={(value) => setForm({ ...form, role: value })}>
                         <SelectTrigger>
                           <SelectValue />
@@ -904,7 +904,7 @@ export default function Employees() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Department</Label>
+                      <Label>Department <span className="text-red-600">*</span></Label>
                       <Select value={form.department} onValueChange={(value) => setForm({ ...form, department: value })}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select Department" />
@@ -915,7 +915,7 @@ export default function Employees() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Status</Label>
+                      <Label>Status <span className="text-red-600">*</span></Label>
                       <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value })}>
                         <SelectTrigger>
                           <SelectValue />

@@ -319,7 +319,7 @@ export default function StockRegister() {
                   <Input name="dateTime" type="datetime-local" value={form.dateTime} onChange={handleFormChange} required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Product</Label>
+                  <Label>Product <span className="text-destructive">*</span></Label>
                   <Select value={form.productName} onValueChange={v => setForm(f => ({ ...f, productName: v }))}>
                     <SelectTrigger className="w-full h-9 border-border">
                       <SelectValue />
@@ -330,37 +330,37 @@ export default function StockRegister() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Dip Product</Label>
+                  <Label>Dip Product <span className="text-destructive">*</span></Label>
                   <Input name="dipReadingProduct" type="number" value={form.dipReadingProduct}
                     onChange={handleFormChange} required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Dip Water</Label>
+                  <Label>Dip Water <span className="text-destructive">*</span></Label>
                   <Input name="dipReadingWater" type="number" value={form.dipReadingWater}
                     onChange={handleFormChange} required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Net Stock (L)</Label>
+                  <Label>Net Stock (L) <span className="text-destructive">*</span></Label>
                   <Input name="netStockLiters" type="number" value={form.netStockLiters}
                     onChange={handleFormChange} required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Opening Stock</Label>
+                  <Label>Opening Stock <span className="text-destructive">*</span></Label>
                   <Input name="totalOpeningStock" type="number" value={form.totalOpeningStock}
                     onChange={handleFormChange} required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Receipt Qty</Label>
+                  <Label>Receipt Qty <span className="text-destructive">*</span></Label>
                   <Input name="receiptQuantityInLitres" type="number" value={form.receiptQuantityInLitres}
                     onChange={handleFormChange} required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Closing Stock</Label>
+                  <Label>Closing Stock <span className="text-destructive">*</span></Label>
                   <Input name="closingStockInLitres" type="number" value={form.closingStockInLitres}
                     onChange={handleFormChange} required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Tank Sale</Label>
+                  <Label>Tank Sale <span className="text-destructive">*</span></Label>
                   <Input name="saleAsForTankStock" type="number" value={form.saleAsForTankStock}
                     onChange={handleFormChange} required />
                 </div>

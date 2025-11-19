@@ -1243,7 +1243,7 @@ export default function EmployeeSetDuty() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="shiftStart" className="text-xs text-muted-foreground">Start Time</Label>
+                      <Label htmlFor="shiftStart" className="text-xs text-muted-foreground">Start Time <span className="text-red-600">*</span></Label>
                       <Input
                         id="shiftStart"
                         type="time"
@@ -1254,7 +1254,7 @@ export default function EmployeeSetDuty() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="shiftEnd" className="text-xs text-muted-foreground">End Time</Label>
+                      <Label htmlFor="shiftEnd" className="text-xs text-muted-foreground">End Time <span className="text-red-600">*</span></Label>
                       <Input
                         id="shiftEnd"
                         type="time"
@@ -1501,7 +1501,7 @@ export default function EmployeeSetDuty() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="editShiftStart" className="text-xs text-muted-foreground">Start Time</Label>
+                      <Label htmlFor="editShiftStart" className="text-xs text-muted-foreground">Start Time <span className="text-red-600">*</span></Label>
                       <Input
                         id="editShiftStart"
                         type="time"
@@ -1512,7 +1512,7 @@ export default function EmployeeSetDuty() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="editShiftEnd" className="text-xs text-muted-foreground">End Time</Label>
+                      <Label htmlFor="editShiftEnd" className="text-xs text-muted-foreground">End Time <span className="text-red-600">*</span></Label>
                       <Input
                         id="editShiftEnd"
                         type="time"

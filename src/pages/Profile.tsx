@@ -527,10 +527,10 @@ export default function Profile() {
             </DialogHeader>
             <div className="flex-1 overflow-y-auto px-6 py-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div><Label>First Name</Label>
+                <div><Label>First Name <span className="text-red-600">*</span></Label>
                   <Input value={form.firstName || ""} onChange={e => handleChange("firstName", e.target.value)} required autoFocus />
                 </div>
-                <div><Label>Last Name</Label>
+                <div><Label>Last Name <span className="text-red-600">*</span></Label>
                   <Input value={form.lastName || ""} onChange={e => handleChange("lastName", e.target.value)} required />
                 </div>
                 <div><Label>Username</Label>
@@ -551,7 +551,7 @@ export default function Profile() {
                 <div><Label>Email</Label>
                   <Input type="email" value={form.emailId || ""} onChange={e => handleChange("emailId", e.target.value)} />
                 </div>
-                <div><Label>Phone Number</Label>
+                <div><Label>Phone Number <span className="text-red-600">*</span></Label>
                   <Input
                     type="tel"
                     value={form.phoneNumber || ""}
@@ -669,7 +669,7 @@ export default function Profile() {
           </DialogHeader>
           <form className="space-y-4 px-6 py-4" onSubmit={handlePwdChange}>
             <div className="space-y-2">
-              <Label>Current Password</Label>
+              <Label>Current Password <span className="text-red-600">*</span></Label>
               <div className="relative">
                 <Input
                   type={showCurrentPwd ? "text" : "password"}
@@ -687,7 +687,7 @@ export default function Profile() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>New Password</Label>
+              <Label>New Password <span className="text-red-600">*</span></Label>
               <div className="relative">
                 <Input
                   type={showNewPwd ? "text" : "password"}

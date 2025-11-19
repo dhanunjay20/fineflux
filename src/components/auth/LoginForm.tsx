@@ -16,7 +16,6 @@ export function LoginForm() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [forgotOpen, setForgotOpen] = useState<"password" | "username" | null>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -58,7 +57,7 @@ export function LoginForm() {
       return;
     }
     try {
-      const ok = await login(u, p, rememberMe);
+      const ok = await login(u, p);
       if (ok) {
         toast({ title: 'Welcome back!', description: 'Login successful' });
         const from = (location.state as any)?.from?.pathname as string | undefined;
@@ -236,7 +235,7 @@ export function LoginForm() {
               <div className="space-y-1.5">
                 <Label htmlFor="username" className="text-white/95 text-sm font-bold flex items-center gap-2">
                   <User className="h-3.5 w-3.5 text-purple-300" />
-                  Username
+                  Username <span className="text-red-400">*</span>
                 </Label>
                 <div className="relative group">
                   <Input
@@ -258,7 +257,7 @@ export function LoginForm() {
               <div className="space-y-1.5">
                 <Label htmlFor="password" className="text-white/95 text-sm font-bold flex items-center gap-2">
                   <Lock className="h-3.5 w-3.5 text-pink-300" />
-                  Password
+                  Password <span className="text-red-400">*</span>
                 </Label>
                 <div className="relative group">
                   <Input
@@ -301,21 +300,6 @@ export function LoginForm() {
                     Forgot username?
                   </button>
                 </div>
-              </div>
-
-              {/* Remember Me */}
-              <div className="flex items-center space-x-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="remember"
-                  checked={rememberMe}
-                  onChange={e => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded border-2 border-white/30 bg-white/10 text-purple-500 focus:ring-2 focus:ring-purple-500 focus:ring-offset-0 cursor-pointer"
-                  disabled={isLoading}
-                />
-                <Label htmlFor="remember" className="text-white/90 text-sm font-medium cursor-pointer">
-                  Remember me for 30 days
-                </Label>
               </div>
 
               {/* Submit Button */}

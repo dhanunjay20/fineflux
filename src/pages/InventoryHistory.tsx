@@ -17,8 +17,8 @@ function formatISTDateTimeSimple(s?: string) {
   if (!s) return '—';
   const d = new Date(s.replace(' ', 'T'));
   if (isNaN(d.getTime())) return String(s);
-  const day = d.getDate();
-  const month = d.getMonth() + 1;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
   const year = d.getFullYear();
   let hour = d.getHours();
   const min = d.getMinutes();
@@ -267,10 +267,7 @@ export default function InventoryHistory() {
                 </Badge>
               )}
               <Badge className="ml-auto bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 font-mono text-xs px-3 py-1 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
-                {log.isReceipt
-                  ? (log.lastUpdated ?? '—')
-                  : formatISTDateTimeSimple(log.lastUpdated)
-                }
+                {formatISTDateTimeSimple(log.lastUpdated)}
               </Badge>
             </div>
             <div className="space-y-1">
