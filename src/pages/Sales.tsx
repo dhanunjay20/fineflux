@@ -43,6 +43,7 @@ import {
   X,
   Eye,
 } from "lucide-react";
+import PopupClose from "@/components/PopupClose";
 import dayjs from "dayjs";
 import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
@@ -1962,13 +1963,7 @@ export default function Sales() {
                   className="bg-gradient-to-br from-white/95 via-slate-50/90 to-red-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-red-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <button
-                    type="button"
-                    className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm"
-                    onClick={() => setDeleteSaleId(null)}
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
+                  <PopupClose onClick={() => setDeleteSaleId(null)} />
 
                   <div className="mb-6 flex items-center gap-3">
                     <div className="p-3 rounded-2xl bg-gradient-to-br from-red-500 to-pink-600 shadow-lg shadow-red-500/30">
@@ -2037,15 +2032,7 @@ export default function Sales() {
             className="bg-gradient-to-br from-white/95 via-slate-50/90 to-amber-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-amber-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-amber-100 dark:hover:bg-amber-900/30 text-muted-foreground hover:text-amber-600 p-2 transition-all backdrop-blur-sm"
-              onClick={() => {
-                setValidationError(null);
-              }}
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <PopupClose onClick={() => setValidationError(null)} />
 
             <div className="mb-6 flex items-center gap-3">
               <div className="p-3 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/30">
@@ -2201,7 +2188,7 @@ export default function Sales() {
                       </div>
                       <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pump</span>
                     </div>
-                    <p className="text-2xl font-bold text-foreground">{getProp(selectedSale, 'guns')}</p>
+                    <p className="text-2xl font-bold text-foreground">{String(getProp(selectedSale, 'guns') || '').toUpperCase()}</p>
                   </div>
                 </div>
 

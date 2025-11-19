@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Edit, Box, Archive, Barcode, Fuel, Activity, TrendingUp, AlertCircle, ChevronDown, ChevronUp, X, Zap } from "lucide-react";
+import PopupClose from "@/components/PopupClose";
 import { useToast } from "@/components/ui/use-toast";
 import { API_CONFIG } from "@/lib/api-config";
 
@@ -491,14 +492,7 @@ const GunInfo = () => {
                       Update dispenser/gun details
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleCancelEdit}
-                    className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition-all duration-200 hover:rotate-90"
-                    aria-label="Close"
-                  >
-                    <X className="h-4 w-4 sm:h-5 sm:w-5" />
-                  </button>
+                  <PopupClose onClick={handleCancelEdit} />
                 </div>
                 <form className="space-y-4 p-5" onSubmit={handleEditSubmit}>
                   <div className="space-y-2">

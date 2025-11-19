@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   DollarSign, Plus, TrendingDown, Clock, CheckCircle, XCircle, Calendar, Receipt, Filter, Edit, Trash2, X, Eye, Search, FileText, Wallet, Tag, ArrowUpDown
 } from "lucide-react";
+import PopupClose from "@/components/PopupClose";
 import { API_CONFIG } from '@/lib/api-config';
 import { useToast } from "@/hooks/use-toast";
 import dayjs from "dayjs";
@@ -624,13 +625,7 @@ export default function Expenses() {
           }}
         >
           <div className="bg-background rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-md relative" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={closeCategoryModal}
-              className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <PopupClose onClick={closeCategoryModal} />
             <div className="mb-6">
               <h3 className="text-2xl font-bold">{editingCategory ? "Edit" : "New"} Expense Category</h3>
               <p className="text-sm text-muted-foreground mt-1">
@@ -675,13 +670,7 @@ export default function Expenses() {
           }}
         >
           <div className="bg-background rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-lg relative" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={closeExpenseModal}
-              className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <PopupClose onClick={closeExpenseModal} />
             <div className="mb-6">
               <h3 className="text-2xl font-bold">{editingExpense ? 'Edit' : 'Add'} Expense</h3>
               <p className="text-sm text-muted-foreground mt-1">
@@ -823,13 +812,7 @@ export default function Expenses() {
           <div className="bg-background rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             {/* Sticky Header */}
             <div className="sticky top-0 z-10 bg-background border-b border-border rounded-t-2xl p-6">
-              <button
-                type="button"
-                onClick={() => setViewingExpense(null)}
-                className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition z-10"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <PopupClose onClick={() => setViewingExpense(null)} />
 
               <div className="flex items-start gap-4 pr-10">
                 <div className="p-4 rounded-xl bg-gradient-to-br from-destructive/10 to-destructive/5 shrink-0">

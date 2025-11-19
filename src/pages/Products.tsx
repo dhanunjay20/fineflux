@@ -12,6 +12,7 @@ import {
   Plus, Edit2, Trash2, Box, Archive, Layers, PackageCheck,
   Database, X, CalendarDays, Fuel, Droplets, Zap
 } from 'lucide-react';
+import PopupClose from "@/components/PopupClose";
 import { API_CONFIG } from '@/lib/api-config';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -493,13 +494,7 @@ export default function Products() {
                   {editId ? 'Update product information' : 'Create a new product entry'}
                 </p>
               </div>
-              <button type="button"
-                onClick={closeModal}
-                className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition-all duration-200 hover:rotate-90"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4 sm:h-5 sm:w-5" />
-              </button>
+              <PopupClose onClick={closeModal} />
             </div>
             {/* Modal Form */}
             <form

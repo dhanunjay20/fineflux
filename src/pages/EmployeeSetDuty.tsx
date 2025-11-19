@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import dayjs from "dayjs";
 import { Search, Eye, Users, UserCheck, Briefcase, ClipboardList, Star, Calendar, X, Mail, Phone, Clock, Filter, Fuel, CheckCircle2, AlertCircle, Target, Loader2, Edit, Trash2 } from "lucide-react";
+import PopupClose from "@/components/PopupClose";
 import { API_CONFIG } from '@/lib/api-config';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -904,14 +905,7 @@ export default function EmployeeSetDuty() {
             className="relative bg-background shadow-2xl rounded-2xl w-full max-w-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              onClick={() => setSpecialDutyOpen(false)}
-              className="absolute top-4 right-4 z-10 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-1 transition"
-              aria-label="Close"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <PopupClose onClick={() => setSpecialDutyOpen(false)} />
             <form className="flex flex-col gap-5 p-8 pt-6" onSubmit={assignSpecialDuty}>
               <div className="flex items-center gap-3 mb-2">
                 {currentEmp && (
@@ -1030,17 +1024,7 @@ export default function EmployeeSetDuty() {
           >
             {/* STICKY HEADER */}
             <div className="sticky top-0 z-10 bg-background border-b px-6 py-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setDailyDutyOpen(false);
-                  setValidationErr(null);
-                }}
-                className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition"
-                aria-label="Close"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <PopupClose onClick={() => { setDailyDutyOpen(false); setValidationErr(null); }} />
 
               <div className="flex items-center gap-3 pr-12">
                 {currentEmp && (
@@ -1335,17 +1319,7 @@ export default function EmployeeSetDuty() {
           >
             {/* STICKY HEADER */}
             <div className="sticky top-0 z-10 bg-background border-b px-6 py-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setEditDutyOpen(false);
-                  setValidationErr(null);
-                }}
-                className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition"
-                aria-label="Close"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <PopupClose onClick={() => { setEditDutyOpen(false); setValidationErr(null); }} />
 
               <div className="flex items-center gap-3 pr-12">
                 {currentEmp && (
@@ -1589,17 +1563,7 @@ export default function EmployeeSetDuty() {
             className="relative bg-background shadow-2xl rounded-2xl w-full max-w-md p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              onClick={() => {
-                setDeleteDutyOpen(false);
-                setDeletingDuty(null);
-              }}
-              className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition"
-              aria-label="Close"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <PopupClose onClick={() => { setDeleteDutyOpen(false); setDeletingDuty(null); }} />
 
             <div className="space-y-4">
               <div className="flex items-center gap-3">
@@ -1680,14 +1644,7 @@ export default function EmployeeSetDuty() {
           >
             {/* Sticky Header */}
             <div className="sticky top-0 z-10 bg-background border-b border-border rounded-t-2xl">
-              <button
-                type="button"
-                onClick={closeViewDutyDialog}
-                className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition z-10"
-                aria-label="Close"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <PopupClose onClick={closeViewDutyDialog} />
 
               <div className="p-6">
                 {/* Header */}

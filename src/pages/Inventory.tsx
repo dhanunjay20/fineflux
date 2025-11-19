@@ -19,6 +19,7 @@ import {
 import {
   Fuel, Plus, TrendingUp, AlertTriangle, RefreshCw, BarChart3, Calendar, X, Download, Eye, History, PackageOpen, Trash2, Loader2,
 } from "lucide-react";
+import PopupClose from "@/components/PopupClose";
 import { API_CONFIG } from "@/lib/api-config";
 
 // Removed - using API_CONFIG
@@ -678,13 +679,7 @@ export default function Inventory() {
             className="bg-gradient-to-br from-white/95 via-blue-50/90 to-indigo-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-indigo-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm"
-              onClick={() => setAddModal(false)}
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <PopupClose onClick={() => setAddModal(false)} />
 
             <div className="mb-6 flex items-center gap-3">
               <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30">
@@ -779,13 +774,7 @@ export default function Inventory() {
             className="bg-gradient-to-br from-white/95 via-purple-50/90 to-pink-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-purple-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm"
-              onClick={() => setStockModal(null)}
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <PopupClose onClick={() => setStockModal(null)} />
 
             <div className="mb-6 flex items-center gap-3">
               <div className="p-3 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg shadow-purple-500/30">
@@ -859,13 +848,7 @@ export default function Inventory() {
             className="bg-gradient-to-br from-white/95 via-orange-50/90 to-red-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-orange-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm"
-              onClick={() => setRefillModal(null)}
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <PopupClose onClick={() => setRefillModal(null)} />
             <div className="mb-6 flex items-center gap-3">
               <div className="p-3 rounded-2xl bg-gradient-to-br from-orange-500 to-red-600 shadow-lg shadow-orange-500/30">
                 <Calendar className="h-6 w-6 text-white" />
@@ -915,10 +898,7 @@ export default function Inventory() {
             className="bg-gradient-to-br from-white/95 via-violet-50/90 to-indigo-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-indigo-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-lg my-auto animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <button type="button" className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm"
-              onClick={() => { setReportModal(false); setReportProductId(""); setReportProduct(null); }}>
-              <X className="h-5 w-5" />
-            </button>
+            <PopupClose onClick={() => { setReportModal(false); setReportProductId(""); setReportProduct(null); }} />
             <div className="mb-6 flex items-center gap-3">
               <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg">
                 <BarChart3 className="h-6 w-6 text-white" />
@@ -991,9 +971,7 @@ export default function Inventory() {
             className="bg-gradient-to-br from-white/95 via-yellow-50/90 to-pink-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-yellow-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-lg max-h-[80vh] overflow-y-auto my-auto animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <button type="button" className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm" onClick={() => setLowStockModal(false)}>
-              <X className="h-5 w-5" />
-            </button>
+            <PopupClose onClick={() => setLowStockModal(false)} />
             <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
               <AlertTriangle className="h-6 w-6 text-destructive" /> Low Stock Alerts
             </h3>
@@ -1050,9 +1028,7 @@ export default function Inventory() {
             className="bg-gradient-to-br from-white/95 via-slate-50/90 to-red-50/90 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-red-900/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 relative w-full max-w-md my-auto animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <button type="button" className="absolute top-4 right-4 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600 p-2 transition-all backdrop-blur-sm" onClick={() => setDeleteModal(null)}>
-              <X className="h-5 w-5" />
-            </button>
+            <PopupClose onClick={() => setDeleteModal(null)} />
             <div className="mb-6 flex items-center gap-3">
               <div className="p-3 rounded-2xl bg-gradient-to-br from-red-500 to-pink-600 shadow-lg shadow-red-500/30">
                 <Trash2 className="h-6 w-6 text-white" />

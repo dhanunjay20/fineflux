@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarDays, Fuel, Droplets, Edit2, Plus, Trash2, X, Archive, TrendingUp, TrendingDown, PackageCheck, Database } from "lucide-react";
+import PopupClose from "@/components/PopupClose";
 import { API_CONFIG } from '@/lib/api-config';
 import { useToast } from "@/components/ui/use-toast";
 
@@ -308,9 +309,7 @@ export default function StockRegister() {
                 </h2>
                 <p className="text-xs text-muted-foreground mt-1">{editId ? "Update" : "Create"} stock register entry</p>
               </div>
-              <button type="button" onClick={handleCloseModal}
-                className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground p-2 transition-all"
-                aria-label="Close"><X className="h-5 w-5" /></button>
+              <PopupClose onClick={handleCloseModal} />
             </div>
             <form onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto p-6 flex flex-col gap-4" id="register-form">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
