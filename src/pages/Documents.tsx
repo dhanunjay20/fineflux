@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import axios from "axios";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
-  FileText, Eye, Download, Pencil, Trash2, UploadCloud,
+  FileText, Download, Pencil, Trash2, UploadCloud,
   Calendar, User, Building2, Clock, FileCheck, X, Loader2,
   Search, AlertCircle, File
 } from "lucide-react";
@@ -17,6 +17,75 @@ import { API_CONFIG } from '@/lib/api-config';
 
 function safeArray(v: any) {
   return Array.isArray(v) ? v : Array.isArray(v?.content) ? v.content : [];
+}
+
+// Attempt to repair common signed-url encoding/signature-parameter issues
+function normalizeSignedUrl(urlStr: string | null) {
+  if (!urlStr) return urlStr;
+  try {
+    const u = new URL(urlStr);
+    // Fix double-encoding in the pathname: convert %25 -> % repeatedly until stable
+    let p = u.pathname;
+    while (p.includes('%25')) p = p.replace(/%25/g, '%');
+    // Some signers accidentally inject malformed X-Goog-SignedHeaders; if detected,
+    // try resetting it to the common 'host' value so the signature may match pre-signed canonical.
+    const params = u.searchParams;
+    const signedHeaders = params.get('X-Goog-SignedHeaders') || params.get('x-goog-signedheaders');
+    if (signedHeaders && /hosthost|UNSIGNED-PAYLOAD/.test(signedHeaders)) {
+      params.set('X-Goog-SignedHeaders', 'host');
+    }
+    u.pathname = p;
+    // Rebuild search from params (ensures modifications persist)
+    u.search = params.toString();
+    return u.toString();
+  } catch (e) {
+    return urlStr;
+  }
+}
+
+// Build a set of candidate signed URLs by applying reasonable repairs.
+function buildSignedUrlCandidates(urlStr: string | null) {
+  if (!urlStr) return [] as string[];
+  const set = new Set<string>();
+  try {
+    const orig = urlStr;
+    set.add(orig);
+
+    const norm = normalizeSignedUrl(orig);
+    if (norm) set.add(norm);
+
+    // Remove X-Goog-SignedHeaders entirely (some signers include malformed value)
+    try {
+      const u = new URL(norm || orig);
+      const params = u.searchParams;
+      if (params.has('X-Goog-SignedHeaders') || params.has('x-goog-signedheaders')) {
+        params.delete('X-Goog-SignedHeaders');
+        params.delete('x-goog-signedheaders');
+        u.search = params.toString();
+        set.add(u.toString());
+      }
+    } catch (e) { /* ignore */ }
+
+    // Try progressively decoding percent-encoded sequences in the path
+    try {
+      const u2 = new URL(norm || orig);
+      let p = u2.pathname;
+      // decode up to 2 times
+      for (let i = 0; i < 2; i++) {
+        try {
+          const dec = decodeURIComponent(p);
+          if (dec === p) break;
+          p = dec;
+          u2.pathname = p;
+          set.add(u2.toString());
+        } catch (e) { break; }
+      }
+    } catch (e) { /* ignore */ }
+
+    return Array.from(set.values());
+  } catch (e) {
+    return [urlStr];
+  }
 }
 
 export default function Documents() {
@@ -46,6 +115,7 @@ export default function Documents() {
   const [submitting, setSubmitting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  
 
   useEffect(() => {
     if (open || deleteDialogOpen) {
@@ -55,6 +125,35 @@ export default function Documents() {
     }
     return () => { document.body.style.overflow = ''; };
   }, [open, deleteDialogOpen]);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Accept a File directly (used by drag/drop and hidden input change)
+  const handleFileSelect = (file: File | null) => {
+    if (!file) return;
+
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      toast({ title: 'File Too Large', description: 'File size exceeds 10MB limit. Please choose a smaller file.', variant: 'destructive' });
+      return;
+    }
+
+    setForm(f => ({ ...f, file }));
+    try {
+      const blob = URL.createObjectURL(file);
+      setLocalPreviewUrl(blob);
+    } catch (err) {
+      setLocalPreviewUrl(null);
+    }
+  };
 
   // Revoke any created object URL when modal closes or component unmounts
   useEffect(() => {
@@ -130,23 +229,8 @@ export default function Documents() {
   }, [form.issuedDate, form.expiryDate]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const MAX_SIZE = 10 * 1024 * 1024;
-    if (file.size > MAX_SIZE) {
-      toast({ title: 'File Too Large', description: 'File size exceeds 10MB limit. Please choose a smaller file.', variant: 'destructive' });
-      return;
-    }
-
-    // Do NOT upload now. Store file locally and create a blob URL for preview.
-    setForm(f => ({ ...f, file }));
-    try {
-      const blob = URL.createObjectURL(file);
-      setLocalPreviewUrl(blob);
-    } catch (err) {
-      setLocalPreviewUrl(null);
-    }
+    const file = e.target.files?.[0] || null;
+    handleFileSelect(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -271,7 +355,14 @@ export default function Documents() {
             { params: { durationSeconds: 60 }, timeout: 10000, withCredentials: true }
           );
           const maybeUrl = typeof resp.data === 'string' ? resp.data : resp.data?.url || resp.data;
-          if (maybeUrl) targetUrl = maybeUrl;
+          if (maybeUrl) {
+            console.group('Documents: signed URL fetched');
+            console.log('rawSignedUrl:', maybeUrl);
+            console.log('resp.data:', resp.data);
+            console.groupEnd();
+            const norm = normalizeSignedUrl(maybeUrl);
+            targetUrl = norm || maybeUrl;
+          }
         } catch (innerErr) {
           console.warn('Signed URL request failed, falling back to fileUrl', innerErr?.message || innerErr);
         }
@@ -284,9 +375,9 @@ export default function Documents() {
       toast({ title: 'Download started', description: 'Opening the document...' });
       return;
     } catch (err: any) {
-      console.error('Download failed, falling back to blob fetch', err);
+    console.error('Download failed, falling back to blob fetch', err);
 
-      // Fallback: fetch the resource and trigger download via blob in-page
+    // Fallback: fetch the resource and trigger download via blob in-page
       try {
         const fallbackUrl = targetUrl || doc.fileUrl;
         if (!fallbackUrl) throw new Error('No URL available to fetch for fallback');
@@ -312,63 +403,8 @@ export default function Documents() {
     }
   };
 
-  // Open the document for viewing (don't force download).
-  // Simplified flow:
-  // 1) If user selected a local file, open blob preview.
-  // 2) If the backend provides a same-origin stream endpoint, open it in a popup.
-  // 3) Otherwise request a signed URL and open it in a new tab.
-  // This avoids aggressive fallbacks and removes unreliable viewer heuristics.
-  const handleView = async (docOrParams: any) => {
-    const id = docOrParams?.id;
-    const rawUrl = docOrParams?.fileUrl ?? null;
+  
 
-    try {
-      // 1) local preview (selected file)
-      if (localPreviewUrl) {
-        window.open(localPreviewUrl, '_blank');
-        return;
-      }
-
-      // 2) Try server-side stream proxy first (same-origin). Backend must implement this.
-      if (id && orgId) {
-        const proxyUrl = `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/${id}/stream`;
-        const popup = (() => { try { return window.open('', '_blank'); } catch (e) { return null; } })();
-        if (popup) {
-          try {
-            popup.location.href = proxyUrl;
-            try { popup.focus(); } catch (e) { /* ignore */ }
-            return;
-          } catch (e) {
-            try { popup.close(); } catch (ignore) { }
-          }
-        }
-      }
-
-      // 3) Fall back to signed/raw URL open
-      const targetCandidate = rawUrl || null;
-      let targetUrl = targetCandidate;
-      if (id && orgId && !targetUrl) {
-        try {
-          const resp = await axios.get(
-            `${API_CONFIG.BASE_URL}/api/organizations/${orgId}/documents/${id}/download-url`,
-            { params: { durationSeconds: 60 }, timeout: 10000, withCredentials: true }
-          );
-          targetUrl = typeof resp.data === 'string' ? resp.data : resp.data?.url || resp.data;
-        } catch (err) {
-          console.warn('Failed to fetch signed URL for view', err?.message || err);
-        }
-      }
-
-      if (!targetUrl) {
-        throw new Error('No preview available. Please contact the administrator.');
-      }
-
-      window.open(targetUrl, '_blank');
-    } catch (err: any) {
-      console.error('View failed', err);
-      toast({ title: 'Preview Failed', description: err?.message || 'Unable to open document preview', variant: 'destructive' });
-    }
-  };
 
   const getExpiryStatus = (expiryDate: string) => {
     if (!expiryDate) return { label: "No Expiry", color: "bg-muted text-muted-foreground" };
@@ -382,6 +418,7 @@ export default function Documents() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Debug panel removed */}
       {/* Header, Stats, Search, Document Cards */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -518,15 +555,6 @@ export default function Documents() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="flex-1 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-600"
-                      onClick={() => handleView(doc)}
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      View
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
                       className="flex-1 hover:bg-green-50 hover:text-green-600 hover:border-green-600"
                       onClick={() => handleDownload(doc)}
                     >
@@ -638,35 +666,72 @@ export default function Documents() {
                     </div>
                     <div className="space-y-2 md:col-span-2">
                       <Label className="text-xs uppercase text-muted-foreground">Upload File (PDF/Image/Any) *</Label>
-                      <Input type="file" accept=".pdf,image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt" onChange={handleFileChange} required={!editId} />
-                      {(localPreviewUrl || form.fileUrl) && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            // If user selected a new local file, open the blob URL for quick preview
-                            if (localPreviewUrl) {
-                              try { window.open(localPreviewUrl, '_blank'); return; } catch (e) { /* fallback */ }
-                            }
+                      <input
+                        ref={(el) => { fileInputRef.current = el; }}
+                        type="file"
+                        accept=".pdf,image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt"
+                        onChange={handleFileChange}
+                        required={!editId}
+                        className="hidden"
+                      />
 
-                            // Prefer signed preview from upload response if available
-                            if (previewUrl) {
-                              try { window.open(previewUrl, '_blank'); return; } catch (e) { /* fallback */ }
-                            }
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click(); }}
+                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer!.dropEffect = 'copy'; }}
+                        onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer?.files?.[0] || null; handleFileSelect(f); }}
+                        role="button"
+                        tabIndex={0}
+                        className="mt-2 rounded-md border-2 border-dashed border-border px-4 py-6 flex items-center justify-center cursor-pointer hover:border-primary transition text-sm bg-background"
+                      >
+                        <div className="flex items-center gap-3">
+                          <UploadCloud className="h-5 w-5 text-primary" />
+                          <div className="text-left">
+                            <div className="font-medium">Click or drag a file to upload</div>
+                            <div className="text-xs text-muted-foreground">PDF, image, doc, spreadsheet, or ZIP (max 10MB)</div>
+                          </div>
+                        </div>
+                      </div>
 
-                            // If we have an editId (editing existing doc) or a fileUrl, reuse handleView logic
-                            if (editId) { await handleView({ id: editId, fileUrl: form.fileUrl }); return; }
-                            if (form.fileUrl) { await handleView({ fileUrl: form.fileUrl }); return; }
+                      {/* Show selected local file info or existing uploaded file with replace/remove actions */}
+                      {form.file ? (
+                        <div className="flex items-center justify-between mt-2 text-sm">
+                          <div className="min-w-0 break-words">
+                            <div className="font-medium">{form.file.name}</div>
+                            <div className="text-xs text-muted-foreground">{formatBytes(form.file.size)}</div>
+                          </div>
+                          <div className="flex items-center gap-2 ml-4">
+                            <button
+                              type="button"
+                              className="text-xs text-destructive underline"
+                              onClick={() => {
+                                // remove selected local file
+                                if (localPreviewUrl) { try { URL.revokeObjectURL(localPreviewUrl); } catch (e) { /* ignore */ } }
+                                setLocalPreviewUrl(null);
+                                setForm(f => ({ ...f, file: null }));
+                                if (fileInputRef.current) fileInputRef.current.value = '';
+                              }}
+                            >Remove</button>
+                          </div>
+                        </div>
+                      ) : form.fileUrl ? (
+                        <div className="flex items-center justify-between mt-2 text-sm">
+                          <div className="min-w-0 break-words">
+                            <div className="font-medium">{decodeURIComponent(String(form.fileUrl).split('/').pop() || '')}</div>
+                            <div className="text-xs text-muted-foreground">Existing uploaded file</div>
+                          </div>
+                          <div className="flex items-center gap-2 ml-4">
+                            <button
+                              type="button"
+                              className="text-xs text-primary underline"
+                              onClick={() => { try { fileInputRef.current?.click(); } catch (e) { /* ignore */ } }}
+                            >Replace</button>
+                          </div>
+                        </div>
+                      ) : null}
 
-                            toast({ title: 'No file', description: 'No uploaded file available to preview', variant: 'destructive' });
-                          }}
-                          className="text-xs text-primary underline flex items-center gap-1"
-                        >
-                          <Eye className="h-3 w-3" />
-                          Preview file
-                        </button>
-                      )}
                       {uploading && (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
                           <Loader2 className="h-3 w-3 animate-spin" />
                           Uploading...
                         </div>
