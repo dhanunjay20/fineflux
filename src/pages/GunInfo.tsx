@@ -107,14 +107,16 @@ const GunInfo = () => {
 
   // ---- Computeds for gun name and serial number validation ----
   const usedGunNamesAdd = useMemo(
-    () =>
-      guns
-        .filter((g) => g.productName === addForm.productName)
-        .map((g) => g.guns),
+    () => {
+      const prod = String(addForm.productName || "").trim().toLowerCase();
+      return guns
+        .filter((g) => String(g.productName || "").trim().toLowerCase() === prod)
+        .map((g) => String(g.guns || "").trim().toLowerCase());
+    },
     [guns, addForm.productName]
   );
   const availableGunNamesAdd = useMemo(
-    () => ALL_GUN_OPTIONS.filter((g) => !usedGunNamesAdd.includes(g)),
+    () => ALL_GUN_OPTIONS.filter((g) => !usedGunNamesAdd.includes(String(g).trim().toLowerCase())),
     [usedGunNamesAdd]
   );
   const visibleGunOptionsAdd = useMemo(
@@ -122,10 +124,12 @@ const GunInfo = () => {
     [availableGunNamesAdd, gunDropdownLimit]
   );
   const usedSerialsAdd = useMemo(
-    () =>
-      guns
-        .filter((g) => g.productName === addForm.productName)
-        .map((g) => g.serialNumber),
+    () => {
+      const prod = String(addForm.productName || "").trim().toLowerCase();
+      return guns
+        .filter((g) => String(g.productName || "").trim().toLowerCase() === prod)
+        .map((g) => String(g.serialNumber || "").trim().toLowerCase());
+    },
     [guns, addForm.productName]
   );
 
@@ -134,10 +138,10 @@ const GunInfo = () => {
       guns
         .filter(
           (g) =>
-            g.productName === editForm.productName &&
-            (g.id || g._id) !== editId
+            String(g.productName || "").trim().toLowerCase() === String(editForm.productName || "").trim().toLowerCase() &&
+            String(g.id || g._id) !== editId
         )
-        .map((g) => g.guns),
+        .map((g) => String(g.guns || "").trim().toLowerCase()),
     [guns, editForm.productName, editId]
   );
   const availableGunNamesEdit = useMemo(
@@ -153,10 +157,10 @@ const GunInfo = () => {
       guns
         .filter(
           (g) =>
-            g.productName === editForm.productName &&
-            (g.id || g._id) !== editId
+            String(g.productName || "").trim().toLowerCase() === String(editForm.productName || "").trim().toLowerCase() &&
+            String(g.id || g._id) !== editId
         )
-        .map((g) => g.serialNumber),
+        .map((g) => String(g.serialNumber || "").trim().toLowerCase()),
     [guns, editForm.productName, editId]
   );
 
@@ -221,14 +225,28 @@ const GunInfo = () => {
       toast({ title: "Validation Error", description: "All fields are required!", variant: "destructive" });
       return;
     }
-    // Gun name per product
-    if (usedGunNamesAdd.includes(addForm.guns)) {
-      toast({ title: "Validation Error", description: "Gun already exists for this product!", variant: "destructive" });
+    // Normalize values for robust comparison
+    const newProd = String(addForm.productName || "").trim().toLowerCase();
+    const newGun = String(addForm.guns || "").trim().toLowerCase();
+    const newSerial = String(addForm.serialNumber || "").trim().toLowerCase();
+
+    // Gun name per product (prevent duplicate gun-product links)
+    if (usedGunNamesAdd.includes(newGun)) {
+      toast({ title: "Validation Error", description: "Gun already linked to this product!", variant: "destructive" });
       return;
     }
     // Serial per product
-    if (usedSerialsAdd.includes(addForm.serialNumber)) {
+    if (usedSerialsAdd.includes(newSerial)) {
       toast({ title: "Validation Error", description: "Serial number already exists for this product!", variant: "destructive" });
+      return;
+    }
+    // Additionally, ensure the gun isn't already linked to the same product elsewhere (defensive)
+    const exists = guns.some((g: any) =>
+      String(g.productName || "").trim().toLowerCase() === newProd &&
+      String(g.guns || "").trim().toLowerCase() === newGun
+    );
+    if (exists) {
+      toast({ title: "Validation Error", description: "This gun is already assigned to the selected product.", variant: "destructive" });
       return;
     }
     createMutation.mutate(addForm);
@@ -240,12 +258,27 @@ const GunInfo = () => {
       toast({ title: "Validation Error", description: "All fields are required!", variant: "destructive" });
       return;
     }
-    if (usedGunNamesEdit.includes(editForm.guns)) {
-      toast({ title: "Validation Error", description: "Gun already exists for this product!", variant: "destructive" });
+    const editProd = String(editForm.productName || "").trim().toLowerCase();
+    const editGun = String(editForm.guns || "").trim().toLowerCase();
+    const editSerial = String(editForm.serialNumber || "").trim().toLowerCase();
+
+    if (usedGunNamesEdit.includes(editGun)) {
+      toast({ title: "Validation Error", description: "Gun already linked to this product!", variant: "destructive" });
       return;
     }
-    if (usedSerialsEdit.includes(editForm.serialNumber)) {
+    if (usedSerialsEdit.includes(editSerial)) {
       toast({ title: "Validation Error", description: "Serial number already exists for this product!", variant: "destructive" });
+      return;
+    }
+    // Defensive check: ensure no other record (excluding current) has same product+gun
+    const conflict = guns.some((g: any) => {
+      const gid = String(g.id || g._id || "");
+      return gid !== String(editId || "") &&
+        String(g.productName || "").trim().toLowerCase() === editProd &&
+        String(g.guns || "").trim().toLowerCase() === editGun;
+    });
+    if (conflict) {
+      toast({ title: "Validation Error", description: "Another record already links this gun to the selected product.", variant: "destructive" });
       return;
     }
     if (editId) updateMutation.mutate({ ...editForm, id: editId });
@@ -265,9 +298,9 @@ const GunInfo = () => {
       productName: gun.productName || "",
       guns: gun.guns,
       serialNumber: gun.serialNumber,
-      currentReading: gun.currentReading,
+      currentReading: String(gun.currentReading ?? ""),
     });
-    setEditId(gun.id || gun._id);
+    setEditId(String(gun.id || gun._id));
     setEditModalOpen(true);
   };
 
@@ -670,7 +703,7 @@ const GunInfo = () => {
                       const productColor = getProductColor(gun.productName);
                       return (
                         <div
-                          key={gun.id || gun._id}
+                          key={String(gun.id || gun._id)}
                           className="group p-5 rounded-xl bg-gradient-to-br from-muted/30 to-muted/10 hover:from-muted/50 hover:to-muted/30 transition-all duration-300 border border-border hover:border-primary/50 hover:shadow-lg"
                         >
                           <div className="flex items-center justify-between gap-4">

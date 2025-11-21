@@ -96,6 +96,7 @@ export default function Documents() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<"general" | "gst" | "fuel">("general");
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -107,7 +108,8 @@ export default function Documents() {
     responsibleParty: "",
     notes: "",
     file: null as File | null,
-    fileUrl: ""
+    fileUrl: "",
+    category: "general" as "general" | "gst" | "fuel"
   });
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
@@ -192,14 +194,36 @@ export default function Documents() {
   }, [documents]);
 
   const filteredDocs = useMemo(() => {
-    if (!searchQuery.trim()) return documents;
+    // First filter by category
+    let categoryFiltered = documents;
+    if (activeTab === "gst") {
+      categoryFiltered = documents.filter((doc: any) => 
+        doc.documentType?.toLowerCase().includes("gst") ||
+        doc.documentType?.toLowerCase().includes("tax") ||
+        doc.category === "gst"
+      );
+    } else if (activeTab === "fuel") {
+      categoryFiltered = documents.filter((doc: any) => 
+        doc.documentType?.toLowerCase().includes("fuel") ||
+        doc.documentType?.toLowerCase().includes("invoice") ||
+        doc.documentType?.toLowerCase().includes("purchase") ||
+        doc.category === "fuel"
+      );
+    } else {
+      categoryFiltered = documents.filter((doc: any) => 
+        doc.category !== "gst" && doc.category !== "fuel"
+      );
+    }
+
+    // Then apply search filter
+    if (!searchQuery.trim()) return categoryFiltered;
     const q = searchQuery.toLowerCase();
-    return documents.filter((doc: any) =>
+    return categoryFiltered.filter((doc: any) =>
       doc.documentType?.toLowerCase().includes(q) ||
       doc.issuingAuthority?.toLowerCase().includes(q) ||
       doc.responsibleParty?.toLowerCase().includes(q)
     );
-  }, [documents, searchQuery]);
+  }, [documents, searchQuery, activeTab]);
 
   const fetchDocs = async () => {
     if (!orgId) {
@@ -285,6 +309,7 @@ export default function Documents() {
         responsibleParty: form.responsibleParty,
         fileUrl: finalFileUrl,
         notes: form.notes,
+        category: form.category || "general",
       };
 
       if (editId) {
@@ -296,7 +321,7 @@ export default function Documents() {
       }
       setOpen(false);
       setEditId(null);
-      setForm({ documentType: '', issuingAuthority: '', issuedDate: '', expiryDate: '', renewalPeriodDays: '', responsibleParty: '', notes: '', file: null, fileUrl: '' });
+      setForm({ documentType: '', issuingAuthority: '', issuedDate: '', expiryDate: '', renewalPeriodDays: '', responsibleParty: '', notes: '', file: null, fileUrl: '', category: 'general' });
       setPreviewUrl(null);
       if (localPreviewUrl) { URL.revokeObjectURL(localPreviewUrl); setLocalPreviewUrl(null); }
       fetchDocs();
@@ -318,7 +343,8 @@ export default function Documents() {
       responsibleParty: doc.responsibleParty || "",
       notes: doc.notes || "",
       file: null,
-      fileUrl: doc.fileUrl || ""
+      fileUrl: doc.fileUrl || "",
+      category: doc.category || "general"
     });
     setPreviewUrl(null);
     setLocalPreviewUrl(null);
@@ -428,6 +454,34 @@ export default function Documents() {
         <Button className="btn-gradient-primary" onClick={() => { setOpen(true); setEditId(null); }} disabled={!orgId}>
           <UploadCloud className="mr-2 h-4 w-4" />
           Upload Document
+        </Button>
+      </div>
+
+      {/* Category Tabs */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant={activeTab === "general" ? "default" : "outline"}
+          onClick={() => setActiveTab("general")}
+          className={activeTab === "general" ? "btn-gradient-primary" : ""}
+        >
+          <FileText className="mr-2 h-4 w-4" />
+          General Documents
+        </Button>
+        <Button
+          variant={activeTab === "gst" ? "default" : "outline"}
+          onClick={() => setActiveTab("gst")}
+          className={activeTab === "gst" ? "btn-gradient-primary" : ""}
+        >
+          <FileCheck className="mr-2 h-4 w-4" />
+          GST Certificates
+        </Button>
+        <Button
+          variant={activeTab === "fuel" ? "default" : "outline"}
+          onClick={() => setActiveTab("fuel")}
+          className={activeTab === "fuel" ? "btn-gradient-primary" : ""}
+        >
+          <File className="mr-2 h-4 w-4" />
+          Fuel Purchase Invoices
         </Button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -617,12 +671,24 @@ export default function Documents() {
             {/*Add Edit  Modal content */}
             <div className="flex-1 overflow-y-auto px-6 py-4">
               <form id="document-form" onSubmit={handleSubmit}>
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs uppercase text-muted-foreground">Document Type *</Label>
-                      <Input value={form.documentType} onChange={e => setForm(f => ({ ...f, documentType: e.target.value }))} required />
-                    </div>
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-xs uppercase text-muted-foreground">Document Type *</Label>
+                        <Input value={form.documentType} onChange={e => setForm(f => ({ ...f, documentType: e.target.value }))} required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs uppercase text-muted-foreground">Category</Label>
+                        <select
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          value={(form as any).category || "general"}
+                          onChange={e => setForm(f => ({ ...f, category: e.target.value } as any))}
+                        >
+                          <option value="general">General Document</option>
+                          <option value="gst">GST Certificate</option>
+                          <option value="fuel">Fuel Purchase Invoice</option>
+                        </select>
+                      </div>
                     <div className="space-y-2">
                       <Label className="text-xs uppercase text-muted-foreground">Issuing Authority *</Label>
                       <Input value={form.issuingAuthority} onChange={e => setForm(f => ({ ...f, issuingAuthority: e.target.value }))} required />

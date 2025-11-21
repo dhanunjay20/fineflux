@@ -28,6 +28,7 @@ import Products from "./pages/Products";
 import GunInfo from "./pages/GunInfo";
 import SalesHistory from "./pages/SalesHistory";
 import Documents from "./pages/Documents";
+import BankDeposits from "./pages/BankDeposits";
 import { ResetPasswordPage } from "./contexts/ResetPasswordPage";
 import EmployeeDutyInfo from "./pages/EmployeeDutyInfo";
 import EmployeeTaskHistory from "./pages/EmployeeTaskHistory";
@@ -122,6 +123,16 @@ const App: React.FC = () => {
                   <ProtectedRoute requiredRoles={["owner", "manager"]}>
                     <DashboardLayout>
                       <Documents />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/bank-deposits"
+                element={
+                  <ProtectedRoute requiredRoles={["owner", "manager"]}>
+                    <DashboardLayout>
+                      <BankDeposits />
                     </DashboardLayout>
                   </ProtectedRoute>
                 }

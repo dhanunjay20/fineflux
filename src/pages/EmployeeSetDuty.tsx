@@ -66,6 +66,14 @@ function formatTime(time?: string) {
   return time || "";
 }
 
+// Returns initials from a full name string
+function getUserInitials(name: string): string {
+  if (!name) return "";
+  const parts = name.trim().split(" ");
+  if (parts.length === 1) return parts[0][0]?.toUpperCase() || "";
+  return (parts[0][0] || "") + (parts[parts.length - 1][0] || "");
+}
+
 // Get current date
 const getToday = () => dayjs().format("YYYY-MM-DD");
 
@@ -218,6 +226,9 @@ export default function EmployeeSetDuty() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [productGuns, setProductGuns] = useState<Record<string, string[]>>({});
   const [validationErr, setValidationErr] = useState<string | null>(null);
+
+  // Helper to normalize values for tolerant matching
+  const normalize = (v: any) => String(v ?? "").trim().toLowerCase();
 
   // Edit duty state
   const [editDutyOpen, setEditDutyOpen] = useState(false);
@@ -440,6 +451,86 @@ export default function EmployeeSetDuty() {
     setValidationErr(null);
   }
 
+  const toggleProductSelection = (productName: string) => {
+    const isSelected = selectedProducts.includes(productName);
+    if (isSelected) {
+      // deselect product and remove its guns
+      setSelectedProducts((s) => s.filter((p) => p !== productName));
+      setProductGuns((pg) => {
+        const next = { ...pg };
+        delete next[productName];
+        return next;
+      });
+      return;
+    }
+
+    // select: compute guns for this product using tolerant matching
+    const prodObj = products.find((p: any) =>
+      normalize(p.productName) === normalize(productName) ||
+      normalize(p.id) === normalize(productName) ||
+      normalize(p._id) === normalize(productName)
+    );
+
+    const productGunList = guns
+      .filter((gun: any) => {
+        const gProdName = normalize(gun.productName || gun.product || gun.productId);
+        const gProdId = normalize(gun.productId || gun.product || gun.productName || gun.id || gun._id);
+        const selName = normalize(productName);
+        if (gProdName === selName) return true;
+        if (prodObj && (gProdId === normalize(prodObj.id) || gProdId === normalize(prodObj._id) || gProdId === normalize(prodObj.productName))) return true;
+        return false;
+      })
+      .map((gun: any) => gun.guns || gun.name || String(gun.id || gun._id || gun.serialNumber || ""));
+
+    if (productGunList.length === 0) {
+      // still add product (empty gun list) so UI shows selection
+      setSelectedProducts((s) => [...s, productName]);
+      setProductGuns((pg) => ({ ...pg, [productName]: [] }));
+      return;
+    }
+
+    // add product with no guns selected by default
+    setSelectedProducts((s) => [...s, productName]);
+    setProductGuns((pg) => ({ ...pg, [productName]: [] }));
+  };
+
+  const toggleGunSelection = (productName: string, gunLabel: string) => {
+    setProductGuns((pg) => {
+      const list = pg[productName] || [];
+      const isSel = list.includes(gunLabel);
+      const next = { ...pg };
+      if (isSel) {
+        next[productName] = list.filter((g) => g !== gunLabel);
+      } else {
+        next[productName] = [...list, gunLabel];
+      }
+      return next;
+    });
+  };
+
+  // Flattened list of guns available for currently selected products
+  const filteredGuns = useMemo(() => {
+    const labels = selectedProducts.flatMap((productName) => {
+      const prodObj = products.find((p: any) =>
+        normalize(p.productName) === normalize(productName) ||
+        normalize(p.id) === normalize(productName) ||
+        normalize(p._id) === normalize(productName)
+      );
+
+      return guns
+        .filter((gun: any) => {
+          const gProdName = normalize(gun.productName || gun.product || gun.productId);
+          const gProdId = normalize(gun.productId || gun.product || gun.productName || gun.id || gun._id);
+          const selName = normalize(productName);
+          if (gProdName === selName) return true;
+          if (prodObj && (gProdId === normalize(prodObj.id) || gProdId === normalize(prodObj._id) || gProdId === normalize(prodObj.productName))) return true;
+          return false;
+        })
+        .map((gun: any) => gun.guns || gun.name || String(gun.id || gun._id || gun.serialNumber || ""));
+    });
+    return Array.from(new Set(labels));
+  }, [selectedProducts, guns, products]);
+
   function openDeleteDutyDialog(duty: DailyDuty) {
     setDeletingDuty(duty);
     setDeleteDutyOpen(true);
@@ -581,57 +672,6 @@ export default function EmployeeSetDuty() {
       status: dailyDutyForm.status || "SCHEDULED"
     });
   }
-
-  const toggleProductSelection = (productName: string) => {
-    setSelectedProducts(prev => {
-      if (prev.includes(productName)) {
-        // When deselecting a product, remove its guns
-        setProductGuns(prevGuns => {
-          const newGuns = { ...prevGuns };
-          delete newGuns[productName];
-          return newGuns;
-        });
-        
-        return prev.filter(p => p !== productName);
-      }
-      // When selecting a product, initialize empty gun array for it
-      setProductGuns(prevGuns => ({
-        ...prevGuns,
-        [productName]: []
-      }));
-      return [...prev, productName];
-    });
-  };
-
-  const toggleGunSelection = (productName: string, gunName: string) => {
-    setProductGuns(prev => {
-      const currentGuns = prev[productName] || [];
-      const newGuns = currentGuns.includes(gunName)
-        ? currentGuns.filter(g => g !== gunName)
-        : [...currentGuns, gunName];
-      
-      return {
-        ...prev,
-        [productName]: newGuns
-      };
-    });
-  };
-
-  const getUserInitials = (name: string) =>
-    name.split(" ").map((n) => n[0]).join("").toUpperCase();
-
-  const filteredGuns = guns.filter((gun: any) =>
-    selectedProducts.includes(gun.productName)
-  );
-
-  function closeModal(event: React.MouseEvent<HTMLDivElement>): void {
-    if (event.currentTarget === event.target) {
-      setSpecialDutyOpen(false);
-      setDailyDutyOpen(false);
-      setValidationErr(null);
-    }
-  }
-
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -899,7 +939,7 @@ export default function EmployeeSetDuty() {
         <div
           className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-300"
           style={{ margin: 0, padding: '1rem', minHeight: '100vh', minWidth: '100vw' }}
-          onClick={closeModal}
+          onClick={() => setSpecialDutyOpen(false)}
         >
           <div
             className="relative bg-background shadow-2xl rounded-2xl w-full max-w-lg"
@@ -1159,7 +1199,20 @@ export default function EmployeeSetDuty() {
                       </div>
                     ) : (
                       selectedProducts.map(productName => {
-                        const productGunList = guns.filter((gun: any) => gun.productName === productName);
+                        const prodObj = products.find((p: any) =>
+                          normalize(p.productName) === normalize(productName) ||
+                          normalize(p.id) === normalize(productName) ||
+                          normalize(p._id) === normalize(productName)
+                        );
+
+                        const productGunList = guns.filter((gun: any) => {
+                          const gProdName = normalize(gun.productName || gun.product || gun.productId);
+                          const gProdId = normalize(gun.productId || gun.product || gun.productName || gun.id || gun._id);
+                          const selName = normalize(productName);
+                          if (gProdName === selName) return true;
+                          if (prodObj && (gProdId === normalize(prodObj.id) || gProdId === normalize(prodObj._id) || gProdId === normalize(prodObj.productName))) return true;
+                          return false;
+                        });
                         
                         if (productGunList.length === 0) return null;
                         
@@ -1175,11 +1228,12 @@ export default function EmployeeSetDuty() {
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               {productGunList.map((gun: any) => {
-                                const isSelected = productGuns[productName]?.includes(gun.guns);
+                                const gunLabel = gun.guns || gun.name || String(gun.id || gun._id || gun.serialNumber || '');
+                                const isSelected = productGuns[productName]?.includes(gunLabel);
                                 return (
                                   <div
-                                    key={gun.guns}
-                                    onClick={() => toggleGunSelection(productName, gun.guns)}
+                                    key={gunLabel}
+                                    onClick={() => toggleGunSelection(productName, gunLabel)}
                                     className={`
                                       relative p-4 rounded-lg border-2 cursor-pointer transition-all duration-200
                                       ${isSelected
@@ -1195,7 +1249,7 @@ export default function EmployeeSetDuty() {
                                         {isSelected && <CheckCircle2 className="h-3 w-3 text-white" />}
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <p className="font-medium truncate">{gun.guns}</p>
+                                        <p className="font-medium truncate">{gunLabel}</p>
                                         <p className="text-xs text-muted-foreground truncate">
                                           {gun.serialNumber || 'N/A'}
                                         </p>
@@ -1427,9 +1481,22 @@ export default function EmployeeSetDuty() {
                       </div>
                     ) : (
                       selectedProducts.map(productName => {
-                        const productGunList = guns.filter((gun: any) => gun.productName === productName);
+                        const prodObj = products.find((p: any) =>
+                          normalize(p.productName) === normalize(productName) ||
+                          normalize(p.id) === normalize(productName) ||
+                          normalize(p._id) === normalize(productName)
+                        );
+
+                        const productGunList = guns.filter((gun: any) => {
+                          const gProdName = normalize(gun.productName || gun.product || gun.productId);
+                          const gProdId = normalize(gun.productId || gun.product || gun.productName || gun.id || gun._id);
+                          const selName = normalize(productName);
+                          if (gProdName === selName) return true;
+                          if (prodObj && (gProdId === normalize(prodObj.id) || gProdId === normalize(prodObj._id) || gProdId === normalize(prodObj.productName))) return true;
+                          return false;
+                        });
                         if (productGunList.length === 0) return null;
-                        
+
                         return (
                           <div key={productName} className="space-y-2">
                             <div className="flex items-center justify-between px-2">
@@ -1440,11 +1507,12 @@ export default function EmployeeSetDuty() {
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               {productGunList.map((gun: any) => {
-                                const isSelected = productGuns[productName]?.includes(gun.guns);
+                                const gunLabel = gun.guns || gun.name || String(gun.id || gun._id || gun.serialNumber || '');
+                                const isSelected = productGuns[productName]?.includes(gunLabel);
                                 return (
                                   <div
-                                    key={gun.guns}
-                                    onClick={() => toggleGunSelection(productName, gun.guns)}
+                                    key={gunLabel}
+                                    onClick={() => toggleGunSelection(productName, gunLabel)}
                                     className={`relative p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${isSelected ? 'border-primary bg-primary/5 shadow-md' : 'border-border hover:border-primary/50 hover:bg-muted/50'}`}
                                   >
                                     <div className="flex items-start gap-3">
@@ -1452,7 +1520,7 @@ export default function EmployeeSetDuty() {
                                         {isSelected && <CheckCircle2 className="h-3 w-3 text-white" />}
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <p className="font-medium truncate">{gun.guns}</p>
+                                        <p className="font-medium truncate">{gunLabel}</p>
                                         <p className="text-xs text-muted-foreground truncate">{gun.serialNumber || 'N/A'}</p>
                                       </div>
                                     </div>

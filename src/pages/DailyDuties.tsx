@@ -83,13 +83,24 @@ export default function DailyDuties() {
 
   // Get product name by ID
   const getProductName = (productId: string) => {
-    const product = products.find(p => p.id === productId);
+    const pid = String(productId || "").trim();
+    const product = products.find(p => {
+      const id = String(p.id || p._id || "").trim();
+      const name = String(p.productName || p.name || "").trim();
+      return id === pid || name === pid;
+    });
     return product?.productName || productId;
   };
 
   // Get gun name by ID
   const getGunName = (gunId: string) => {
-    const gun = guns.find(g => g.id === gunId);
+    const gid = String(gunId || "").trim();
+    const gun = guns.find(g => {
+      const id = String(g.id || g._id || "").trim();
+      const name = String(g.guns || g.name || "").trim();
+      const serial = String(g.serialNumber || "").trim();
+      return id === gid || name === gid || serial === gid;
+    });
     return gun?.guns || gunId;
   };
 
@@ -489,4 +500,3 @@ export default function DailyDuties() {
     </div>
   );
 }
-

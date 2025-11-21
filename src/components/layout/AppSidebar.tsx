@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, NavLink, matchPath } from 'react-router-dom';
-import { BarChart3, Users, Fuel, DollarSign, UserCheck, Settings, LogOut, Home, CreditCard, FileText, ClipboardList, Archive, Wrench, Sparkles } from 'lucide-react';
+import { BarChart3, Users, Fuel, DollarSign, UserCheck, Settings, LogOut, Home, CreditCard, FileText, ClipboardList, Archive, Wrench, Sparkles, Banknote } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -30,6 +30,7 @@ const navigationItems: {
   { title: 'Products', icon: Archive, href: '/products', roles: ['owner', 'manager'] },
   { title: 'Borrowers', icon: CreditCard, href: '/borrowers', roles: ['owner', 'manager'] },
   { title: 'Documents', icon: FileText, href: '/documents', roles: ['owner', 'manager'] },
+  { title: 'Bank Deposits', icon: Banknote, href: '/bank-deposits', roles: ['owner', 'manager'] },
   { title: 'Gun Info', icon: Wrench, href: '/guninfo', roles: ['owner', 'manager'] },
   { title: 'Expenses', icon: DollarSign, href: '/expenses', roles: ['owner', 'manager'] },
   { title: 'Reports', icon: FileText, href: '/reports', roles: ['owner', 'manager'] },
